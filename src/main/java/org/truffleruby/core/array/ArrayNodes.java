@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2013, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -50,6 +50,7 @@ import org.truffleruby.core.array.library.NativeArrayStorage;
 import org.truffleruby.core.array.library.SharedArrayStorage;
 import org.truffleruby.core.cast.BooleanCastNode;
 import org.truffleruby.core.cast.CmpIntNode;
+import org.truffleruby.core.cast.NameToJavaStringNode;
 import org.truffleruby.core.cast.ToAryNode;
 import org.truffleruby.core.cast.ToIntNode;
 import org.truffleruby.core.cast.ToLongNode;
@@ -57,6 +58,7 @@ import org.truffleruby.core.cast.ToStrNode;
 import org.truffleruby.core.encoding.RubyEncoding;
 import org.truffleruby.core.format.BytesResult;
 import org.truffleruby.core.format.FormatExceptionTranslator;
+import org.truffleruby.core.format.FormatRootNode;
 import org.truffleruby.core.format.exceptions.FormatException;
 import org.truffleruby.core.format.pack.PackCompiler;
 import org.truffleruby.core.hash.HashingNodes;
@@ -70,7 +72,6 @@ import org.truffleruby.core.range.RangeNodes.NormalizedStartLengthNode;
 import org.truffleruby.core.string.RubyString;
 import org.truffleruby.core.string.StringHelperNodes;
 import org.truffleruby.core.support.TypeNodes.CheckFrozenNode;
-import org.truffleruby.core.symbol.RubySymbol;
 import org.truffleruby.extra.ffi.Pointer;
 import org.truffleruby.interop.ToJavaStringNode;
 import org.truffleruby.language.Nil;
@@ -131,14 +132,14 @@ public abstract class ArrayNodes {
 
     @CoreMethod(names = "+", required = 1)
     @ImportStatic(ArrayGuards.class)
-    @ReportPolymorphism
+    @ReportPolymorphism // for ArrayStoreLibrary
     public abstract static class AddNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization(
                 limit = "storageStrategyLimit()")
         static RubyArray addGeneralize(RubyArray a, Object bObject,
                 @Cached ToAryNode toAryNode,
-                @Bind("this") Node node,
+                @Bind Node node,
                 @Bind("toAryNode.execute(node, bObject)") RubyArray b,
                 @Bind("a.getStore()") Object aStore,
                 @Bind("b.getStore()") Object bStore,
@@ -159,7 +160,7 @@ public abstract class ArrayNodes {
 
     @Primitive(name = "array_mul", lowerFixnum = 1)
     @ImportStatic(ArrayGuards.class)
-    @ReportPolymorphism
+    @ReportPolymorphism // for ArrayStoreLibrary
     public abstract static class MulNode extends PrimitiveArrayArgumentsNode {
 
         @Specialization(guards = "count < 0")
@@ -249,7 +250,7 @@ public abstract class ArrayNodes {
                 @Cached ToLongNode toLongNode,
                 @Cached FixnumLowerNode lowerNode,
                 @Cached AtNode atNode,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             return atNode.executeAt(array, lowerNode.execute(node, toLongNode.execute(node, index)));
         }
     }
@@ -346,7 +347,6 @@ public abstract class ArrayNodes {
         // array[index] = object
 
         @Specialization
-        @ReportPolymorphism.Exclude
         Object set(RubyArray array, int index, Object value, NotProvided unused,
                 @Cached ArrayWriteNormalizedNode writeNode,
                 @Cached @Shared ConditionProfile negativeDenormalizedIndex,
@@ -483,9 +483,10 @@ public abstract class ArrayNodes {
 
     @CoreMethod(names = "compact")
     @ImportStatic(ArrayGuards.class)
-    @ReportPolymorphism
+    @ReportPolymorphism // for ArrayStoreLibrary
     public abstract static class CompactNode extends ArrayCoreMethodNode {
 
+        @ReportPolymorphism.Exclude
         @Specialization(guards = "stores.isPrimitive(store)", limit = "storageStrategyLimit()")
         RubyArray compactPrimitive(RubyArray array,
                 @Bind("array.getStore()") Object store,
@@ -526,11 +527,11 @@ public abstract class ArrayNodes {
     }
 
     @CoreMethod(names = "compact!", raiseIfFrozenSelf = true)
-    @ReportPolymorphism
+    @ReportPolymorphism // for ArrayStoreLibrary
     public abstract static class CompactBangNode extends ArrayCoreMethodNode {
 
-        @Specialization(guards = "stores.isPrimitive(store)", limit = "storageStrategyLimit()")
         @ReportPolymorphism.Exclude
+        @Specialization(guards = "stores.isPrimitive(store)", limit = "storageStrategyLimit()")
         Object compactNotObjects(RubyArray array,
                 @Bind("array.getStore()") Object store,
                 @CachedLibrary("store") ArrayStoreLibrary stores) {
@@ -581,6 +582,7 @@ public abstract class ArrayNodes {
     }
 
     @CoreMethod(names = "concat", optional = 1, rest = true, raiseIfFrozenSelf = true)
+    @ReportPolymorphism // inline cache
     @ImportStatic(ArrayGuards.class)
     public abstract static class ConcatNode extends CoreMethodArrayArgumentsNode {
 
@@ -750,7 +752,7 @@ public abstract class ArrayNodes {
 
     @CoreMethod(names = "delete_at", required = 1, raiseIfFrozenSelf = true, lowerFixnum = 1)
     @ImportStatic(ArrayGuards.class)
-    @ReportPolymorphism
+    @ReportPolymorphism // for ArrayStoreLibrary
     public abstract static class DeleteAtNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization(limit = "storageStrategyLimit()")
@@ -762,7 +764,7 @@ public abstract class ArrayNodes {
                 @Cached InlinedConditionProfile negativeIndexProfile,
                 @Cached InlinedConditionProfile notInBoundsProfile,
                 @Cached InlinedConditionProfile isMutableProfile,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             final int size = arraySizeProfile.profile(node, array.size);
             final int index = toIntNode.execute(indexObject);
             int i = index;
@@ -830,7 +832,16 @@ public abstract class ArrayNodes {
 
     }
 
-    @Primitive(name = "array_equal")
+    @CoreMethod(names = "empty?")
+    public abstract static class EmptyNode extends CoreMethodArrayArgumentsNode {
+
+        @Specialization
+        boolean isEmpty(RubyArray array) {
+            return array.size == 0;
+        }
+    }
+
+    @Primitive(name = "array_equal?")
     @ImportStatic(ArrayGuards.class)
     public abstract static class EqualNode extends PrimitiveArrayArgumentsNode {
 
@@ -848,7 +859,7 @@ public abstract class ArrayNodes {
                 @Cached InlinedBranchProfile falseProfile,
                 @Cached InlinedLoopConditionProfile loopProfile,
                 @Cached SameOrEqualNode sameOrEqualNode,
-                @Bind("this") Node node) {
+                @Bind Node node) {
 
             if (sameProfile.profile(node, a == b)) {
                 return true;
@@ -903,7 +914,7 @@ public abstract class ArrayNodes {
 
     }
 
-    @Primitive(name = "array_eql")
+    @Primitive(name = "array_eql?")
     @ImportStatic(ArrayGuards.class)
     public abstract static class EqlNode extends PrimitiveArrayArgumentsNode {
 
@@ -921,7 +932,7 @@ public abstract class ArrayNodes {
                 @Cached InlinedBranchProfile trueProfile,
                 @Cached InlinedBranchProfile falseProfile,
                 @Cached InlinedLoopConditionProfile loopProfile,
-                @Bind("$node") Node node) {
+                @Bind Node node) {
 
             if (sameProfile.profile(node, a == b)) {
                 return true;
@@ -1037,7 +1048,7 @@ public abstract class ArrayNodes {
                 @Cached HashingNodes.ToHashByHashCode toHashByHashCode,
                 @Cached @Exclusive InlinedIntValueProfile arraySizeProfile,
                 @Cached @Exclusive InlinedLoopConditionProfile loopProfile,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             final int size = arraySizeProfile.profile(node, array.size);
             long h = getContext(node).getHashing(node).start(size);
             h = Hashing.update(h, CLASS_SALT);
@@ -1059,7 +1070,7 @@ public abstract class ArrayNodes {
     }
 
     @CoreMethod(names = "include?", required = 1)
-    @ReportPolymorphism
+    @ReportPolymorphism // for ArrayStoreLibrary
     public abstract static class IncludeNode extends ArrayCoreMethodNode {
 
         @Specialization(limit = "storageStrategyLimit()")
@@ -1069,7 +1080,7 @@ public abstract class ArrayNodes {
                 @Cached SameOrEqualNode sameOrEqualNode,
                 @Cached InlinedIntValueProfile arraySizeProfile,
                 @Cached InlinedLoopConditionProfile loopProfile,
-                @Bind("this") Node node) {
+                @Bind Node node) {
 
             int n = 0;
             try {
@@ -1155,7 +1166,7 @@ public abstract class ArrayNodes {
         @Specialization(guards = "size >= 0")
         RubyArray initializeWithSizeNoValue(RubyArray array, int size, NotProvided fillingValue, Nil block,
                 @Cached @Shared IsSharedNode isSharedNode,
-                @CachedLibrary(limit = "2") @Exclusive ArrayStoreLibrary stores) {
+                @CachedLibrary(limit = "storageStrategyLimit()") @Exclusive ArrayStoreLibrary stores) {
             final Object store;
             if (isSharedNode.execute(this, array)) {
                 store = new SharedArrayStorage(new Object[size]);
@@ -1205,12 +1216,12 @@ public abstract class ArrayNodes {
         @Specialization(guards = "size >= 0")
         static Object initializeBlock(RubyArray array, int size, Object unusedFillingValue, RubyProc block,
                 @Cached ArrayBuilderNode arrayBuilder,
-                @CachedLibrary(limit = "2") @Exclusive ArrayStoreLibrary stores,
+                @CachedLibrary(limit = "storageStrategyLimit()") @Exclusive ArrayStoreLibrary stores,
                 // @Exclusive to fix truffle-interpreted-performance warning
                 @Cached @Exclusive IsSharedNode isSharedNode,
                 @Cached @Exclusive LoopConditionProfile loopProfile,
                 @Cached CallBlockNode yieldNode,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             BuilderState state = arrayBuilder.start(size);
 
             int n = 0;
@@ -1351,34 +1362,39 @@ public abstract class ArrayNodes {
 
         // Uses Symbol and no block
 
-        @Specialization(guards = { "isEmptyArray(array)" })
-        Object injectSymbolEmptyArrayNoInitial(
-                RubyArray array, RubySymbol initialOrSymbol, NotProvided symbol, Nil block) {
+        @Specialization(guards = { "isEmptyArray(array)", "wasProvided(initialOrSymbol)" })
+        Object injectSymbolEmptyArrayNoInitial(RubyArray array, Object initialOrSymbol, NotProvided symbol, Nil block,
+                @Cached @Shared NameToJavaStringNode nameToJavaStringNode) {
+            nameToJavaStringNode.execute(this, initialOrSymbol); // ensure a method name is either a Symbol or could be converted to String
             return nil;
         }
 
         @Specialization(
                 guards = {
                         "isEmptyArray(array)",
-                        "wasProvided(initialOrSymbol)" })
-        Object injectSymbolEmptyArray(RubyArray array, Object initialOrSymbol, RubySymbol symbol, Nil block) {
+                        "wasProvided(initialOrSymbol)",
+                        "wasProvided(symbol)" })
+        Object injectSymbolEmptyArray(RubyArray array, Object initialOrSymbol, Object symbol, Nil block,
+                @Cached @Shared NameToJavaStringNode nameToJavaStringNode) {
+            nameToJavaStringNode.execute(this, symbol); // ensure a method name is either a Symbol or could be converted to String
             return initialOrSymbol;
         }
 
         @Specialization(
-                guards = { "!isEmptyArray(array)" },
+                guards = { "!isEmptyArray(array)", "wasProvided(initialOrSymbol)" },
                 limit = "storageStrategyLimit()")
         Object injectSymbolNoInitial(
-                VirtualFrame frame, RubyArray array, RubySymbol initialOrSymbol, NotProvided symbol, Nil block,
+                VirtualFrame frame, RubyArray array, Object initialOrSymbol, NotProvided symbol, Nil block,
                 @Bind("array.getStore()") Object store,
                 @CachedLibrary("store") ArrayStoreLibrary stores,
                 @Cached @Shared IntValueProfile arraySizeProfile,
                 @Cached @Exclusive LoopConditionProfile loopProfile,
-                @Cached @Shared ToJavaStringNode toJavaString) {
+                @Cached @Shared NameToJavaStringNode nameToJavaStringNode) {
+            String methodName = nameToJavaStringNode.execute(this, initialOrSymbol); // ensure a method name is either a Symbol or could be converted to String
             return injectSymbolHelper(
                     frame,
                     array,
-                    toJavaString.execute(this, initialOrSymbol),
+                    methodName,
                     stores,
                     store,
                     stores.read(store, 0),
@@ -1390,19 +1406,21 @@ public abstract class ArrayNodes {
         @Specialization(
                 guards = {
                         "!isEmptyArray(array)",
-                        "wasProvided(initialOrSymbol)" },
+                        "wasProvided(initialOrSymbol)",
+                        "wasProvided(symbol)" },
                 limit = "storageStrategyLimit()")
         Object injectSymbolWithInitial(
-                VirtualFrame frame, RubyArray array, Object initialOrSymbol, RubySymbol symbol, Nil block,
+                VirtualFrame frame, RubyArray array, Object initialOrSymbol, Object symbol, Nil block,
                 @Bind("array.getStore()") Object store,
                 @CachedLibrary("store") ArrayStoreLibrary stores,
                 @Cached @Shared IntValueProfile arraySizeProfile,
                 @Cached @Exclusive LoopConditionProfile loopProfile,
-                @Cached @Shared ToJavaStringNode toJavaString) {
+                @Cached @Shared NameToJavaStringNode nameToJavaStringNode) {
+            String methodName = nameToJavaStringNode.execute(this, symbol); // ensure a method name is either a Symbol or could be converted to String
             return injectSymbolHelper(
                     frame,
                     array,
-                    toJavaString.execute(this, symbol),
+                    methodName,
                     stores,
                     store,
                     initialOrSymbol,
@@ -1491,45 +1509,52 @@ public abstract class ArrayNodes {
 
     }
 
-    @CoreMethod(names = "pack", required = 1)
-    @ReportPolymorphism
-    public abstract static class ArrayPackNode extends CoreMethodArrayArgumentsNode {
+    @Primitive(name = "array_pack", lowerFixnum = 1)
+    public abstract static class ArrayPackPrimitiveNode extends PrimitiveArrayArgumentsNode {
 
         @Specialization
-        RubyString pack(RubyArray array, Object format,
+        RubyString pack(RubyArray array, Object format, Object buffer,
                 @Cached ToStrNode toStrNode,
                 @Cached PackNode packNode) {
             final var formatAsString = toStrNode.execute(this, format);
-            return packNode.execute(this, array, formatAsString);
+            return packNode.execute(this, array, formatAsString, buffer);
         }
     }
 
     @GenerateCached(false)
     @GenerateInline
+    @ReportPolymorphism // inline cache, CallTarget cache
     public abstract static class PackNode extends RubyBaseNode {
 
-        public abstract RubyString execute(Node node, RubyArray array, Object format);
+        public abstract RubyString execute(Node node, RubyArray array, Object format, Object buffer);
 
         @Specialization(
                 guards = {
-                        "libFormat.isRubyString(format)",
+                        "libFormat.isRubyString(this, format)",
+                        "libBuffer.isRubyString(this, buffer)",
                         "equalNode.execute(libFormat, format, cachedFormat, cachedEncoding)" },
                 limit = "getCacheLimit()")
-        static RubyString packCached(Node node, RubyArray array, Object format,
+        static RubyString packCached(Node node, RubyArray array, Object format, Object buffer,
                 @Cached @Shared InlinedBranchProfile exceptionProfile,
                 @Cached @Shared InlinedConditionProfile resizeProfile,
                 @Cached @Shared RubyStringLibrary libFormat,
+                @Cached @Shared RubyStringLibrary libBuffer,
                 @Cached @Shared WriteObjectFieldNode writeAssociatedNode,
                 @Cached @Shared TruffleString.FromByteArrayNode fromByteArrayNode,
+                @Cached @Shared TruffleString.CopyToByteArrayNode copyToByteArrayNode,
                 @Cached("asTruffleStringUncached(format)") TruffleString cachedFormat,
-                @Cached("libFormat.getEncoding(format)") RubyEncoding cachedEncoding,
+                @Cached("libFormat.getEncoding($node, format)") RubyEncoding cachedEncoding,
                 @Cached("cachedFormat.byteLength(cachedEncoding.tencoding)") int cachedFormatLength,
-                @Cached("create(compileFormat(node, getJavaString(format)))") DirectCallNode callPackNode,
+                @Cached("compileFormat(node, getJavaString(format))") RootCallTarget formatCallTarget,
+                @Cached("create(formatCallTarget)") DirectCallNode callPackNode,
                 @Cached StringHelperNodes.EqualNode equalNode) {
+            final byte[] bytes = initOutputBytes(buffer, libBuffer, formatCallTarget, copyToByteArrayNode, node);
+
             final BytesResult result;
+
             try {
                 result = (BytesResult) callPackNode.call(
-                        new Object[]{ array.getStore(), array.size, false, null });
+                        new Object[]{ array.getStore(), array.size, bytes, libBuffer.byteLength(node, buffer) });
             } catch (FormatException e) {
                 exceptionProfile.enter(node);
                 throw FormatExceptionTranslator.translate(getContext(node), node, e);
@@ -1538,28 +1563,34 @@ public abstract class ArrayNodes {
             return finishPack(node, cachedFormatLength, result, resizeProfile, writeAssociatedNode, fromByteArrayNode);
         }
 
-        @Specialization(guards = { "libFormat.isRubyString(format)" }, replaces = "packCached")
-        static RubyString packUncached(Node node, RubyArray array, Object format,
+        @Specialization(guards = { "libFormat.isRubyString(this, format)", "libBuffer.isRubyString(this, buffer)" },
+                replaces = "packCached")
+        static RubyString packUncached(Node node, RubyArray array, Object format, Object buffer,
                 @Cached @Shared InlinedBranchProfile exceptionProfile,
                 @Cached @Shared InlinedConditionProfile resizeProfile,
                 @Cached @Shared RubyStringLibrary libFormat,
+                @Cached @Shared RubyStringLibrary libBuffer,
                 @Cached @Shared WriteObjectFieldNode writeAssociatedNode,
                 @Cached @Shared TruffleString.FromByteArrayNode fromByteArrayNode,
+                @Cached @Shared TruffleString.CopyToByteArrayNode copyToByteArrayNode,
                 @Cached ToJavaStringNode toJavaStringNode,
                 @Cached IndirectCallNode callPackNode) {
             final String formatString = toJavaStringNode.execute(node, format);
+            final RootCallTarget formatCallTarget = compileFormat(node, formatString);
+            final byte[] bytes = initOutputBytes(buffer, libBuffer, formatCallTarget, copyToByteArrayNode, node);
 
             final BytesResult result;
+
             try {
                 result = (BytesResult) callPackNode.call(
-                        compileFormat(node, formatString),
-                        new Object[]{ array.getStore(), array.size, false, null });
+                        formatCallTarget,
+                        new Object[]{ array.getStore(), array.size, bytes, libBuffer.byteLength(node, buffer) });
             } catch (FormatException e) {
                 exceptionProfile.enter(node);
                 throw FormatExceptionTranslator.translate(getContext(node), node, e);
             }
 
-            int formatLength = libFormat.getTString(format).byteLength(libFormat.getTEncoding(format));
+            int formatLength = libFormat.getTString(node, format).byteLength(libFormat.getTEncoding(node, format));
             return finishPack(node, formatLength, result, resizeProfile, writeAssociatedNode, fromByteArrayNode);
         }
 
@@ -1591,6 +1622,20 @@ public abstract class ArrayNodes {
             }
         }
 
+        private static byte[] initOutputBytes(Object buffer, RubyStringLibrary libBuffer,
+                RootCallTarget formatCallTarget, TruffleString.CopyToByteArrayNode copyToByteArrayNode, Node node) {
+            int bufferLength = libBuffer.byteLength(node, buffer);
+            var formatRootNode = (FormatRootNode) formatCallTarget.getRootNode();
+            int expectedLength = formatRootNode.getExpectedLength();
+
+            // output buffer should be at least expectedLength to not mess up the expectedLength's logic
+            final int length = Math.max(bufferLength, expectedLength);
+            final byte[] bytes = new byte[length];
+            copyToByteArrayNode.execute(libBuffer.getTString(node, buffer), 0, bytes, 0, bufferLength,
+                    libBuffer.getTEncoding(node, buffer));
+            return bytes;
+        }
+
         protected int getCacheLimit() {
             return getLanguage().options.PACK_CACHE;
         }
@@ -1598,7 +1643,7 @@ public abstract class ArrayNodes {
     }
 
     @CoreMethod(names = "pop", raiseIfFrozenSelf = true, optional = 1, lowerFixnum = 1)
-    @ReportPolymorphism
+    @ReportPolymorphism // for ArrayStoreLibrary
     public abstract static class PopNode extends ArrayCoreMethodNode {
 
         public abstract Object executePop(RubyArray array, Object n);
@@ -1677,7 +1722,7 @@ public abstract class ArrayNodes {
 
     }
 
-    @CoreMethod(names = "<<", raiseIfFrozenSelf = true, required = 1)
+    @CoreMethod(names = "<<", raiseIfFrozenSelf = true, required = 1, split = Split.ALWAYS)
     public abstract static class AppendNode extends ArrayCoreMethodNode {
 
         @Child private ArrayAppendOneNode appendOneNode = ArrayAppendOneNode.create();
@@ -1771,7 +1816,6 @@ public abstract class ArrayNodes {
     @NodeChild(value = "array", type = RubyNode.class)
     @NodeChild(value = "other", type = RubyBaseNodeWithExecute.class)
     @ImportStatic(ArrayGuards.class)
-    @ReportPolymorphism
     public abstract static class ReplaceNode extends CoreMethodNode {
 
         @NeverDefault
@@ -1786,7 +1830,7 @@ public abstract class ArrayNodes {
                 @Cached ToAryNode toAryNode,
                 @Cached ArrayCopyOnWriteNode cowNode,
                 @Cached IsSharedNode isSharedNode,
-                @CachedLibrary(limit = "2") ArrayStoreLibrary stores) {
+                @CachedLibrary(limit = "storageStrategyLimit()") ArrayStoreLibrary stores) {
             final var other = toAryNode.execute(this, otherObject);
             final int size = other.size;
             Object store = cowNode.execute(other, 0, size);
@@ -1801,7 +1845,7 @@ public abstract class ArrayNodes {
 
     @Primitive(name = "array_rotate", lowerFixnum = 1)
     @ImportStatic(ArrayGuards.class)
-    @ReportPolymorphism
+    @ReportPolymorphism // for ArrayStoreLibrary
     public abstract static class RotateNode extends PrimitiveArrayArgumentsNode {
 
         @Specialization(limit = "storageStrategyLimit()")
@@ -1828,7 +1872,7 @@ public abstract class ArrayNodes {
 
     @Primitive(name = "array_rotate_inplace", lowerFixnum = 1)
     @ImportStatic(ArrayGuards.class)
-    @ReportPolymorphism
+    @ReportPolymorphism // for ArrayStoreLibrary
     public abstract static class RotateInplaceNode extends PrimitiveArrayArgumentsNode {
 
         @Specialization(
@@ -1978,7 +2022,7 @@ public abstract class ArrayNodes {
 
     @CoreMethod(names = "shift", raiseIfFrozenSelf = true, optional = 1, lowerFixnum = 1)
     @ImportStatic(ArrayGuards.class)
-    @ReportPolymorphism
+    @ReportPolymorphism // for ArrayStoreLibrary
     public abstract static class ShiftNode extends CoreMethodArrayArgumentsNode {
 
         public abstract Object executeShift(RubyArray array, Object n);
@@ -2070,7 +2114,7 @@ public abstract class ArrayNodes {
                 @Cached @Shared IntValueProfile arraySizeProfile,
                 @Cached @Exclusive DispatchNode compareDispatchNode,
                 @Cached CmpIntNode cmpIntNode,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             final Object newStore = stores
                     .unsharedAllocator(store)
                     .allocate(getContext(node).getOptions().ARRAY_SMALL);
@@ -2187,9 +2231,9 @@ public abstract class ArrayNodes {
 
         @Specialization(guards = "array != other")
         static RubyArray stealStorage(RubyArray array, RubyArray other,
-                @CachedLibrary(limit = "2") ArrayStoreLibrary stores,
+                @CachedLibrary(limit = "storageStrategyLimit()") ArrayStoreLibrary stores,
                 @Cached PropagateSharingNode propagateSharingNode,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             propagateSharingNode.execute(node, array, other);
 
             final int size = other.size;
@@ -2204,7 +2248,7 @@ public abstract class ArrayNodes {
 
     @Primitive(name = "array_zip")
     @ImportStatic(ArrayGuards.class)
-    @ReportPolymorphism
+    @ReportPolymorphism // for ArrayStoreLibrary
     public abstract static class ZipNode extends PrimitiveArrayArgumentsNode {
 
         @Specialization(limit = "storageStrategyLimit()")

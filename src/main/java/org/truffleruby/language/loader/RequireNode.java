@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2016, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -56,7 +56,7 @@ public abstract class RequireNode extends RubyBaseNode {
 
     public abstract boolean executeRequire(String feature, Object expandedPath);
 
-    @Specialization(guards = "libExpandedPathString.isRubyString(expandedPathString)", limit = "1")
+    @Specialization(guards = "libExpandedPathString.isRubyString(this, expandedPathString)", limit = "1")
     boolean require(String feature, Object expandedPathString,
             @Cached RubyStringLibrary libExpandedPathString) {
         return requireWithMetrics(feature, expandedPathString);
@@ -144,7 +144,7 @@ public abstract class RequireNode extends RubyBaseNode {
         if (new File(originalFeature).isAbsolute()) {
             Object relativeFeatureString = relativeFeatureNode
                     .call(coreLibrary().truffleFeatureLoaderModule, "relative_feature", pathString);
-            if (RubyStringLibrary.getUncached().isRubyString(relativeFeatureString)) {
+            if (RubyStringLibrary.getUncached().isRubyString(this, relativeFeatureString)) {
                 relativeFeature = RubyGuards.getJavaString(relativeFeatureString);
             }
         }

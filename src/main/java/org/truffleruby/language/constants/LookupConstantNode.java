@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2015, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -13,6 +13,7 @@ import java.util.ArrayList;
 
 import com.oracle.truffle.api.dsl.Bind;
 import com.oracle.truffle.api.dsl.NeverDefault;
+import com.oracle.truffle.api.dsl.ReportPolymorphism;
 import com.oracle.truffle.api.nodes.Node;
 import com.oracle.truffle.api.profiles.InlinedConditionProfile;
 import org.truffleruby.annotations.SuppressFBWarnings;
@@ -31,6 +32,7 @@ import com.oracle.truffle.api.dsl.Cached.Exclusive;
 import com.oracle.truffle.api.dsl.Specialization;
 
 /** Caches {@link ModuleOperations#lookupConstant} and checks visibility. */
+@ReportPolymorphism // inline cache
 public abstract class LookupConstantNode extends LookupConstantBaseNode implements LookupConstantInterface {
 
     private final boolean ignoreVisibility;
@@ -71,7 +73,7 @@ public abstract class LookupConstantNode extends LookupConstantBaseNode implemen
             @Cached("isVisible(cachedModule, constant)") boolean isVisible,
             @Cached @Exclusive InlinedConditionProfile sameNameProfile,
             @Cached LazyWarnNode lazyWarnNode,
-            @Bind("this") Node node) {
+            @Bind Node node) {
         if (!isValidConstantName) {
             throw new RaiseException(getContext(node),
                     coreExceptions(node).nameErrorWrongConstantName(cachedName, node));

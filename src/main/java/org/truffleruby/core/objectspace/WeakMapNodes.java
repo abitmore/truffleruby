@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2020, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -10,12 +10,12 @@
 package org.truffleruby.core.objectspace;
 
 import com.oracle.truffle.api.dsl.Cached;
+import com.oracle.truffle.api.dsl.Cached.Shared;
+import com.oracle.truffle.api.profiles.InlinedConditionProfile;
 import org.truffleruby.RubyContext;
 import org.truffleruby.annotations.CoreMethod;
 import org.truffleruby.annotations.CoreModule;
-import org.truffleruby.annotations.Primitive;
 import org.truffleruby.builtins.CoreMethodArrayArgumentsNode;
-import org.truffleruby.builtins.PrimitiveArrayArgumentsNode;
 import org.truffleruby.collections.SimpleEntry;
 import org.truffleruby.core.array.RubyArray;
 import org.truffleruby.core.hash.CompareByRubyIdentityWrapper;
@@ -43,7 +43,7 @@ public abstract class WeakMapNodes {
 
         @Specialization
         RubyWeakMap allocate(RubyClass rubyClass) {
-            final RubyWeakMap weakMap = new RubyWeakMap(rubyClass, getLanguage().weakMapShape, new WeakMapStorage());
+            final RubyWeakMap weakMap = new RubyWeakMap(rubyClass, getLanguage().weakMapShape);
             AllocationTracing.trace(weakMap, this);
             return weakMap;
         }
@@ -77,8 +77,8 @@ public abstract class WeakMapNodes {
         }
     }
 
-    @Primitive(name = "weakmap_aset")
-    public abstract static class SetIndexNode extends PrimitiveArrayArgumentsNode {
+    @CoreMethod(names = "[]=", required = 2)
+    public abstract static class SetIndexNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization
         Object set(RubyWeakMap map, Object key, Object value) {
@@ -87,7 +87,7 @@ public abstract class WeakMapNodes {
         }
     }
 
-    @CoreMethod(names = { "keys" })
+    @CoreMethod(names = "keys")
     public abstract static class KeysNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization
@@ -96,7 +96,7 @@ public abstract class WeakMapNodes {
         }
     }
 
-    @CoreMethod(names = { "values" })
+    @CoreMethod(names = "values")
     public abstract static class ValuesNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization
@@ -105,7 +105,36 @@ public abstract class WeakMapNodes {
         }
     }
 
-    @CoreMethod(names = { "each_key" }, needsBlock = true)
+    @CoreMethod(names = "delete", required = 1, needsBlock = true)
+    public abstract static class DeleteNode extends CoreMethodArrayArgumentsNode {
+
+        @Specialization
+        Object delete(RubyWeakMap map, Object key, RubyProc block,
+                @Cached @Shared InlinedConditionProfile isContainedProfile,
+                @Cached CallBlockNode yieldNode) {
+            Object value = map.storage.remove(new CompareByRubyIdentityWrapper(key));
+
+            if (isContainedProfile.profile(this, value != null)) {
+                return value;
+            } else {
+                return yieldNode.yield(this, block, key);
+            }
+        }
+
+        @Specialization
+        Object delete(RubyWeakMap map, Object key, Nil block,
+                @Cached @Shared InlinedConditionProfile isContainedProfile) {
+            Object value = map.storage.remove(new CompareByRubyIdentityWrapper(key));
+
+            if (isContainedProfile.profile(this, value != null)) {
+                return value;
+            } else {
+                return nil;
+            }
+        }
+    }
+
+    @CoreMethod(names = "each_key", needsBlock = true)
     public abstract static class EachKeyNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization
@@ -123,7 +152,7 @@ public abstract class WeakMapNodes {
         }
     }
 
-    @CoreMethod(names = { "each_value" }, needsBlock = true)
+    @CoreMethod(names = "each_value", needsBlock = true)
     public abstract static class EachValueNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization
@@ -167,7 +196,7 @@ public abstract class WeakMapNodes {
         final Object[] keys = new Object[keyWrappers.size()];
         int i = 0;
         for (CompareByRubyIdentityWrapper keyWrapper : keyWrappers) {
-            keys[i++] = keyWrapper.value;
+            keys[i++] = keyWrapper.key;
         }
         return keys;
     }
@@ -183,7 +212,7 @@ public abstract class WeakMapNodes {
         final SimpleEntry<?, ?>[] entries = new SimpleEntry<?, ?>[wrappedEntries.size()];
         int i = 0;
         for (SimpleEntry<CompareByRubyIdentityWrapper, Object> wrappedEntry : wrappedEntries) {
-            entries[i++] = new SimpleEntry<>(wrappedEntry.getKey().value, wrappedEntry.getValue());
+            entries[i++] = new SimpleEntry<>(wrappedEntry.getKey().key, wrappedEntry.getValue());
         }
         return entries;
     }
@@ -192,7 +221,7 @@ public abstract class WeakMapNodes {
         if (map.storage.size() == 0) {
             return map;
         }
-        final RubyContext context = node.getContext();
+        final RubyContext context = RubyContext.get(node);
         throw new RaiseException(context, context.getCoreExceptions().localJumpError("no block given", node));
     }
 }

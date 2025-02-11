@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2013, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -56,6 +56,9 @@ public final class InternalMethod implements ObjectGraphNode {
 
     private final CachedLazyCallTargetSupplier callTargetSupplier;
     @CompilationFinal private RootCallTarget callTarget;
+
+    /** call target of a Proc created from a method and cached for consequent Method#to_proc calls */
+    public RootCallTarget toProcCallTarget;
 
     public static InternalMethod fromProc(
             RubyContext context,

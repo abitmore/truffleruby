@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2020, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -20,7 +20,7 @@ import com.oracle.truffle.api.dsl.ReportPolymorphism;
 import com.oracle.truffle.api.dsl.Specialization;
 
 @GenerateUncached
-@ReportPolymorphism
+@ReportPolymorphism // inline cache (but not working due to single call site in C)
 public abstract class SymbolToIDNode extends RubyBaseNode {
 
     public abstract Object execute(Object value);

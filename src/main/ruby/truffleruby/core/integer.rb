@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Copyright (c) 2014, 2024 Oracle and/or its affiliates. All rights reserved. This
+# Copyright (c) 2014, 2025 Oracle and/or its affiliates. All rights reserved. This
 # code is released under a tri EPL/GPL/LGPL license. You can use it,
 # redistribute it and/or modify it under the terms of the:
 #
@@ -55,6 +55,7 @@ class Integer < Numeric
 
     redo_coerced :**, o
   end
+  Truffle::Graal.always_split instance_method(:**)
 
   def [](index, len = undefined)
     if Primitive.is_a?(index, Range)
@@ -81,6 +82,8 @@ class Integer < Numeric
 
   def ceil(precision = 0)
     return self unless precision < 0
+    return 0 if self == 0
+
     x = 10 ** precision.abs
     ((self / x) + 1) * x
   end
@@ -129,17 +132,22 @@ class Integer < Numeric
     (self & mask) == 0
   end
 
-  def pow(e, m = undefined)
-    if Primitive.undefined?(m)
-      self ** e
-    else
-      raise TypeError, '2nd argument not allowed unless a 1st argument is integer' unless Primitive.is_a?(e, Integer)
-      raise TypeError, '2nd argument not allowed unless all arguments are integers' unless Primitive.is_a?(m, Integer)
-      raise RangeError, '1st argument cannot be negative when 2nd argument specified' if e.negative?
+  def pow(exponent, modulus = undefined)
+    return self ** exponent if Primitive.undefined?(modulus)
 
-      Primitive.mod_pow(self, e, m)
+    raise TypeError, '2nd argument not allowed unless a 1st argument is integer' unless Primitive.is_a?(exponent, Integer)
+    raise TypeError, '2nd argument not allowed unless all arguments are integers' unless Primitive.is_a?(modulus, Integer)
+    raise RangeError, '1st argument cannot be negative when 2nd argument specified' if exponent.negative?
+
+    # Ruby implementation is much faster than Java implementation for modulus <= 2^32,
+    # and Java is much faster for modulus > 2^32.
+    if Primitive.integer_fits_into_int?(modulus)
+      Truffle::IntegerOperations.modular_exponentiation(self, exponent, modulus)
+    else
+      Primitive.mod_pow(self, exponent, modulus)
     end
   end
+  Truffle::Graal.always_split instance_method(:pow)
 
   def times
     return to_enum(:times) { self } unless block_given?
@@ -163,14 +171,16 @@ class Integer < Numeric
 
   def chr(enc = undefined)
     if self < 0 || (self & 0xffff_ffff) != self
-      raise RangeError, "#{self} is outside of the valid character range"
+      subject = Primitive.integer_fits_into_int?(self) ? self : 'bignum'
+      raise RangeError, "#{subject} out of char range"
     end
 
     if Primitive.undefined? enc
       if 0xff < self
         enc = Encoding.default_internal
         if Primitive.nil? enc
-          raise RangeError, "#{self} is outside of the valid character range"
+          subject = Primitive.integer_fits_into_int?(self) ? self : 'bignum'
+          raise RangeError, "#{subject} out of char range"
         end
       elsif self < 0x80
         enc = Encoding::US_ASCII

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2020, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -182,4 +182,8 @@ VALUE rb_str_vcatf(VALUE str, const char *fmt, va_list args) {
   VALUE result = rb_vsprintf(fmt, args);
   rb_str_concat(str, result);
   return str;
+}
+
+VALUE rb_str_format(int argc, const VALUE *argv, VALUE fmt) {
+  return RUBY_CEXT_INVOKE("rb_str_format", rb_ary_new4(argc, argv), fmt);
 }

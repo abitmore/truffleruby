@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2021, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -17,6 +17,9 @@ import org.truffleruby.core.string.StringUtils;
  * currently, if kw is empty, then this descriptor is used even though it is semantically the same as if no keyword
  * arguments were passed. The callee must handle that for now. */
 public final class KeywordArgumentsDescriptor extends ArgumentsDescriptor {
+
+    public static final KeywordArgumentsDescriptor EMPTY = new KeywordArgumentsDescriptor(
+            StringUtils.EMPTY_STRING_ARRAY);
 
     @CompilationFinal(dimensions = 1) private final String[] keywords;
 

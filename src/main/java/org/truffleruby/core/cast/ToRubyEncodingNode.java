@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2021, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -34,15 +34,15 @@ public abstract class ToRubyEncodingNode extends RubyBaseNode {
     public abstract RubyEncoding execute(Node node, Object value);
 
     @Specialization
-    static RubyEncoding stringToEncoding(RubyString value,
+    static RubyEncoding stringToEncoding(Node node, RubyString value,
             @Cached @Exclusive RubyStringLibrary libString) {
-        return libString.getEncoding(value);
+        return libString.getEncoding(node, value);
     }
 
     @Specialization
-    static RubyEncoding immutableStringToEncoding(ImmutableRubyString value,
+    static RubyEncoding immutableStringToEncoding(Node node, ImmutableRubyString value,
             @Cached @Exclusive RubyStringLibrary libString) {
-        return libString.getEncoding(value);
+        return libString.getEncoding(node, value);
     }
 
     @Specialization

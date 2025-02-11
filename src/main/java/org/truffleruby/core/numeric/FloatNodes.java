@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2013, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -11,8 +11,13 @@ package org.truffleruby.core.numeric;
 
 import com.oracle.truffle.api.CompilerDirectives;
 import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
+import com.oracle.truffle.api.RootCallTarget;
+import com.oracle.truffle.api.dsl.Bind;
 import com.oracle.truffle.api.dsl.Cached;
 import com.oracle.truffle.api.dsl.Cached.Shared;
+import com.oracle.truffle.api.dsl.GenerateCached;
+import com.oracle.truffle.api.dsl.GenerateInline;
+import com.oracle.truffle.api.dsl.GenerateUncached;
 import com.oracle.truffle.api.dsl.ImportStatic;
 import com.oracle.truffle.api.dsl.NeverDefault;
 import com.oracle.truffle.api.dsl.Specialization;
@@ -24,7 +29,7 @@ import com.oracle.truffle.api.profiles.ConditionProfile;
 
 import com.oracle.truffle.api.profiles.InlinedConditionProfile;
 import com.oracle.truffle.api.strings.TruffleString;
-import org.truffleruby.annotations.SuppressFBWarnings;
+import org.truffleruby.annotations.Split;
 import org.truffleruby.annotations.CoreMethod;
 import org.truffleruby.builtins.CoreMethodArrayArgumentsNode;
 import org.truffleruby.annotations.CoreModule;
@@ -35,11 +40,14 @@ import org.truffleruby.core.array.RubyArray;
 import org.truffleruby.core.cast.FloatToIntegerNode;
 import org.truffleruby.core.encoding.Encodings;
 import org.truffleruby.core.encoding.TStringUtils;
+import org.truffleruby.core.inlined.AlwaysInlinedMethodNode;
 import org.truffleruby.core.string.RubyString;
 import org.truffleruby.core.string.StringUtils;
 import org.truffleruby.core.thread.RubyThread;
+import org.truffleruby.language.RubyBaseNode;
 import org.truffleruby.language.RubyDynamicObject;
 import org.truffleruby.annotations.Visibility;
+import org.truffleruby.language.arguments.RubyArguments;
 import org.truffleruby.language.control.RaiseException;
 import org.truffleruby.language.dispatch.DispatchNode;
 
@@ -139,7 +147,8 @@ public abstract class FloatNodes {
 
     }
 
-    @CoreMethod(names = "**", required = 1)
+    // Splitting: inline cache
+    @CoreMethod(names = "**", required = 1, split = Split.ALWAYS)
     public abstract static class PowNode extends CoreMethodArrayArgumentsNode {
 
         @Child private DispatchNode complexConvertNode;
@@ -362,18 +371,34 @@ public abstract class FloatNodes {
         }
     }
 
-    @CoreMethod(names = { "==", "===" }, required = 1)
-    public abstract static class EqualNode extends CoreMethodArrayArgumentsNode {
-
-        @Child private DispatchNode fallbackCallNode;
+    @ImportStatic(RubyArguments.class)
+    @GenerateUncached
+    @CoreMethod(names = { "==", "===" }, required = 1, alwaysInlined = true)
+    public abstract static class EqualNode extends AlwaysInlinedMethodNode {
 
         @Specialization
-        boolean equal(double a, long b) {
+        Object equal(Object self, Object[] rubyArgs, RootCallTarget target,
+                @Cached EqualInternalNode equalInternalNode,
+                @Bind Node node) {
+            Object other = RubyArguments.getArgument(rubyArgs, 0);
+            return equalInternalNode.execute(node, self, other);
+        }
+    }
+
+    @GenerateInline
+    @GenerateCached(false)
+    @GenerateUncached
+    public abstract static class EqualInternalNode extends RubyBaseNode {
+
+        public abstract Object execute(Node node, Object a, Object b);
+
+        @Specialization
+        boolean equal(double a, double b) {
             return a == b;
         }
 
         @Specialization
-        boolean equal(double a, double b) {
+        boolean equal(double a, long b) {
             return a == b;
         }
 
@@ -383,12 +408,8 @@ public abstract class FloatNodes {
         }
 
         @Specialization(guards = "!isRubyNumber(b)")
-        Object equal(VirtualFrame frame, double a, Object b) {
-            if (fallbackCallNode == null) {
-                CompilerDirectives.transferToInterpreterAndInvalidate();
-                fallbackCallNode = insert(DispatchNode.create());
-            }
-
+        Object equal(double a, Object b,
+                @Cached(inline = false) DispatchNode fallbackCallNode) {
             return fallbackCallNode.call(a, "equal_fallback", b);
         }
     }
@@ -599,228 +620,6 @@ public abstract class FloatNodes {
             return Math.floor(n * scale) / scale;
         }
 
-    }
-
-    @ImportStatic(FloatRoundGuards.class)
-    @Primitive(name = "float_round_up")
-    public abstract static class FloatRoundUpPrimitiveNode extends PrimitiveArrayArgumentsNode {
-
-        @Specialization(guards = "fitsInInteger(n)")
-        int roundFittingInt(double n) {
-            int l = (int) n;
-            int signum = (int) Math.signum(n);
-            double d = Math.abs(n - l);
-            if (d >= 0.5) {
-                l += signum;
-            }
-            return l;
-        }
-
-        @Specialization(guards = "fitsInLong(n)", replaces = "roundFittingInt")
-        long roundFittingLong(double n) {
-            long l = (long) n;
-            long signum = (long) Math.signum(n);
-            double d = Math.abs(n - l);
-            if (d >= 0.5) {
-                l += signum;
-            }
-            return l;
-        }
-
-        @Specialization(replaces = "roundFittingLong")
-        Object round(double n,
-                @Cached FloatToIntegerNode floatToIntegerNode) {
-            double signum = Math.signum(n);
-            double f = Math.floor(Math.abs(n));
-            double d = Math.abs(n) - f;
-            if (d >= 0.5) {
-                f += 1;
-            }
-            return floatToIntegerNode.execute(this, f * signum);
-        }
-    }
-
-    @ImportStatic(FloatRoundGuards.class)
-    @Primitive(name = "float_round_up_decimal", lowerFixnum = 1)
-    public abstract static class FloatRoundUpDecimalPrimitiveNode extends PrimitiveArrayArgumentsNode {
-
-        @Specialization
-        double roundNDecimal(double n, int ndigits,
-                @Cached InlinedConditionProfile boundaryCase) {
-            long intPart = (long) n;
-            double s = Math.pow(10.0, ndigits) * Math.signum(n);
-            double f = (n % 1) * s;
-            long fInt = (long) f;
-            double d = f % 1;
-            int limit = Math.getExponent(n) + Math.getExponent(s) - 51;
-            if (boundaryCase.profile(this, (Math.getExponent(d) <= limit) ||
-                    (Math.getExponent(1.0 - d) <= limit))) {
-                return findClosest(n, s, d);
-            } else if (d > 0.5 || Math.abs(n) - Math.abs((intPart + (fInt + 0.5) / s)) >= 0) {
-                fInt += 1;
-            }
-            return intPart + fInt / s;
-        }
-    }
-
-    /* If the rounding result is very near to an integer boundary then we need to find the number that is closest to the
-     * correct result. If we don't do this then it's possible to get errors in the least significant bit of the result.
-     * We'll test the adjacent double in the direction closest to the boundary and compare the fractional portions. If
-     * we're already at the minimum error we'll return the original number as it is already rounded as well as it can
-     * be. In the case of a tie we return the lower number, otherwise we check the go round again. */
-    private static double findClosest(double n, double s, double d) {
-        double n2;
-        while (true) {
-            if (d > 0.5) {
-                n2 = Math.nextAfter(n, n + s);
-            } else {
-                n2 = Math.nextAfter(n, n - s);
-            }
-            double f = (n2 % 1) * s;
-            double d2 = f % 1;
-            if (((d > 0.5) ? 1 - d : d) < ((d2 > 0.5) ? 1 - d2 : d2)) {
-                return n;
-            } else if (((d > 0.5) ? 1 - d : d) == ((d2 > 0.5) ? 1 - d2 : d2)) {
-                return Math.abs(n) < Math.abs(n2) ? n : n2;
-            } else {
-                d = d2;
-                n = n2;
-            }
-        }
-    }
-
-    @SuppressFBWarnings("FE_FLOATING_POINT_EQUALITY")
-    @ImportStatic(FloatRoundGuards.class)
-    @Primitive(name = "float_round_even")
-    public abstract static class FloatRoundEvenPrimitiveNode extends PrimitiveArrayArgumentsNode {
-
-        @Specialization(guards = { "fitsInInteger(n)" })
-        int roundFittingInt(double n) {
-            int l = (int) n;
-            int signum = (int) Math.signum(n);
-            double d = Math.abs(n - l);
-            if (d > 0.5) {
-                l += signum;
-            } else if (d == 0.5) {
-                l += l % 2;
-            }
-            return l;
-        }
-
-        @Specialization(guards = "fitsInLong(n)", replaces = "roundFittingInt")
-        long roundFittingLong(double n) {
-            long l = (long) n;
-            long signum = (long) Math.signum(n);
-            double d = Math.abs(n - l);
-            if (d > 0.5) {
-                l += signum;
-            } else if (d == 0.5) {
-                l += l % 2;
-            }
-            return l;
-        }
-
-        @Specialization(replaces = "roundFittingLong")
-        Object round(double n,
-                @Cached FloatToIntegerNode floatToIntegerNode) {
-            double signum = Math.signum(n);
-            double f = Math.floor(Math.abs(n));
-            double d = Math.abs(n) - f;
-            if (d > 0.5) {
-                f += signum;
-            } else if (d == 0.5) {
-                f += f % 2;
-            }
-            return floatToIntegerNode.execute(this, f * signum);
-        }
-    }
-
-    @SuppressFBWarnings("FE_FLOATING_POINT_EQUALITY")
-    @ImportStatic(FloatRoundGuards.class)
-    @Primitive(name = "float_round_even_decimal", lowerFixnum = 1)
-    public abstract static class FloatRoundEvenDecimalPrimitiveNode extends PrimitiveArrayArgumentsNode {
-
-        @Specialization
-        double roundNDecimal(double n, int ndigits,
-                @Cached InlinedConditionProfile boundaryCase) {
-            long intPart = (long) n;
-            double s = Math.pow(10.0, ndigits) * Math.signum(n);
-            double f = (n % 1) * s;
-            long fInt = (long) f;
-            double d = f % 1;
-            int limit = Math.getExponent(n) + Math.getExponent(s) - 51;
-            if (boundaryCase.profile(this, (Math.getExponent(d) <= limit) ||
-                    (Math.getExponent(1.0 - d) <= limit))) {
-                return findClosest(n, s, d);
-            } else if (d > 0.5) {
-                fInt += 1;
-            } else if (d == 0.5 || Math.abs(n) - Math.abs((intPart + (fInt + 0.5) / s)) >= 0) {
-                fInt += fInt % 2;
-            }
-            return intPart + fInt / s;
-        }
-    }
-
-    @ImportStatic(FloatRoundGuards.class)
-    @Primitive(name = "float_round_down")
-    public abstract static class FloatRoundDownPrimitiveNode extends PrimitiveArrayArgumentsNode {
-
-        @Specialization(guards = "fitsInInteger(n)")
-        int roundFittingInt(double n) {
-            int l = (int) n;
-            int signum = (int) Math.signum(n);
-            double d = Math.abs(n - l);
-            if (d > 0.5) {
-                l += signum;
-            }
-            return l;
-        }
-
-        @Specialization(guards = "fitsInLong(n)", replaces = "roundFittingInt")
-        long roundFittingLong(double n) {
-            long l = (long) n;
-            long signum = (long) Math.signum(n);
-            double d = Math.abs(n - l);
-            if (d > 0.5) {
-                l += signum;
-            }
-            return l;
-        }
-
-        @Specialization(replaces = "roundFittingLong")
-        Object round(double n,
-                @Cached FloatToIntegerNode floatToIntegerNode) {
-            double signum = Math.signum(n);
-            double f = Math.floor(Math.abs(n));
-            double d = Math.abs(n) - f;
-            if (d > 0.5) {
-                f += 1;
-            }
-            return floatToIntegerNode.execute(this, f * signum);
-        }
-    }
-
-    @ImportStatic(FloatRoundGuards.class)
-    @Primitive(name = "float_round_down_decimal", lowerFixnum = 1)
-    public abstract static class FloatRoundDownDecimalPrimitiveNode extends PrimitiveArrayArgumentsNode {
-
-        @Specialization
-        double roundNDecimal(double n, int ndigits,
-                @Cached InlinedConditionProfile boundaryCase) {
-            long intPart = (long) n;
-            double s = Math.pow(10.0, ndigits) * Math.signum(n);
-            double f = (n % 1) * s;
-            long fInt = (long) f;
-            double d = f % 1;
-            int limit = Math.getExponent(n) + Math.getExponent(s) - 51;
-            if (boundaryCase.profile(this, (Math.getExponent(d) <= limit) ||
-                    (Math.getExponent(1.0 - d) <= limit))) {
-                return findClosest(n, s, d);
-            } else if (d > 0.5 && Math.abs(n) - Math.abs((intPart + (fInt + 0.5) / s)) > 0) {
-                fInt += 1;
-            }
-            return intPart + fInt / s;
-        }
     }
 
     @Primitive(name = "float_exp")

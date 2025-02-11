@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2015, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -14,12 +14,16 @@ import org.truffleruby.language.RubyDynamicObject;
 
 import com.oracle.truffle.api.object.Shape;
 
+import java.lang.invoke.MethodHandles;
+
 /** This is not the common type for Ruby DynamicObjects. See {@link RubyDynamicObject} instead. This class represents
  * instances of Ruby objects which are not core types such as String, Array, etc.
  *
  * Core types such as String, Array, etc do not have inline fields for instance variables, in order to save footprint.
  * Instance variables are rare for core types. */
 public final class RubyBasicObject extends RubyDynamicObject {
+
+    public static final MethodHandles.Lookup LOOKUP = MethodHandles.lookup();
 
     // Same number of inline fields as DynamicObjectBasic
     @DynamicField private long primitive1;

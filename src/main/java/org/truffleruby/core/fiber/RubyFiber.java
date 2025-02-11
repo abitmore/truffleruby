@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2015, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -15,7 +15,9 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 
 import com.oracle.truffle.api.CompilerAsserts;
+import com.oracle.truffle.api.exception.AbstractTruffleException;
 import com.oracle.truffle.api.nodes.Node;
+import com.oracle.truffle.api.source.SourceSection;
 import org.truffleruby.RubyContext;
 import org.truffleruby.RubyLanguage;
 import org.truffleruby.cext.ValueWrapperManager;
@@ -23,15 +25,21 @@ import org.truffleruby.core.MarkingService;
 import org.truffleruby.core.array.ArrayHelpers;
 import org.truffleruby.core.array.RubyArray;
 import org.truffleruby.core.basicobject.RubyBasicObject;
+import org.truffleruby.core.exception.RubyException;
 import org.truffleruby.core.klass.RubyClass;
 import org.truffleruby.core.proc.RubyProc;
 import org.truffleruby.core.thread.RubyThread;
 import org.truffleruby.language.Nil;
 import org.truffleruby.language.RubyDynamicObject;
+import org.truffleruby.language.control.KillException;
+import org.truffleruby.language.control.RaiseException;
 import org.truffleruby.language.objects.ObjectGraphNode;
 
 import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
 import com.oracle.truffle.api.object.Shape;
+import org.truffleruby.language.objects.shared.SharedObjects;
+
+import static org.truffleruby.language.RubyBaseNode.nil;
 
 public final class RubyFiber extends RubyDynamicObject implements ObjectGraphNode {
 
@@ -67,10 +75,11 @@ public final class RubyFiber extends RubyDynamicObject implements ObjectGraphNod
 
     }
 
+    private Object lastException = nil; // fiber-local variable $!
+    public Object errorInfo = nil; // MRI: rb_errinfo
     public final RubyBasicObject fiberLocals;
     public final RubyArray catchTags;
     public final CountDownLatch initializedLatch = new CountDownLatch(1);
-    public CountDownLatch finishedLatch = new CountDownLatch(1);
     final BlockingQueue<FiberManager.FiberMessage> messageQueue = newMessageQueue();
     public final RubyThread rubyThread;
     // @formatter:off
@@ -123,6 +132,18 @@ public final class RubyFiber extends RubyDynamicObject implements ObjectGraphNod
         handleData = new ValueWrapperManager.HandleBlockHolder();
     }
 
+    public void initialize(RubyLanguage language, RubyContext context, boolean blocking, RubyProc block,
+            Node currentNode) {
+        final SourceSection sourceSection = block.getSharedMethodInfo().getSourceSection();
+        this.sourceLocation = context.fileLine(sourceSection);
+        this.body = block;
+        this.initializeNode = currentNode;
+        this.blocking = blocking;
+
+        // share RubyFiber as its fiberLocals might be accessed by other threads with Thread#[]
+        SharedObjects.propagate(language, this.rubyThread, this);
+    }
+
     public boolean isRootFiber() {
         return rubyThread.getRootFiber() == this;
     }
@@ -148,6 +169,18 @@ public final class RubyFiber extends RubyDynamicObject implements ObjectGraphNod
     public void getAdjacentObjects(Set<Object> reachable) {
         reachable.add(fiberLocals);
         reachable.add(rubyThread);
+    }
+
+    public Object getLastException() {
+        return lastException;
+    }
+
+    public void setLastException(Object exception) {
+        assert !(exception instanceof KillException) : "$? should never be a KillException: " + exception;
+        assert !(exception instanceof RaiseException) : "$? should never be a RaiseException: " + exception;
+        assert exception == nil || exception instanceof RubyException ||
+                exception instanceof AbstractTruffleException : "Unexpected exception object for $!: " + exception;
+        this.lastException = exception;
     }
 
 }

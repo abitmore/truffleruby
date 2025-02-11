@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2016, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -69,8 +69,6 @@ public final class LanguageOptions {
     public final int DISPATCH_CACHE;
     /** --yield-cache=DEFAULT_CACHE */
     public final int YIELD_CACHE;
-    /** --to-proc-cache=DEFAULT_CACHE */
-    public final int METHOD_TO_PROC_CACHE;
     /** --is-a-cache=DEFAULT_CACHE */
     public final int IS_A_CACHE;
     /** --bind-cache=DEFAULT_CACHE */
@@ -89,8 +87,6 @@ public final class LanguageOptions {
     public final int UNPACK_CACHE;
     /** --eval-cache=DEFAULT_CACHE */
     public final int EVAL_CACHE;
-    /** --encoding-compatible-query-cache=DEFAULT_CACHE */
-    public final int ENCODING_COMPATIBLE_QUERY_CACHE;
     /** --encoding-loaded-classes-cache=DEFAULT_CACHE */
     public final int ENCODING_LOADED_CLASSES_CACHE;
     /** --interop-convert-cache=DEFAULT_CACHE */
@@ -156,7 +152,6 @@ public final class LanguageOptions {
         METHOD_LOOKUP_CACHE = options.hasBeenSet(OptionsCatalog.METHOD_LOOKUP_CACHE_KEY) ? options.get(OptionsCatalog.METHOD_LOOKUP_CACHE_KEY) : DEFAULT_CACHE;
         DISPATCH_CACHE = options.hasBeenSet(OptionsCatalog.DISPATCH_CACHE_KEY) ? options.get(OptionsCatalog.DISPATCH_CACHE_KEY) : DEFAULT_CACHE;
         YIELD_CACHE = options.hasBeenSet(OptionsCatalog.YIELD_CACHE_KEY) ? options.get(OptionsCatalog.YIELD_CACHE_KEY) : DEFAULT_CACHE;
-        METHOD_TO_PROC_CACHE = options.hasBeenSet(OptionsCatalog.METHOD_TO_PROC_CACHE_KEY) ? options.get(OptionsCatalog.METHOD_TO_PROC_CACHE_KEY) : DEFAULT_CACHE;
         IS_A_CACHE = options.hasBeenSet(OptionsCatalog.IS_A_CACHE_KEY) ? options.get(OptionsCatalog.IS_A_CACHE_KEY) : DEFAULT_CACHE;
         BIND_CACHE = options.hasBeenSet(OptionsCatalog.BIND_CACHE_KEY) ? options.get(OptionsCatalog.BIND_CACHE_KEY) : DEFAULT_CACHE;
         CONSTANT_CACHE = options.hasBeenSet(OptionsCatalog.CONSTANT_CACHE_KEY) ? options.get(OptionsCatalog.CONSTANT_CACHE_KEY) : DEFAULT_CACHE;
@@ -166,7 +161,6 @@ public final class LanguageOptions {
         PACK_CACHE = options.hasBeenSet(OptionsCatalog.PACK_CACHE_KEY) ? options.get(OptionsCatalog.PACK_CACHE_KEY) : DEFAULT_CACHE;
         UNPACK_CACHE = options.hasBeenSet(OptionsCatalog.UNPACK_CACHE_KEY) ? options.get(OptionsCatalog.UNPACK_CACHE_KEY) : DEFAULT_CACHE;
         EVAL_CACHE = options.hasBeenSet(OptionsCatalog.EVAL_CACHE_KEY) ? options.get(OptionsCatalog.EVAL_CACHE_KEY) : DEFAULT_CACHE;
-        ENCODING_COMPATIBLE_QUERY_CACHE = options.hasBeenSet(OptionsCatalog.ENCODING_COMPATIBLE_QUERY_CACHE_KEY) ? options.get(OptionsCatalog.ENCODING_COMPATIBLE_QUERY_CACHE_KEY) : DEFAULT_CACHE;
         ENCODING_LOADED_CLASSES_CACHE = options.hasBeenSet(OptionsCatalog.ENCODING_LOADED_CLASSES_CACHE_KEY) ? options.get(OptionsCatalog.ENCODING_LOADED_CLASSES_CACHE_KEY) : DEFAULT_CACHE;
         INTEROP_CONVERT_CACHE = options.hasBeenSet(OptionsCatalog.INTEROP_CONVERT_CACHE_KEY) ? options.get(OptionsCatalog.INTEROP_CONVERT_CACHE_KEY) : DEFAULT_CACHE;
         TIME_FORMAT_CACHE = options.hasBeenSet(OptionsCatalog.TIME_FORMAT_CACHE_KEY) ? options.get(OptionsCatalog.TIME_FORMAT_CACHE_KEY) : DEFAULT_CACHE;
@@ -237,8 +231,6 @@ public final class LanguageOptions {
                 return DISPATCH_CACHE;
             case "ruby.yield-cache":
                 return YIELD_CACHE;
-            case "ruby.to-proc-cache":
-                return METHOD_TO_PROC_CACHE;
             case "ruby.is-a-cache":
                 return IS_A_CACHE;
             case "ruby.bind-cache":
@@ -257,8 +249,6 @@ public final class LanguageOptions {
                 return UNPACK_CACHE;
             case "ruby.eval-cache":
                 return EVAL_CACHE;
-            case "ruby.encoding-compatible-query-cache":
-                return ENCODING_COMPATIBLE_QUERY_CACHE;
             case "ruby.encoding-loaded-classes-cache":
                 return ENCODING_LOADED_CLASSES_CACHE;
             case "ruby.interop-convert-cache":
@@ -328,7 +318,6 @@ public final class LanguageOptions {
                one.get(OptionsCatalog.METHOD_LOOKUP_CACHE_KEY).equals(two.get(OptionsCatalog.METHOD_LOOKUP_CACHE_KEY)) &&
                one.get(OptionsCatalog.DISPATCH_CACHE_KEY).equals(two.get(OptionsCatalog.DISPATCH_CACHE_KEY)) &&
                one.get(OptionsCatalog.YIELD_CACHE_KEY).equals(two.get(OptionsCatalog.YIELD_CACHE_KEY)) &&
-               one.get(OptionsCatalog.METHOD_TO_PROC_CACHE_KEY).equals(two.get(OptionsCatalog.METHOD_TO_PROC_CACHE_KEY)) &&
                one.get(OptionsCatalog.IS_A_CACHE_KEY).equals(two.get(OptionsCatalog.IS_A_CACHE_KEY)) &&
                one.get(OptionsCatalog.BIND_CACHE_KEY).equals(two.get(OptionsCatalog.BIND_CACHE_KEY)) &&
                one.get(OptionsCatalog.CONSTANT_CACHE_KEY).equals(two.get(OptionsCatalog.CONSTANT_CACHE_KEY)) &&
@@ -338,7 +327,6 @@ public final class LanguageOptions {
                one.get(OptionsCatalog.PACK_CACHE_KEY).equals(two.get(OptionsCatalog.PACK_CACHE_KEY)) &&
                one.get(OptionsCatalog.UNPACK_CACHE_KEY).equals(two.get(OptionsCatalog.UNPACK_CACHE_KEY)) &&
                one.get(OptionsCatalog.EVAL_CACHE_KEY).equals(two.get(OptionsCatalog.EVAL_CACHE_KEY)) &&
-               one.get(OptionsCatalog.ENCODING_COMPATIBLE_QUERY_CACHE_KEY).equals(two.get(OptionsCatalog.ENCODING_COMPATIBLE_QUERY_CACHE_KEY)) &&
                one.get(OptionsCatalog.ENCODING_LOADED_CLASSES_CACHE_KEY).equals(two.get(OptionsCatalog.ENCODING_LOADED_CLASSES_CACHE_KEY)) &&
                one.get(OptionsCatalog.INTEROP_CONVERT_CACHE_KEY).equals(two.get(OptionsCatalog.INTEROP_CONVERT_CACHE_KEY)) &&
                one.get(OptionsCatalog.TIME_FORMAT_CACHE_KEY).equals(two.get(OptionsCatalog.TIME_FORMAT_CACHE_KEY)) &&
@@ -526,13 +514,6 @@ public final class LanguageOptions {
             return false;
         }
 
-        oldValue = oldOptions.METHOD_TO_PROC_CACHE;
-        newValue = newOptions.METHOD_TO_PROC_CACHE;
-        if (!newValue.equals(oldValue)) {
-            logger.fine("not reusing pre-initialized context: --to-proc-cache differs, was: " + oldValue + " and is now: " + newValue);
-            return false;
-        }
-
         oldValue = oldOptions.IS_A_CACHE;
         newValue = newOptions.IS_A_CACHE;
         if (!newValue.equals(oldValue)) {
@@ -593,13 +574,6 @@ public final class LanguageOptions {
         newValue = newOptions.EVAL_CACHE;
         if (!newValue.equals(oldValue)) {
             logger.fine("not reusing pre-initialized context: --eval-cache differs, was: " + oldValue + " and is now: " + newValue);
-            return false;
-        }
-
-        oldValue = oldOptions.ENCODING_COMPATIBLE_QUERY_CACHE;
-        newValue = newOptions.ENCODING_COMPATIBLE_QUERY_CACHE;
-        if (!newValue.equals(oldValue)) {
-            logger.fine("not reusing pre-initialized context: --encoding-compatible-query-cache differs, was: " + oldValue + " and is now: " + newValue);
             return false;
         }
 

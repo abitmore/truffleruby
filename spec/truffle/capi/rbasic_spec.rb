@@ -1,4 +1,4 @@
-# Copyright (c) 2020, 2024 Oracle and/or its affiliates. All rights reserved. This
+# Copyright (c) 2020, 2025 Oracle and/or its affiliates. All rights reserved. This
 # code is released under a tri EPL/GPL/LGPL license. You can use it,
 # redistribute it and/or modify it under the terms of the:
 #
@@ -21,7 +21,7 @@ describe "RBasic support" do
 
     -> {
       specs.set_flags(obj, specs.promoted_flag)
-    }.should raise_error(ArgumentError, 'unsupported remaining flags: RUBY_FL_PROMOTED (1<<5 | 1<<6)')
+    }.should raise_error(ArgumentError, 'unsupported remaining flags: RUBY_FL_PROMOTED (1<<5)')
 
     -> {
       specs.set_flags(obj, 1 << 3)

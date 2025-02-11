@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2013, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -26,6 +26,7 @@ import com.oracle.truffle.api.dsl.GenerateCached;
 import com.oracle.truffle.api.dsl.GenerateInline;
 import com.oracle.truffle.api.dsl.GenerateUncached;
 import com.oracle.truffle.api.dsl.NodeFactory;
+import com.oracle.truffle.api.dsl.ReportPolymorphism;
 import com.oracle.truffle.api.library.CachedLibrary;
 import com.oracle.truffle.api.object.DynamicObjectLibrary;
 import com.oracle.truffle.api.profiles.InlinedBranchProfile;
@@ -70,6 +71,7 @@ import org.truffleruby.core.string.TStringConstants;
 import org.truffleruby.core.support.TypeNodes;
 import org.truffleruby.core.symbol.RubySymbol;
 import org.truffleruby.interop.ToJavaStringNode;
+import org.truffleruby.language.LazyWarnNode;
 import org.truffleruby.language.LexicalScope;
 import org.truffleruby.language.Nil;
 import org.truffleruby.language.RubyBaseNode;
@@ -90,6 +92,7 @@ import org.truffleruby.language.constants.ConstantEntry;
 import org.truffleruby.language.constants.GetConstantNode;
 import org.truffleruby.language.constants.LookupConstantInterface;
 import org.truffleruby.language.constants.LookupConstantNode;
+import org.truffleruby.language.constants.WarnDeprecatedConstantNode;
 import org.truffleruby.language.control.RaiseException;
 import org.truffleruby.language.control.ReturnID;
 import org.truffleruby.language.dispatch.DispatchNode;
@@ -157,7 +160,7 @@ public abstract class ModuleNodes {
         module.fields.afterConstructed();
 
         if (lexicalParent != null) {
-            module.fields.getAdoptedByLexicalParent(context, lexicalParent, name, currentNode);
+            lexicalParent.fields.setConstant(context, currentNode, name, module);
         }
         return module;
     }
@@ -334,7 +337,7 @@ public abstract class ModuleNodes {
 
         @TruffleBoundary
         static RubySymbol aliasMethod(RubyModule module, RubySymbol newName, RubySymbol oldName, RubyNode node) {
-            RubyContext context = node.getContext();
+            RubyContext context = RubyContext.get(node);
             module.fields.checkFrozen(context, node);
 
             final InternalMethod method = module.fields
@@ -609,11 +612,11 @@ public abstract class ModuleNodes {
     public abstract static class AutoloadNode extends CoreMethodArrayArgumentsNode {
 
         @TruffleBoundary
-        @Specialization(guards = "libFilename.isRubyString(filenameAsPath)", limit = "1")
+        @Specialization(guards = "libFilename.isRubyString(this, filenameAsPath)", limit = "1")
         static Object autoload(RubyModule module, Object nameObject, Object filename,
                 @Cached NameToJavaStringNode nameToJavaStringNode,
                 @Cached ToPathNode toPathNode,
-                @Bind("this") Node node,
+                @Bind Node node,
                 @Bind("toPathNode.execute(node, filename)") Object filenameAsPath,
                 @Cached RubyStringLibrary libFilename) {
             final var name = nameToJavaStringNode.execute(node, nameObject);
@@ -627,7 +630,7 @@ public abstract class ModuleNodes {
                                 node));
             }
 
-            if (libFilename.getTString(filenameAsPath).isEmpty()) {
+            if (libFilename.getTString(node, filenameAsPath).isEmpty()) {
                 throw new RaiseException(getContext(node), coreExceptions(node).argumentError("empty file name", node));
             }
 
@@ -642,7 +645,7 @@ public abstract class ModuleNodes {
 
         @Specialization
         boolean isAnonymous(RubyModule module) {
-            return module.fields.isAnonymous();
+            return module.fields.isAnonymousOrTemporary();
         }
 
     }
@@ -701,7 +704,7 @@ public abstract class ModuleNodes {
                 @Cached ToStrNode toStrNode,
                 @Cached ToIntNode toIntNode,
                 @Cached IndirectCallNode callNode,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             final Object sourceCode;
             String fileName = coreStrings(node).EVAL_FILENAME_STRING.toString();
             int line = 1;
@@ -742,8 +745,8 @@ public abstract class ModuleNodes {
                 IndirectCallNode callNode) {
             final RubySource source = EvalLoader.createEvalSource(
                     getContext(node),
-                    RubyStringLibrary.getUncached().getTString(sourceCode),
-                    RubyStringLibrary.getUncached().getEncoding(sourceCode),
+                    RubyStringLibrary.getUncached().getTString(node, sourceCode),
+                    RubyStringLibrary.getUncached().getEncoding(node, sourceCode),
                     "class/module_eval",
                     file,
                     line,
@@ -812,7 +815,7 @@ public abstract class ModuleNodes {
         }
     }
 
-    @CoreMethod(names = "class_variable_defined?", required = 1)
+    @CoreMethod(names = "class_variable_defined?", required = 1, split = Split.ALWAYS)
     public abstract static class ClassVariableDefinedNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization
@@ -827,7 +830,7 @@ public abstract class ModuleNodes {
 
     }
 
-    @CoreMethod(names = "class_variable_get", required = 1)
+    @CoreMethod(names = "class_variable_get", required = 1, split = Split.ALWAYS)
     public abstract static class ClassVariableGetNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization
@@ -851,7 +854,7 @@ public abstract class ModuleNodes {
 
     }
 
-    @CoreMethod(names = "class_variable_set", required = 2, raiseIfFrozenSelf = true)
+    @CoreMethod(names = "class_variable_set", required = 2, raiseIfFrozenSelf = true, split = Split.ALWAYS)
     public abstract static class ClassVariableSetNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization
@@ -947,6 +950,7 @@ public abstract class ModuleNodes {
 
     @GenerateCached(false)
     @GenerateInline
+    @ReportPolymorphism // inline cache
     @SuppressWarnings("truffle-inlining") //TODO [GR-46266] - Remove it when other nodes are converted to DSL inlinable
     public abstract static class ConstGetNode extends RubyBaseNode {
 
@@ -976,20 +980,20 @@ public abstract class ModuleNodes {
 
         @Specialization(
                 guards = {
-                        "stringsName.isRubyString(name)",
+                        "stringsName.isRubyString(node, name)",
                         "inherit",
                         "equalNode.execute(stringsName, name, cachedTString, cachedEncoding)",
                         "!scoped",
                         "checkName == cachedCheckName" },
                 limit = "getLimit()")
         static Object getConstantStringCached(
-                RubyModule module, Object name, boolean inherit, boolean lookInObject, boolean checkName,
+                Node node, RubyModule module, Object name, boolean inherit, boolean lookInObject, boolean checkName,
                 @Cached @Shared RubyStringLibrary stringsName,
                 @Cached @Shared GetConstantNode getConstantNode,
                 @Cached("create(true, false)") @Shared LookupConstantNode lookupConstantNode,
                 @Cached("create(true, true)") @Shared LookupConstantNode lookupConstantLookInObjectNode,
                 @Cached("asTruffleStringUncached(name)") TruffleString cachedTString,
-                @Cached("stringsName.getEncoding(name)") RubyEncoding cachedEncoding,
+                @Cached("stringsName.getEncoding(node, name)") RubyEncoding cachedEncoding,
                 @Cached("getJavaString(name)") String cachedString,
                 @Cached("checkName") boolean cachedCheckName,
                 @Cached StringHelperNodes.EqualNode equalNode,
@@ -1000,9 +1004,9 @@ public abstract class ModuleNodes {
 
         @Specialization(
                 guards = {
-                        "stringsName.isRubyString(name)",
+                        "stringsName.isRubyString(node, name)",
                         "inherit",
-                        "!isScoped(stringsName, name, byteIndexOfStringNode)" },
+                        "!isScoped(node, stringsName, name, byteIndexOfStringNode)" },
                 replaces = "getConstantStringCached")
         static Object getConstantString(
                 Node node, RubyModule module, Object name, boolean inherit, boolean lookInObject, boolean checkName,
@@ -1018,9 +1022,9 @@ public abstract class ModuleNodes {
 
         @Specialization(
                 guards = {
-                        "stringsName.isRubyString(name)",
+                        "stringsName.isRubyString(node, name)",
                         "!inherit",
-                        "!isScoped(stringsName, name, byteIndexOfStringNode)" })
+                        "!isScoped(node, stringsName, name, byteIndexOfStringNode)" })
         static Object getConstantNoInheritString(
                 Node node, RubyModule module, Object name, boolean inherit, boolean lookInObject, boolean checkName,
                 @Cached @Shared RubyStringLibrary stringsName,
@@ -1032,9 +1036,11 @@ public abstract class ModuleNodes {
 
         // Scoped String
         @Specialization(
-                guards = { "stringsName.isRubyString(name)", "isScoped(stringsName, name, byteIndexOfStringNode)" })
+                guards = {
+                        "stringsName.isRubyString(node, name)",
+                        "isScoped(node, stringsName, name, byteIndexOfStringNode)" })
         static Object getConstantScoped(
-                RubyModule module, Object name, boolean inherit, boolean lookInObject, boolean checkName,
+                Node node, RubyModule module, Object name, boolean inherit, boolean lookInObject, boolean checkName,
                 @Cached @Shared ByteIndexOfStringNode byteIndexOfStringNode,
                 @Cached @Shared RubyStringLibrary stringsName) {
             return FAILURE;
@@ -1069,10 +1075,10 @@ public abstract class ModuleNodes {
                     .getConstant();
         }
 
-        static boolean isScoped(RubyStringLibrary libString, Object string,
+        static boolean isScoped(Node node, RubyStringLibrary libString, Object string,
                 ByteIndexOfStringNode byteIndexOfStringNode) {
-            var tstring = libString.getTString(string);
-            var encoding = libString.getTEncoding(string);
+            var tstring = libString.getTString(node, string);
+            var encoding = libString.getTEncoding(node, string);
             int byteLength = tstring.byteLength(encoding);
             return byteIndexOfStringNode.execute(tstring, TStringConstants.COLON_COLON, 0, byteLength, encoding) >= 0;
         }
@@ -1119,7 +1125,7 @@ public abstract class ModuleNodes {
 
         public abstract Object execute(Node node, RubyModule module, Object name, boolean inherit);
 
-        @Specialization(guards = "strings.isRubyString(name)", limit = "1")
+        @Specialization(guards = "strings.isRubyString(this, name)", limit = "1")
         @TruffleBoundary
         static Object constSourceLocation(Node node, RubyModule module, Object name, boolean inherit,
                 @Cached(inline = false) @Shared TruffleString.FromJavaStringNode fromJavaStringNode,
@@ -1422,8 +1428,7 @@ public abstract class ModuleNodes {
                         coreExceptions().typeErrorWrongArgumentType(module, "Module", this));
             }
 
-            singletonClassNode.execute(object).fields
-                    .include(getContext(), this, module);
+            singletonClassNode.execute(object).fields.include(getContext(), this, module);
             return module;
         }
 
@@ -1574,7 +1579,7 @@ public abstract class ModuleNodes {
                 @Cached @Exclusive InlinedBranchProfile errorProfile,
                 @Cached InlinedLoopConditionProfile loopProfile,
                 @Cached SingleValueCastNode singleValueCastNode,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             checkNotClass(node, module, errorProfile);
             int i = 0;
             try {
@@ -1659,7 +1664,7 @@ public abstract class ModuleNodes {
                 @Bind("getPositionalArguments(rubyArgs)") Object[] names,
                 @Cached SetMethodVisibilityNode setMethodVisibilityNode,
                 @Cached SingleValueCastNode singleValueCastNode,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             for (Object name : names) {
                 setMethodVisibilityNode.execute(node, module, name, Visibility.PUBLIC);
             }
@@ -1667,17 +1672,18 @@ public abstract class ModuleNodes {
         }
     }
 
-    @CoreMethod(names = "public_class_method", rest = true)
+    @CoreMethod(names = "public_class_method", rest = true, split = Split.NEVER)
     public abstract static class PublicClassMethodNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization
-        RubyModule publicClassMethod(RubyModule module, Object[] names,
-                @Cached SetMethodVisibilityNode setMethodVisibilityNode,
-                @Cached SingletonClassNode singletonClassNode) {
-            final RubyClass singletonClass = singletonClassNode.execute(module);
+        @TruffleBoundary
+        RubyModule publicClassMethod(RubyModule module, Object[] names) {
+            final RubyClass singletonClass = org.truffleruby.language.objects.SingletonClassNodeGen.getUncached()
+                    .execute(module);
 
             for (Object name : names) {
-                setMethodVisibilityNode.execute(this, singletonClass, name, Visibility.PUBLIC);
+                ModuleNodesFactory.SetMethodVisibilityNodeGen.getUncached().execute(this, singletonClass, name,
+                        Visibility.PUBLIC);
             }
 
             return module;
@@ -1701,7 +1707,7 @@ public abstract class ModuleNodes {
                 @Bind("getPositionalArguments(rubyArgs)") Object[] names,
                 @Cached SetMethodVisibilityNode setMethodVisibilityNode,
                 @Cached SingleValueCastNode singleValueCastNode,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             for (Object name : names) {
                 setMethodVisibilityNode.execute(node, module, name, Visibility.PRIVATE);
             }
@@ -1726,17 +1732,18 @@ public abstract class ModuleNodes {
         }
     }
 
-    @CoreMethod(names = "private_class_method", rest = true)
+    @CoreMethod(names = "private_class_method", rest = true, split = Split.NEVER)
     public abstract static class PrivateClassMethodNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization
-        RubyModule privateClassMethod(VirtualFrame frame, RubyModule module, Object[] names,
-                @Cached SetMethodVisibilityNode setMethodVisibilityNode,
-                @Cached SingletonClassNode singletonClassNode) {
-            final RubyClass singletonClass = singletonClassNode.execute(module);
+        @TruffleBoundary
+        RubyModule privateClassMethod(RubyModule module, Object[] names) {
+            final RubyClass singletonClass = org.truffleruby.language.objects.SingletonClassNodeGen.getUncached()
+                    .execute(module);
 
             for (Object name : names) {
-                setMethodVisibilityNode.execute(this, singletonClass, name, Visibility.PRIVATE);
+                ModuleNodesFactory.SetMethodVisibilityNodeGen.getUncached().execute(this, singletonClass, name,
+                        Visibility.PRIVATE);
             }
 
             return module;
@@ -1977,7 +1984,7 @@ public abstract class ModuleNodes {
                 @Bind("getPositionalArguments(rubyArgs)") Object[] names,
                 @Cached SetMethodVisibilityNode setMethodVisibilityNode,
                 @Cached SingleValueCastNode singleValueCastNode,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             for (Object name : names) {
                 setMethodVisibilityNode.execute(node, module, name, Visibility.PROTECTED);
             }
@@ -1985,7 +1992,7 @@ public abstract class ModuleNodes {
         }
     }
 
-    @CoreMethod(names = "remove_class_variable", required = 1)
+    @CoreMethod(names = "remove_class_variable", required = 1, split = Split.ALWAYS)
     public abstract static class RemoveClassVariableNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization
@@ -2004,7 +2011,8 @@ public abstract class ModuleNodes {
 
         @Specialization
         Object removeConstant(RubyModule module, Object nameObject,
-                @Cached NameToJavaStringNode nameToJavaStringNode) {
+                @Cached NameToJavaStringNode nameToJavaStringNode,
+                @Cached LazyWarnNode lazyWarnNode) {
             final var name = nameToJavaStringNode.execute(this, nameObject);
             final RubyConstant oldConstant = module.fields.removeConstant(getContext(), this, name);
             if (oldConstant == null) {
@@ -2015,9 +2023,16 @@ public abstract class ModuleNodes {
                 if (oldConstant.isAutoload() || oldConstant.isUndefined()) {
                     return nil;
                 } else {
+                    if (oldConstant.isDeprecated()) {
+                        warnDeprecatedConstant(module, name, lazyWarnNode);
+                    }
                     return oldConstant.getValue();
                 }
             }
+        }
+
+        private void warnDeprecatedConstant(RubyModule module, String name, LazyWarnNode lazyWarnNode) {
+            WarnDeprecatedConstantNode.warnDeprecatedConstant(this, lazyWarnNode.get(this), module, name);
         }
     }
 
@@ -2041,7 +2056,7 @@ public abstract class ModuleNodes {
         private void removeMethod(RubyModule module, String name, TypeNodes.CheckFrozenNode raiseIfFrozenNode) {
             raiseIfFrozenNode.execute(this, module);
 
-            if (module.fields.removeMethod(name)) {
+            if (module.fields.removeMethod(getContext(), name, this)) {
                 if (RubyGuards.isSingletonClass(module)) {
                     final RubyDynamicObject receiver = ((RubyClass) module).attached;
                     methodRemovedNode.call(receiver, "singleton_method_removed", getSymbol(name));
@@ -2277,6 +2292,48 @@ public abstract class ModuleNodes {
             final ModuleFields refinementFields = refinement.fields;
             refinementFields.setupRefinementModule(moduleToRefine, namespace);
             return refinement;
+        }
+
+    }
+
+    @CoreMethod(names = "set_temporary_name", required = 1)
+    public abstract static class SetTemporaryNameNode extends CoreMethodArrayArgumentsNode {
+
+        @TruffleBoundary
+        @Specialization
+        RubyModule setTemporaryName(RubyModule self, Object name,
+                @Cached ToJavaStringNode toJavaStringNode) {
+            if (name == nil) {
+                self.fields.setTemporaryName(null);
+                return self;
+            }
+
+            final String string = toJavaStringNode.execute(this, name);
+            validateName(string, self);
+            self.fields.setTemporaryName(string);
+
+            return self;
+        }
+
+        private void validateName(String name, RubyModule self) {
+            if (name.isEmpty()) {
+                throw new RaiseException(
+                        getContext(this),
+                        coreExceptions(this).argumentError("empty class/module name", this));
+            }
+
+            if (self.fields.hasFullName()) {
+                throw new RaiseException(
+                        getContext(this),
+                        coreExceptions(this).runtimeError("can't change permanent name", this));
+            }
+
+            if (Identifiers.isValidConstantPath(name)) {
+                throw new RaiseException(
+                        getContext(this),
+                        coreExceptions(this).argumentError(
+                                "the temporary name must not be a constant path to avoid confusion", this));
+            }
         }
 
     }

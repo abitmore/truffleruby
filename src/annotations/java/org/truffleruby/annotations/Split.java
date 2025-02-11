@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2020, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -14,7 +14,7 @@ public enum Split {
     DEFAULT,
     ALWAYS,
     HEURISTIC,
-    /** Disallow splitting for this CallTarget, which avoids making a eager uninitialized copy of the AST. Useful
+    /** Disallow splitting for this CallTarget, which avoids making an eager uninitialized copy of the AST. Useful
      * notably for methods not specializing on their arguments and just calling a TruffleBoundary. */
     NEVER
 }

@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Copyright (c) 2018, 2024 Oracle and/or its affiliates. All rights reserved. This
+# Copyright (c) 2018, 2025 Oracle and/or its affiliates. All rights reserved. This
 # code is released under a tri EPL/GPL/LGPL license. You can use it,
 # redistribute it and/or modify it under the terms of the:
 #
@@ -44,6 +44,7 @@ module Polyglot
     def eval(language, code, filename = '(eval)')
       Primitive.inner_context_eval(self, language, code, filename)
     end
+    Truffle::Graal.always_split instance_method(:eval)
 
     # Close the inner context and release the associated resources.
     # If the context is not closed explicitly, then it is automatically closed together with the parent context.
@@ -552,7 +553,7 @@ module Polyglot
     end
   end
 
-  class ForeignException < Exception # rubocop:disable Lint/InheritException
+  class ForeignException < StandardError
     include ObjectTrait
     include ExceptionTrait
 

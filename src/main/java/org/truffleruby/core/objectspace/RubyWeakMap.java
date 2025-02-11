@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2020, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -15,11 +15,10 @@ import org.truffleruby.language.RubyDynamicObject;
 
 public final class RubyWeakMap extends RubyDynamicObject {
 
-    final WeakMapStorage storage;
+    final WeakMapStorage storage = new WeakMapStorage();
 
-    public RubyWeakMap(RubyClass rubyClass, Shape shape, WeakMapStorage storage) {
+    public RubyWeakMap(RubyClass rubyClass, Shape shape) {
         super(rubyClass, shape);
-        this.storage = storage;
     }
 
 }

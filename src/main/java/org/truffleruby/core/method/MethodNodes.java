@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2015, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -285,30 +285,18 @@ public abstract class MethodNodes {
     @CoreMethod(names = "to_proc")
     public abstract static class ToProcNode extends CoreMethodArrayArgumentsNode {
 
-        @Specialization(guards = { "isSingleContext()", "methodObject == cachedMethodObject" },
-                limit = "getCacheLimit()")
-        RubyProc toProcCachedSingleContext(RubyMethod methodObject,
-                @Cached("methodObject") RubyMethod cachedMethodObject,
-                @Cached("toProcUncached(cachedMethodObject)") RubyProc proc) {
-            return proc;
-        }
-
-        @Specialization(
-                guards = "methodObject.method.getCallTarget() == methodCallTarget",
-                limit = "getCacheLimit()",
-                replaces = "toProcCachedSingleContext")
-        RubyProc toProcCachedTarget(RubyMethod methodObject,
-                @Cached("methodObject.method.getCallTarget()") RootCallTarget methodCallTarget,
-                @Cached("procCallTargetToCallRubyMethod(methodCallTarget)") RootCallTarget procCallTarget) {
-            return createProc(procCallTarget, methodObject.method, methodObject.receiver);
-        }
-
-        @Specialization(replaces = { "toProcCachedSingleContext", "toProcCachedTarget" })
-        RubyProc toProcUncached(RubyMethod methodObject) {
+        @Specialization
+        RubyProc toProc(RubyMethod methodObject) {
             final InternalMethod method = methodObject.method;
             final Object receiver = methodObject.receiver;
-            final RootCallTarget callTarget = procCallTargetToCallRubyMethod(method.getCallTarget());
-            return createProc(callTarget, method, receiver);
+            RootCallTarget toProcCallTarget = method.toProcCallTarget;
+
+            if (toProcCallTarget == null) {
+                toProcCallTarget = createToProcCallTarget(method.getCallTarget());
+                method.toProcCallTarget = toProcCallTarget;
+            }
+
+            return createProc(toProcCallTarget, method, receiver);
         }
 
         private RubyProc createProc(RootCallTarget callTarget, InternalMethod method, Object receiver) {
@@ -331,7 +319,7 @@ public abstract class MethodNodes {
         }
 
         @TruffleBoundary
-        protected RootCallTarget procCallTargetToCallRubyMethod(RootCallTarget callTarget) {
+        protected RootCallTarget createToProcCallTarget(RootCallTarget callTarget) {
             // translate to something like:
             // lambda { |same args list| method.call(args) }
             // We need to preserve the method receiver and we want to have the same argument list.
@@ -352,10 +340,6 @@ public abstract class MethodNodes {
                     BreakID.INVALID,
                     sharedMethodInfo.getArity());
             return wrapRootNode.getCallTarget();
-        }
-
-        protected int getCacheLimit() {
-            return getLanguage().options.METHOD_TO_PROC_CACHE;
         }
 
         private static final class CallWithRubyMethodReceiverNode extends RubyContextSourceNode {

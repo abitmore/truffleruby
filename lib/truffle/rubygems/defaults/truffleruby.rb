@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Copyright (c) 2019, 2024 Oracle and/or its affiliates. All rights reserved. This
+# Copyright (c) 2019, 2025 Oracle and/or its affiliates. All rights reserved. This
 # code is released under a tri EPL/GPL/LGPL license. You can use it,
 # redistribute it and/or modify it under the terms of the:
 #
@@ -30,5 +30,5 @@ end
 
 class Gem::Platform
   # The list of gems we want to install precompiled (using the local platform) on TruffleRuby
-  REUSE_AS_BINARY_ON_TRUFFLERUBY = %w[libv8 libv8-node sorbet-static]
+  REUSE_AS_BINARY_ON_TRUFFLERUBY = %w[libv8 libv8-node sass-embedded sorbet-static] + Truffle::Boot.get_option('reuse-precompiled-gems')
 end

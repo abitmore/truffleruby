@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2015, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -195,7 +195,7 @@ public abstract class GetConstantNode extends RubyBaseNode {
             boolean callConstMissing,
             @Cached ToSymbolNode toSymbolNode,
             @Cached @Exclusive LazyDispatchNode constMissingNode,
-            @Bind("this") Node node) {
+            @Bind Node node) {
         CompilerAsserts.partialEvaluationConstant(callConstMissing);
         if (callConstMissing) {
             return constMissingNode.get(node).call(module, "const_missing", toSymbolNode.execute(node, name));

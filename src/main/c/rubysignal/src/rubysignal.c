@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2021, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -8,12 +8,22 @@
  * GNU Lesser General Public License version 2.1.
  */
 #include "org_truffleruby_signal_LibRubySignal.h"
+#include <locale.h>
 #include <pthread.h>
 #include <signal.h>
 #include <unistd.h>
 #include <sys/syscall.h>
 
 _Static_assert(sizeof(pthread_t) == sizeof(jlong), "Expected sizeof(pthread_t) == sizeof(jlong)");
+
+JNIEXPORT void JNICALL Java_org_truffleruby_signal_LibRubySignal_setupLocale(JNIEnv *env, jclass clazz) {
+  setlocale(LC_ALL, "C");
+  setlocale(LC_CTYPE, "");
+}
+
+JNIEXPORT void JNICALL Java_org_truffleruby_signal_LibRubySignal_setupLocaleOnlyCTYPE(JNIEnv *env, jclass clazz) {
+  setlocale(LC_CTYPE, "");
+}
 
 static void empty_handler(int sig) {
 }

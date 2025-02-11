@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Copyright (c) 2015, 2024 Oracle and/or its affiliates. All rights reserved. This
+# Copyright (c) 2015, 2025 Oracle and/or its affiliates. All rights reserved. This
 # code is released under a tri EPL/GPL/LGPL license. You can use it,
 # redistribute it and/or modify it under the terms of the:
 #
@@ -816,23 +816,18 @@ class IO
   # the underlying descriptor allows it.
   #
   # The +sync+ attribute will also be set.
-  #
   def self.setup(io, fd, mode, sync)
-    if !Truffle::Boot.preinitializing? && Truffle::POSIX::NATIVE
-      cur_mode = Truffle::POSIX.fcntl(fd, F_GETFL, 0)
-      Errno.handle if cur_mode < 0
-      cur_mode &= ACCMODE
-    end
+    raise Errno::EBADF if fd < 0
 
     if mode
       mode = Truffle::IOOperations.parse_mode(mode)
       mode &= ACCMODE
-
-      if cur_mode and (cur_mode == RDONLY or cur_mode == WRONLY) and mode != cur_mode
-        raise Errno::EINVAL, "Invalid mode #{cur_mode} for existing descriptor #{fd} (expected #{mode})"
-      end
+    elsif !Truffle::Boot.preinitializing? && Truffle::POSIX::NATIVE
+      mode = Truffle::POSIX.fcntl(fd, F_GETFL, 0)
+      Errno.handle if mode < 0
+      mode &= ACCMODE
     else
-      mode = cur_mode or raise 'No mode given for IO'
+      raise 'No mode given for IO'
     end
 
     # Close old descriptor if there was already one associated
@@ -908,10 +903,12 @@ class IO
   # which is not really the owner of the fd should not actually close
   # the fd.
   def autoclose?
+    ensure_open
     @autoclose
   end
 
   def autoclose=(autoclose)
+    ensure_open
     @autoclose = Primitive.as_boolean(autoclose)
   end
 
@@ -1612,6 +1609,32 @@ class IO
     seek Primitive.rb_num2long(offset), SEEK_SET
   end
 
+  def pread(length, offset, buffer = nil)
+    ensure_open_and_readable
+
+    length = Primitive.rb_to_int(length)
+    offset = Primitive.rb_to_int(offset)
+
+    raise ArgumentError, 'negative string size (or size too big)' if length < 0
+    raise Errno::EINVAL, 'offset must not be negative' if offset < 0
+
+    if length == 0
+      return buffer ? buffer : +''
+    end
+
+    str, errno = Truffle::POSIX.pread_string(self, length, offset)
+    Errno.handle_errno(errno) unless errno == 0
+
+    raise EOFError if Primitive.nil? str
+
+    if buffer
+      buffer = StringValue(buffer)
+      buffer.replace str.force_encoding(buffer.encoding)
+    else
+      str
+    end
+  end
+
   ##
   # Writes each given argument.to_s to the stream or $_ (the result of last
   # IO#gets) if called without arguments. Appends $\.to_s to output. Returns
@@ -1664,6 +1687,16 @@ class IO
     fmt = StringValue(fmt)
     write sprintf(fmt, *args)
   end
+  Truffle::Graal.always_split(instance_method(:printf))
+
+  def pwrite(object, offset)
+    string = Truffle::Type.rb_obj_as_string(object)
+    offset = Primitive.rb_to_int(offset)
+
+    ensure_open_and_writable
+
+    Truffle::POSIX.pwrite_string(self, string, offset)
+  end
 
   def read(length = nil, buffer = nil)
     ensure_open_and_readable
@@ -1673,6 +1706,8 @@ class IO
       str = IO.read_encode self, read_all
       return str unless buffer
 
+      # intentionally don't preserve buffer encoding
+      # see https://bugs.ruby-lang.org/issues/20416
       return buffer.replace(str)
     end
 
@@ -1753,10 +1788,14 @@ class IO
     str = Truffle::POSIX.read_string_nonblock(self, size, exception)
 
     case str
-    when Symbol
+    when Symbol # :wait_readable in case of EAGAIN_ERRNO
       str
     when String
-      buffer ? buffer.replace(str) : str
+      if buffer
+        buffer.replace str.force_encoding(buffer.encoding)
+      else
+        str
+      end
     else # EOF
       if exception
         raise EOFError, 'end of file reached'
@@ -1871,8 +1910,7 @@ class IO
         raise EOFError if Primitive.nil? data
       end
 
-      buffer.replace(data)
-      buffer
+      buffer.replace data.force_encoding(buffer.encoding)
     else
       return +'' if size == 0
 
@@ -2078,71 +2116,14 @@ class IO
       raise ArgumentError, "encoding is set to #{external_encoding} already"
     end
 
-    external = strip_bom
-    if external
-      @external = external
-    end
-  end
-
-  private def strip_bom
-    mode = Truffle::POSIX.truffleposix_fstat_mode(Primitive.io_fd(self))
-    return unless Truffle::StatOperations.file?(mode)
-
-    case b1 = getbyte
-    when 0x00
-      b2 = getbyte
-      if b2 == 0x00
-        b3 = getbyte
-        if b3 == 0xFE
-          b4 = getbyte
-          if b4 == 0xFF
-            return Encoding::UTF_32BE
-          end
-          ungetbyte b4
-        end
-        ungetbyte b3
-      end
-      ungetbyte b2
-
-    when 0xFF
-      b2 = getbyte
-      if b2 == 0xFE
-        b3 = getbyte
-        if b3 == 0x00
-          b4 = getbyte
-          if b4 == 0x00
-            return Encoding::UTF_32LE
-          end
-          ungetbyte b4
-        else
-          ungetbyte b3
-          return Encoding::UTF_16LE
-        end
-        ungetbyte b3
-      end
-      ungetbyte b2
-
-    when 0xFE
-      b2 = getbyte
-      if b2 == 0xFF
-        return Encoding::UTF_16BE
-      end
-      ungetbyte b2
-
-    when 0xEF
-      b2 = getbyte
-      if b2 == 0xBB
-        b3 = getbyte
-        if b3 == 0xBF
-          return Encoding::UTF_8
-        end
-        ungetbyte b3
-      end
-      ungetbyt b2
+    if @mode & FMODE_READABLE == 0
+      return nil
     end
 
-    ungetbyte b1
-    nil
+    encoding = Truffle::IOOperations.strip_bom(self)
+    if encoding
+      @external = encoding
+    end
   end
 
   ##
@@ -2196,20 +2177,23 @@ class IO
   #
   #  @todo  Improve reading into provided buffer.
   #
-  def sysread(number_of_bytes, buffer = undefined)
+  def sysread(number_of_bytes, buffer = nil)
     ensure_open_and_readable
     flush
     raise IOError unless @ibuffer.empty?
+
+    buffer = StringValue(buffer) if buffer
 
     str, errno = Truffle::POSIX.read_string(self, number_of_bytes)
     Errno.handle_errno(errno) unless errno == 0
 
     raise EOFError if Primitive.nil? str
 
-    unless Primitive.undefined? buffer
-      StringValue(buffer).replace str
+    if buffer
+      buffer.replace str.force_encoding(buffer.encoding)
+    else
+      str
     end
-    str
   end
 
   ##
@@ -2289,6 +2273,76 @@ class IO
     nil
   end
 
+  def wait_readable(timeout = nil)
+    ensure_open_and_readable
+    Truffle::IOOperations.poll(self, IO::READABLE, timeout) > 0 ? self : nil
+  end
+
+  def wait_writable(timeout = nil)
+    ensure_open_and_writable
+    Truffle::IOOperations.poll(self, IO::WRITABLE, timeout) > 0 ? self : nil
+  end
+
+  def wait_priority(timeout = nil)
+    ensure_open_and_readable
+    Truffle::IOOperations.poll(self, IO::PRIORITY, timeout) > 0 ? self : nil
+  end
+
+  # call-seq:
+  #   io.wait(events, timeout) -> event mask, false or nil
+  #   io.wait(timeout = nil, mode = :read) -> self, true, or false
+  #
+  # Waits until the IO becomes ready for the specified events and returns the
+  # subset of events that become ready, or a falsy value when times out.
+  #
+  # The events can be a bit mask of +IO::READABLE+, +IO::WRITABLE+ or
+  # +IO::PRIORITY+.
+  #
+  # Returns a truthy value immediately when buffered data is available.
+  #
+  # Optional parameter +mode+ is one of +:read+, +:write+, or
+  # +:read_write+.
+  def wait(*args)
+    ensure_open
+
+    if args.size != 2 || Primitive.is_a?(args[0], Symbol) || Primitive.is_a?(args[1], Symbol)
+      # Slow/messy path:
+      timeout = :undef
+      events = 0
+      args.each do |arg|
+        if Primitive.is_a?(arg, Symbol)
+          events |= case arg
+                    when :r, :read, :readable then IO::READABLE
+                    when :w, :write, :writable then IO::WRITABLE
+                    when :rw, :read_write, :readable_writable then IO::READABLE | IO::WRITABLE
+                    else
+                      raise ArgumentError, "unsupported mode: #{arg}"
+                    end
+
+        elsif timeout == :undef
+          timeout = arg
+        else
+          raise ArgumentError, 'timeout given more than once'
+        end
+      end
+
+      timeout = nil if timeout == :undef
+
+      events = IO::READABLE if events == 0
+
+      res = Truffle::IOOperations.poll(self, events, timeout)
+      res == 0 ? nil : self
+    else
+      # args.size == 2 and neither are symbols
+      # This is the fast path and the new interface:
+      events, timeout = *args
+      raise ArgumentError, 'Events must be positive integer!' if events <= 0
+      res = Truffle::IOOperations.poll(self, events, timeout)
+      # return events as bit mask
+      res == 0 ? nil : res
+    end
+  end
+
   def write(*objects)
     bytes_written = 0
 
@@ -2338,7 +2392,7 @@ class IO
       if fd >= 0
         # Need to set even if the instance is frozen
         Primitive.io_set_fd(self, -1)
-        if fd >= 3 && autoclose?
+        if fd >= 3 && @autoclose
           ret = Truffle::POSIX.close(fd)
           Errno.handle if ret < 0
         end
@@ -2407,6 +2461,7 @@ class IO::BidirectionalPipe < IO
   def printf(fmt, *args)
     @write.printf(fmt, *args)
   end
+  Truffle::Graal.always_split(instance_method(:printf))
 
   def putc(obj)
     @write.putc(obj)

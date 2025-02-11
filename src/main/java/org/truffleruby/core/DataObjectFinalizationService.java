@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2013, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -71,6 +71,7 @@ public final class DataObjectFinalizationService
         this(language, referenceProcessor.processingQueue);
     }
 
+    @TruffleBoundary
     public DataObjectFinalizerReference addFinalizer(RubyContext context, Object object, Object finalizerCFunction,
             Object dataStruct) {
         final DataObjectFinalizerReference newRef = createRef(object, finalizerCFunction, dataStruct);

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2023, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -165,6 +165,11 @@ public final class YARPLoadArgumentsTranslator extends YARPBaseTranslator {
 
         final var translator = new YARPMultiTargetNodeTranslator(node, language, yarpTranslator, readNode);
         final RubyNode rubyNode = translator.translate();
+
+        // Prolog is used now only for caching of method receiver (e.g. a.b or a[b]) and constant module (e.g. a::B).
+        // So for method or block parameters prolog is supposed to be empty.
+        assert translator.prolog.isEmpty();
+
         return rubyNode;
     }
 
@@ -311,10 +316,10 @@ public final class YARPLoadArgumentsTranslator extends YARPBaseTranslator {
         environment.declareVar(TranslatorEnvironment.FORWARDED_KEYWORD_REST_NAME);
         environment.declareVar(TranslatorEnvironment.FORWARDED_BLOCK_NAME);
 
-        final var rest = new Nodes.RestParameterNode(NO_FLAGS, TranslatorEnvironment.FORWARDED_REST_NAME, 0, 0);
-        final var keyrest = new Nodes.KeywordRestParameterNode(NO_FLAGS,
-                TranslatorEnvironment.FORWARDED_KEYWORD_REST_NAME, 0, 0);
-        final var block = new Nodes.BlockParameterNode(NO_FLAGS, TranslatorEnvironment.FORWARDED_BLOCK_NAME, 0, 0);
+        final var rest = new Nodes.RestParameterNode(0, 0, NO_FLAGS, TranslatorEnvironment.FORWARDED_REST_NAME);
+        final var keyrest = new Nodes.KeywordRestParameterNode(0, 0, NO_FLAGS,
+                TranslatorEnvironment.FORWARDED_KEYWORD_REST_NAME);
+        final var block = new Nodes.BlockParameterNode(0, 0, NO_FLAGS, TranslatorEnvironment.FORWARDED_BLOCK_NAME);
 
         return sequence(
                 rest.accept(this),

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2015, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -11,6 +11,7 @@ package org.truffleruby;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.invoke.MethodHandles;
 import java.lang.ref.Cleaner;
 import java.util.Arrays;
 import java.util.Map;
@@ -39,6 +40,7 @@ import com.oracle.truffle.api.source.SourceSection;
 import com.oracle.truffle.api.strings.AbstractTruffleString;
 import com.oracle.truffle.api.strings.InternalByteArray;
 import com.oracle.truffle.api.strings.TruffleString;
+import org.graalvm.nativeimage.ImageInfo;
 import org.graalvm.options.OptionDescriptors;
 import org.prism.Parser;
 import org.truffleruby.annotations.SuppressFBWarnings;
@@ -72,6 +74,7 @@ import org.truffleruby.core.module.RubyModule;
 import org.truffleruby.core.mutex.RubyConditionVariable;
 import org.truffleruby.core.mutex.RubyMutex;
 import org.truffleruby.core.objectspace.ObjectSpaceManager;
+import org.truffleruby.core.objectspace.RubyWeakKeyMap;
 import org.truffleruby.core.objectspace.RubyWeakMap;
 import org.truffleruby.core.proc.RubyProc;
 import org.truffleruby.core.queue.RubyQueue;
@@ -87,6 +90,7 @@ import org.truffleruby.core.string.CoreStrings;
 import org.truffleruby.core.string.FrozenStringLiterals;
 import org.truffleruby.core.string.RubyString;
 import org.truffleruby.core.string.StringUtils;
+import org.truffleruby.core.string.TStringWithEncoding;
 import org.truffleruby.core.support.RubyByteArray;
 import org.truffleruby.core.support.RubyCustomRandomizer;
 import org.truffleruby.core.support.RubyIO;
@@ -125,6 +129,7 @@ import org.truffleruby.shared.Platform;
 import org.truffleruby.shared.Metrics;
 import org.truffleruby.shared.TruffleRuby;
 import org.truffleruby.shared.options.OptionsCatalog;
+import org.truffleruby.signal.LibRubySignal;
 import org.truffleruby.stdlib.CoverageManager;
 
 import com.oracle.truffle.api.Assumption;
@@ -159,8 +164,7 @@ import static org.truffleruby.language.RubyBaseNode.nil;
                 RubyLanguage.MIME_TYPE_MAIN_SCRIPT },
         defaultMimeType = RubyLanguage.MIME_TYPE,
         dependentLanguages = { "nfi", "llvm", "regex" },
-        fileTypeDetectors = RubyFileTypeDetector.class,
-        needsAllEncodings = true)
+        fileTypeDetectors = RubyFileTypeDetector.class)
 @ProvidedTags({
         CoverageManager.LineTag.class,
         TraceManager.CallTag.class,
@@ -180,12 +184,6 @@ public final class RubyLanguage extends TruffleLanguage<RubyContext> {
     public static final String MIME_TYPE_MAIN_SCRIPT = "application/x-ruby;main-script=true";
     public static final String[] MIME_TYPES = { MIME_TYPE, MIME_TYPE_COVERAGE, MIME_TYPE_MAIN_SCRIPT };
 
-    public static final String PLATFORM = String.format(
-            "%s-%s%s",
-            Platform.getArchName(),
-            Platform.getOSName(),
-            Platform.getKernelMajorVersion());
-
     public static final String LLVM_BITCODE_MIME_TYPE = "application/x-llvm-ir-bitcode";
 
     public static final String CEXT_EXTENSION = Platform.CEXT_SUFFIX;
@@ -198,6 +196,12 @@ public final class RubyLanguage extends TruffleLanguage<RubyContext> {
      * root nodes should should use either {@link TranslatorEnvironment#newFrameDescriptorBuilderForMethod()} or
      * {@link TranslatorEnvironment#newFrameDescriptorBuilderForBlock(BlockDescriptorInfo)}. */
     public static final FrameDescriptor EMPTY_FRAME_DESCRIPTOR = new FrameDescriptor(nil);
+
+    /** Global cache of call targets that {@code RBSprintfCompiler.compile} returns */
+    public static final Map<TStringWithEncoding, RootCallTarget> sprintfCompilerCallTargets = new ConcurrentHashMap<>();
+
+    /** Global cache of type lists that {@code RBSprintfCompiler.typeList} returns */
+    public static final Map<TStringWithEncoding, int[]> sprintfCompilerTypeLists = new ConcurrentHashMap<>();
 
     private RubyThread getOrCreateForeignThread(RubyContext context, Thread thread) {
         RubyThread foreignThread = rubyThreadInitMap.remove(thread);
@@ -286,9 +290,9 @@ public final class RubyLanguage extends TruffleLanguage<RubyContext> {
 
     private static final RubyObjectType objectType = new RubyObjectType();
 
-    public final Shape basicObjectShape = createShape(RubyBasicObject.class);
-    public final Shape moduleShape = createShape(RubyModule.class);
-    public final Shape classShape = createShape(RubyClass.class);
+    public final Shape basicObjectShape = createShape(RubyBasicObject.class, RubyBasicObject.LOOKUP);
+    public final Shape moduleShape = createShape(RubyModule.class, RubyModule.LOOKUP);
+    public final Shape classShape = createShape(RubyClass.class, RubyModule.LOOKUP);
 
     public final Shape arrayShape = createShape(RubyArray.class);
     public final Shape atomicReferenceShape = createShape(RubyAtomicReference.class);
@@ -329,11 +333,12 @@ public final class RubyLanguage extends TruffleLanguage<RubyContext> {
     public final Shape truffleFFIPointerShape = createShape(RubyPointer.class);
     public final Shape unboundMethodShape = createShape(RubyUnboundMethod.class);
     public final Shape weakMapShape = createShape(RubyWeakMap.class);
+    public final Shape weakKeyMapShape = createShape(RubyWeakKeyMap.class);
 
     public final Shape classVariableShape = Shape
             .newBuilder()
             .allowImplicitCastIntToLong(true)
-            .layout(ClassVariableStorage.class)
+            .layout(ClassVariableStorage.class, ClassVariableStorage.LOOKUP)
             .build();
 
     public final ThreadLocal<ParsingParameters> parsingRequestParams = new ThreadLocal<>();
@@ -459,6 +464,7 @@ public final class RubyLanguage extends TruffleLanguage<RubyContext> {
                 this.allocationReporter = env.lookup(AllocationReporter.class);
                 this.options = new LanguageOptions(env, env.getOptions(), singleContext);
                 setRubyHome(findRubyHome(env));
+                setupLocale(env, rubyHome);
                 loadLibYARPBindings();
                 this.coreLoadPath = buildCoreLoadPath(this.options.CORE_LOAD_PATH);
                 this.corePath = coreLoadPath + File.separator + "core" + File.separator;
@@ -540,6 +546,7 @@ public final class RubyLanguage extends TruffleLanguage<RubyContext> {
 
         synchronized (this) {
             setRubyHome(findRubyHome(newEnv));
+            setupLocale(newEnv, rubyHome);
             loadLibYARPBindings();
             setupCleaner();
         }
@@ -816,17 +823,35 @@ public final class RubyLanguage extends TruffleLanguage<RubyContext> {
     private boolean isRubyHome(TruffleFile path) {
         var lib = path.resolve("lib");
         return lib.resolve("truffle").isDirectory() &&
-                lib.resolve("gems").isDirectory() &&
+                (options.BUILDING_CORE_CEXTS || lib.resolve("gems").isDirectory()) &&
                 lib.resolve("patches").isDirectory();
     }
 
-    private void loadLibYARPBindings() {
-        String libyarpbindings;
-        if (options.BUILDING_CORE_CEXTS) {
-            libyarpbindings = System.getProperty("truffleruby.libyarpbindings");
+    private void setupLocale(Env env, String rubyHome) {
+        // CRuby does setlocale(LC_CTYPE, "") because this is needed to get the locale encoding with nl_langinfo(CODESET).
+        // This means every locale category except LC_CTYPE remains the initial "C".
+        // LC_CTYPE is set according to environment variables (LC_ALL, LC_CTYPE, LANG).
+        // HotSpot and Native Image with UseSystemLocale=true (the default) do setlocale(LC_ALL, "").
+        // We match CRuby by doing setlocale(LC_ALL, "C") and setlocale(LC_CTYPE, "").
+        // This also affects C functions that depend on the locale in C extensions, so best to follow CRuby here.
+        // Change the strict minimum if embedded because setlocale() is process-wide.
+        if (env.getOptions().get(OptionsCatalog.EMBEDDED_KEY)) {
+            if (ImageInfo.inImageRuntimeCode()) {
+                // Only do this on Native Image, to handle the case of the embedder setting UseSystemLocale=false.
+                LibRubySignal.loadLibrary(rubyHome, Platform.LIB_SUFFIX);
+                LibRubySignal.setupLocaleOnlyCTYPE();
+            } else {
+                // Nothing to do, JVM and Native Image UseSystemLocale=true already did setlocale(LC_ALL, "")
+                // so there is no need to setlocale(LC_CTYPE, "").
+            }
         } else {
-            libyarpbindings = getRubyHome() + "/lib/libyarpbindings" + Platform.LIB_SUFFIX;
+            LibRubySignal.loadLibrary(rubyHome, Platform.LIB_SUFFIX);
+            LibRubySignal.setupLocale();
         }
+    }
+
+    private void loadLibYARPBindings() {
+        String libyarpbindings = getRubyHome() + "/lib/libyarpbindings" + Platform.LIB_SUFFIX;
         Parser.loadLibrary(libyarpbindings);
     }
 
@@ -859,10 +884,15 @@ public final class RubyLanguage extends TruffleLanguage<RubyContext> {
     }
 
     private static Shape createShape(Class<? extends RubyDynamicObject> layoutClass) {
+        return createShape(layoutClass, RubyDynamicObject.LOOKUP);
+    }
+
+    private static Shape createShape(Class<? extends RubyDynamicObject> layoutClass, MethodHandles.Lookup lookup) {
+        assert lookup.lookupClass().isAssignableFrom(layoutClass) : layoutClass;
         return Shape
                 .newBuilder()
                 .allowImplicitCastIntToLong(true)
-                .layout(layoutClass)
+                .layout(layoutClass, lookup)
                 .dynamicType(RubyLanguage.objectType)
                 .build();
     }

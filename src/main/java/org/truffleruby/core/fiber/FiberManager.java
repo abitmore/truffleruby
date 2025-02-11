@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2013, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -19,7 +19,6 @@ import org.truffleruby.core.fiber.RubyFiber.FiberStatus;
 import com.oracle.truffle.api.TruffleSafepoint;
 import org.truffleruby.RubyContext;
 import org.truffleruby.RubyLanguage;
-import org.truffleruby.core.DummyNode;
 import org.truffleruby.core.basicobject.BasicObjectNodes.ObjectIDNode;
 import org.truffleruby.core.exception.ExceptionOperations;
 import org.truffleruby.core.exception.RubyException;
@@ -41,7 +40,6 @@ import org.truffleruby.language.control.TerminationException;
 import com.oracle.truffle.api.CompilerDirectives;
 import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
 import com.oracle.truffle.api.nodes.Node;
-import com.oracle.truffle.api.source.SourceSection;
 import org.truffleruby.language.objects.shared.SharedObjects;
 
 /** Helps managing Ruby {@code Fiber} objects. Only one per {@link RubyContext}. */
@@ -56,14 +54,6 @@ public final class FiberManager {
     public FiberManager(RubyLanguage language, RubyContext context) {
         this.language = language;
         this.context = context;
-    }
-
-    public void initialize(RubyFiber fiber, boolean blocking, RubyProc block, Node currentNode) {
-        final SourceSection sourceSection = block.getSharedMethodInfo().getSourceSection();
-        fiber.sourceLocation = context.fileLine(sourceSection);
-        fiber.body = block;
-        fiber.initializeNode = currentNode;
-        fiber.blocking = blocking;
     }
 
     private void createThreadToReceiveFirstMessage(RubyFiber fiber, Node currentNode) {
@@ -185,6 +175,7 @@ public final class FiberManager {
             fiber.returnFiber = null;
             fiber.lastMessage = null;
         }
+        fiber.thread = null;
     }
 
     public RubyFiber getReturnFiber(RubyFiber currentFiber, Node currentNode, InlinedBranchProfile errorProfile) {
@@ -347,21 +338,19 @@ public final class FiberManager {
 
         final RubyThread rubyThread = fiber.rubyThread;
 
-        // share RubyFiber as its fiberLocals might be accessed by other threads with Thread#[]
-        SharedObjects.propagate(language, rubyThread, fiber);
+        // The RubyFiber has been shared in RubyFiber#initialize,
+        // or by ThreadManager#startSharing for the root Fiber of a RubyThread.
+        assert !SharedObjects.isShared(rubyThread) || SharedObjects.isShared(fiber);
+
         rubyThread.runningFibers.add(fiber);
     }
 
     public void cleanup(RubyFiber fiber, Thread javaThread) {
-        context.getValueWrapperManager().cleanup(context, fiber.handleData);
+        context.getValueWrapperManager().cleanup(fiber.handleData);
 
         fiber.status = FiberStatus.TERMINATED;
 
         fiber.rubyThread.runningFibers.remove(fiber);
-
-        fiber.thread = null;
-
-        fiber.finishedLatch.countDown();
     }
 
     @TruffleBoundary
@@ -381,7 +370,7 @@ public final class FiberManager {
         final TruffleSafepoint safepoint = TruffleSafepoint.getCurrent();
         boolean allowSideEffects = safepoint.setAllowSideEffects(false);
         try {
-            context.getThreadManager().leaveAndEnter(DummyNode.INSTANCE, Interrupter.THREAD_INTERRUPT, (unused) -> {
+            context.getThreadManager().leaveAndEnter(null, Interrupter.THREAD_INTERRUPT, (unused) -> {
                 doKillOtherFibers(thread);
                 return BlockingAction.SUCCESS;
             }, null);
@@ -395,9 +384,16 @@ public final class FiberManager {
             if (!fiber.isRootFiber()) {
                 addToMessageQueue(fiber, new FiberShutdownMessage());
 
-                // Wait for the Fiber to finish so we only run one Fiber at a time
-                final CountDownLatch finishedLatch = fiber.finishedLatch;
-                finishedLatch.await();
+                /* Wait for the Fiber to finish, so we only run one Fiber at a time. If fiber.thread is null it means
+                 * the Fiber never started and shouldn't ever start since we are killing all fibers of this Ruby thread
+                 * and so no more Ruby code (which could resume that Fiber) should run there. Adding a
+                 * FiberShutdownMessage above won't cause the Fiber to start, because the only thing causing the Fiber
+                 * to create a thread are callers of resumeAndWait(), which are Fiber#resume, Fiber#transfer,
+                 * Fiber#raise and Fiber.yield. */
+                Thread fiberThread = fiber.thread;
+                if (fiberThread != null) {
+                    fiberThread.join();
+                }
 
                 final Throwable uncaughtException = fiber.uncaughtException;
                 if (uncaughtException != null) {
@@ -425,14 +421,14 @@ public final class FiberManager {
                 builder.append(" (root)");
             }
 
-            if (fiber.isActive()) {
+            if (fiber == rubyThread.getCurrentFiberRacy()) {
                 builder.append(" (current)");
             }
 
             builder.append("\n");
         }
 
-        if (builder.length() == 0) {
+        if (builder.isEmpty()) {
             return "  no fibers\n";
         } else {
             return builder.toString();

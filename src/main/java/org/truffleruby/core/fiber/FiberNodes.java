@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2013, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -16,6 +16,7 @@ import com.oracle.truffle.api.nodes.Node;
 import com.oracle.truffle.api.profiles.InlinedBranchProfile;
 import com.oracle.truffle.api.profiles.InlinedConditionProfile;
 import com.oracle.truffle.api.strings.TruffleString;
+import org.truffleruby.RubyLanguage;
 import org.truffleruby.annotations.CoreMethod;
 import org.truffleruby.annotations.CoreModule;
 import org.truffleruby.annotations.Primitive;
@@ -120,7 +121,7 @@ public abstract class FiberNodes {
                         coreExceptions().securityError("fibers not allowed with allowCreateThread(false)", this));
             }
 
-            getContext().fiberManager.initialize(fiber, blocking, block, this);
+            fiber.initialize(getLanguage(), getContext(), blocking, block, this);
             return nil;
         }
 
@@ -336,6 +337,18 @@ public abstract class FiberNodes {
         }
     }
 
+    @Primitive(name = "fiber_get_exception")
+    public abstract static class FiberGetExceptionNode extends PrimitiveArrayArgumentsNode {
+        @Specialization
+        Object getException() {
+            return getLastException(getLanguage());
+        }
+
+        public static Object getLastException(RubyLanguage language) {
+            return language.getCurrentFiber().getLastException();
+        }
+    }
+
     @Primitive(name = "fiber_get_catch_tags")
     public abstract static class FiberGetCatchTagsNode extends PrimitiveArrayArgumentsNode {
 
@@ -345,7 +358,6 @@ public abstract class FiberNodes {
             return currentFiber.catchTags;
         }
     }
-
 
     @CoreMethod(names = "blocking?")
     public abstract static class IsBlockingInstanceNode extends CoreMethodArrayArgumentsNode {
@@ -383,6 +395,25 @@ public abstract class FiberNodes {
             } else {
                 return cGlobalVariablesDuringInitFunction;
             }
+        }
+    }
+
+    @Primitive(name = "fiber_get_error_info")
+    public abstract static class FiberGetErrorInfoNode extends PrimitiveArrayArgumentsNode {
+
+        @Specialization
+        Object getErrorInfo() {
+            return getLanguage().getCurrentFiber().errorInfo;
+        }
+    }
+
+    @Primitive(name = "fiber_set_error_info")
+    public abstract static class FiberSetErrorInfoNode extends PrimitiveArrayArgumentsNode {
+
+        @Specialization
+        Object setErrorInfo(Object exception) {
+            getLanguage().getCurrentFiber().errorInfo = exception;
+            return exception;
         }
     }
 

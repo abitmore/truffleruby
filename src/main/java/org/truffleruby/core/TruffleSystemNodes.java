@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2013, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -43,14 +43,12 @@ import java.lang.invoke.VarHandle;
 import java.lang.management.ManagementFactory;
 import java.nio.file.NoSuchFileException;
 import java.util.Set;
-import java.util.logging.Level;
 
 import com.oracle.truffle.api.dsl.Bind;
 import com.oracle.truffle.api.nodes.Node;
 import com.oracle.truffle.api.profiles.InlinedConditionProfile;
 import com.oracle.truffle.api.strings.TruffleString;
 import com.sun.management.ThreadMXBean;
-import org.truffleruby.RubyLanguage;
 import org.truffleruby.annotations.CoreMethod;
 import org.truffleruby.annotations.SuppressFBWarnings;
 import org.truffleruby.builtins.CoreMethodArrayArgumentsNode;
@@ -63,7 +61,6 @@ import org.truffleruby.core.encoding.Encodings;
 import org.truffleruby.core.encoding.RubyEncoding;
 import org.truffleruby.core.string.RubyString;
 import org.truffleruby.core.string.StringUtils;
-import org.truffleruby.core.symbol.RubySymbol;
 import org.truffleruby.interop.FromJavaStringNode;
 import org.truffleruby.interop.ToJavaStringNode;
 import org.truffleruby.language.RubyGuards;
@@ -74,7 +71,6 @@ import org.truffleruby.shared.Platform;
 import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
 import com.oracle.truffle.api.TruffleFile;
 import com.oracle.truffle.api.dsl.Cached;
-import com.oracle.truffle.api.dsl.Cached.Shared;
 import com.oracle.truffle.api.dsl.Specialization;
 
 @CoreModule("Truffle::System")
@@ -104,13 +100,13 @@ public abstract class TruffleSystemNodes {
     @Primitive(name = "java_get_env")
     public abstract static class JavaGetEnv extends PrimitiveArrayArgumentsNode {
 
-        @Specialization(guards = "strings.isRubyString(name)", limit = "1")
+        @Specialization(guards = "strings.isRubyString(this, name)", limit = "1")
         static Object javaGetEnv(Object name,
                 @Cached RubyStringLibrary strings,
                 @Cached ToJavaStringNode toJavaStringNode,
                 @Cached FromJavaStringNode fromJavaStringNode,
                 @Cached InlinedConditionProfile nullValueProfile,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             final String javaName = toJavaStringNode.execute(node, name);
             final String value = getEnv(javaName);
 
@@ -132,7 +128,7 @@ public abstract class TruffleSystemNodes {
     public abstract static class SetTruffleWorkingDirNode extends PrimitiveArrayArgumentsNode {
 
         @TruffleBoundary
-        @Specialization(guards = "stringsDir.isRubyString(dir)", limit = "1")
+        @Specialization(guards = "stringsDir.isRubyString(this, dir)", limit = "1")
         Object setTruffleWorkingDir(Object dir,
                 @Cached RubyStringLibrary stringsDir) {
             TruffleFile truffleFile = getContext()
@@ -186,12 +182,12 @@ public abstract class TruffleSystemNodes {
     @CoreMethod(names = "get_java_property", onSingleton = true, required = 1)
     public abstract static class GetJavaPropertyNode extends CoreMethodArrayArgumentsNode {
 
-        @Specialization(guards = "strings.isRubyString(property)", limit = "1")
+        @Specialization(guards = "strings.isRubyString(this, property)", limit = "1")
         static Object getJavaProperty(Object property,
                 @Cached RubyStringLibrary strings,
                 @Cached TruffleString.FromJavaStringNode fromJavaStringNode,
                 @Cached ToJavaStringNode toJavaStringNode,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             String value = getProperty(toJavaStringNode.execute(node, property));
             if (value == null) {
                 return nil;
@@ -226,45 +222,6 @@ public abstract class TruffleSystemNodes {
         @Specialization
         RubyString hostOS() {
             return createString(fromJavaStringNode, Platform.getOSName(), Encodings.UTF_8);
-        }
-
-    }
-
-    @CoreMethod(names = "log", onSingleton = true, required = 2)
-    public abstract static class LogNode extends CoreMethodArrayArgumentsNode {
-
-        @Specialization(guards = { "strings.isRubyString(message)", "level == cachedLevel" }, limit = "3")
-        Object logCached(RubySymbol level, Object message,
-                @Cached @Shared RubyStringLibrary strings,
-                @Cached @Shared ToJavaStringNode toJavaStringNode,
-                @Cached("level") RubySymbol cachedLevel,
-                @Cached("getLevel(cachedLevel)") Level javaLevel) {
-            log(javaLevel, toJavaStringNode.execute(this, message));
-            return nil;
-        }
-
-        @Specialization(guards = "strings.isRubyString(message)", replaces = "logCached")
-        Object log(RubySymbol level, Object message,
-                @Cached @Shared RubyStringLibrary strings,
-                @Cached @Shared ToJavaStringNode toJavaStringNode) {
-            log(getLevel(level), toJavaStringNode.execute(this, message));
-            return nil;
-        }
-
-        @TruffleBoundary
-        protected Level getLevel(RubySymbol level) {
-            try {
-                return Level.parse(level.getString());
-            } catch (IllegalArgumentException e) {
-                throw new RaiseException(getContext(), getContext().getCoreExceptions().argumentError(
-                        "Could not find log level for: " + level,
-                        this));
-            }
-        }
-
-        @TruffleBoundary
-        public static void log(Level level, String message) {
-            RubyLanguage.LOGGER.log(level, message);
         }
 
     }

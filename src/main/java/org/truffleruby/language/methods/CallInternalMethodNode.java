@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2015, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -39,7 +39,7 @@ import org.truffleruby.language.arguments.RubyArguments;
 import org.truffleruby.language.control.RaiseException;
 import org.truffleruby.language.dispatch.DispatchNode;
 
-@ReportPolymorphism
+@ReportPolymorphism // inline cache
 @GenerateUncached
 @ImportStatic(RubyArguments.class)
 public abstract class CallInternalMethodNode extends RubyBaseNode {
@@ -87,7 +87,7 @@ public abstract class CallInternalMethodNode extends RubyBaseNode {
             @Cached("cachedMethod.getSharedMethodInfo().getArity()") Arity cachedArity,
             @Cached InlinedBranchProfile checkArityProfile,
             @Cached InlinedBranchProfile exceptionProfile,
-            @Bind("this") Node node) {
+            @Bind Node node) {
         assert !cachedArity
                 .acceptsKeywords() : "AlwaysInlinedMethodNodes are currently assumed to not use keyword arguments, the arity check depends on this";
         assert RubyArguments.getSelf(rubyArgs) == receiver;

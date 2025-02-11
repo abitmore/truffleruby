@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2016, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -24,6 +24,11 @@ import com.oracle.truffle.api.dsl.Specialization;
 @GenerateCached(false)
 @GenerateInline
 public abstract class PropagateSharingNode extends RubyBaseNode {
+
+    public final Object propagate(Node node, RubyDynamicObject source, Object value) {
+        execute(node, source, value);
+        return value;
+    }
 
     public abstract void execute(Node node, RubyDynamicObject source, Object value);
 

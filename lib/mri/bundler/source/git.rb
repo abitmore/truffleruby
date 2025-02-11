@@ -11,6 +11,7 @@ module Bundler
 
       def initialize(options)
         @options = options
+        @checksum_store = Checksum::Store.new
         @glob = options["glob"] || DEFAULT_GLOB
 
         @allow_cached = false
@@ -19,7 +20,7 @@ module Bundler
         # Stringify options that could be set as symbols
         %w[ref branch tag revision].each {|k| options[k] = options[k].to_s if options[k] }
 
-        @uri        = URINormalizer.normalize_suffix(options["uri"] || "", :trailing_slash => false)
+        @uri        = URINormalizer.normalize_suffix(options["uri"] || "", trailing_slash: false)
         @safe_uri   = URICredentialsFilter.credential_filtered_uri(@uri)
         @branch     = options["branch"]
         @ref        = options["ref"] || options["branch"] || options["tag"]
@@ -29,6 +30,20 @@ module Bundler
 
         @copied     = false
         @local      = false
+      end
+
+      def remote!
+        return if @allow_remote
+
+        @local_specs = nil
+        @allow_remote = true
+      end
+
+      def cached!
+        return if @allow_cached
+
+        @local_specs = nil
+        @allow_cached = true
       end
 
       def self.from_lock(options)
@@ -46,6 +61,14 @@ module Bundler
         out << "  specs:\n"
       end
 
+      def to_gemfile
+        specifiers = %w[ref branch tag submodules glob].map do |opt|
+          "#{opt}: #{options[opt]}" if options[opt]
+        end
+
+        uri_with_specifiers(specifiers)
+      end
+
       def hash
         [self.class, uri, ref, branch, name, version, glob, submodules].hash
       end
@@ -59,28 +82,32 @@ module Bundler
 
       alias_method :==, :eql?
 
+      def include?(other)
+        other.is_a?(Git) && uri == other.uri &&
+          name == other.name &&
+          glob == other.glob &&
+          submodules == other.submodules
+      end
+
       def to_s
         begin
-          at = if local?
-            path
-          elsif user_ref = options["ref"]
-            if /\A[a-z0-9]{4,}\z/i.match?(ref)
-              shortref_for_display(user_ref)
-            else
-              user_ref
-            end
-          elsif ref
-            ref
-          else
-            current_branch
-          end
+          at = humanized_ref || current_branch
 
           rev = "at #{at}@#{shortref_for_display(revision)}"
         rescue GitError
           ""
         end
 
-        specifiers = [rev, glob_for_display].compact
+        uri_with_specifiers([rev, glob_for_display])
+      end
+
+      def identifier
+        uri_with_specifiers([humanized_ref, cached_revision, glob_for_display])
+      end
+
+      def uri_with_specifiers(specifiers)
+        specifiers.compact!
+
         suffix =
           if specifiers.any?
             " (#{specifiers.join(", ")})"
@@ -185,7 +212,7 @@ module Bundler
           @copied = true
         end
 
-        generate_bin_options = { :disable_extensions => !Bundler.rubygems.spec_missing_extensions?(spec), :build_args => options[:build_args] }
+        generate_bin_options = { disable_extensions: !Bundler.rubygems.spec_missing_extensions?(spec), build_args: options[:build_args] }
         generate_bin(spec, generate_bin_options)
 
         requires_checkout? ? spec.post_install_message : nil
@@ -243,6 +270,20 @@ module Bundler
 
       private
 
+      def humanized_ref
+        if local?
+          path
+        elsif user_ref = options["ref"]
+          if /\A[a-z0-9]{4,}\z/i.match?(ref)
+            shortref_for_display(user_ref)
+          else
+            user_ref
+          end
+        elsif ref
+          ref
+        end
+      end
+
       def serialize_gemspecs_in(destination)
         destination = destination.expand_path(Bundler.root) if destination.relative?
         Dir["#{destination}/#{@glob}"].each do |spec_path|
@@ -299,7 +340,7 @@ module Bundler
         if %r{^\w+://(\w+@)?}.match?(uri)
           # Downcase the domain component of the URI
           # and strip off a trailing slash, if one is present
-          input = Bundler::URI.parse(uri).normalize.to_s.sub(%r{/$}, "")
+          input = Gem::URI.parse(uri).normalize.to_s.sub(%r{/$}, "")
         else
           # If there is no URI scheme, assume it is an ssh/git URI
           input = uri
@@ -333,7 +374,7 @@ module Bundler
 
       def load_gemspec(file)
         stub = Gem::StubSpecification.gemspec_stub(file, install_path.parent, install_path.parent)
-        stub.full_gem_path = Pathname.new(file).dirname.expand_path(root).to_s.tap {|x| x.untaint if RUBY_VERSION < "2.7" }
+        stub.full_gem_path = Pathname.new(file).dirname.expand_path(root).to_s
         StubSpecification.from_stub(stub)
       end
 

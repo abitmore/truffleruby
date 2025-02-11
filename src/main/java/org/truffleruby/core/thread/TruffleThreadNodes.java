@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2018, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -40,7 +40,7 @@ public abstract class TruffleThreadNodes {
                 @Bind("modules.getStore()") Object store,
                 @CachedLibrary("store") ArrayStoreLibrary stores,
                 @Cached GetSpecialVariableStorage storageNode,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             final int modulesSize = modules.size;
             Object[] moduleArray = stores.boxedCopyOfRange(store, 0, modulesSize);
             MaterializedFrame frame = getContext(node)

@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Copyright (c) 2016, 2024 Oracle and/or its affiliates. All rights reserved. This
+# Copyright (c) 2016, 2025 Oracle and/or its affiliates. All rights reserved. This
 # code is released under a tri EPL/GPL/LGPL license. You can use it,
 # redistribute it and/or modify it under the terms of the:
 #
@@ -83,14 +83,15 @@ class << ENV
   end
 
   def delete(key)
+    key = StringValue(key)
     existing_value = lookup(key)
     if existing_value
       Truffle::POSIX.unsetenv(key)
       @variables.delete(key)
+      existing_value
     elsif block_given?
       yield key
     end
-    existing_value
   end
 
   def dup
@@ -286,36 +287,32 @@ class << ENV
     return to_hash unless block_given?
 
     h = {}
-    each_pair do |*elem|
-      elem = yield(elem)
-      unless elem.respond_to?(:to_ary)
-        raise TypeError, "wrong element type #{Primitive.class(elem)} (expected array)"
-      end
-
-      ary = elem.to_ary
-      if ary.size != 2
-        raise ArgumentError, "element has wrong array length (expected 2, was #{ary.size})"
-      end
-
-      h[ary[0]] = ary[1]
+    each_pair do |k, v|
+      pair = yield(k, v)
+      Truffle::HashOperations.assoc_key_value_pair(h, pair)
     end
     h
   end
 
-  def update(other)
-    return self if Primitive.equal?(self, other)
-    other = Truffle::Type.rb_convert_type(other, Hash, :to_hash)
-    if block_given?
-      other.each do |k, v|
-        if include?(k)
-          self[k] = yield(k, lookup(k), v)
-        else
-          self[k] = v
+  def update(*others)
+    others.each do |other|
+      next if Primitive.equal?(self, other)
+
+      other = Truffle::Type.rb_convert_type(other, Hash, :to_hash)
+
+      if block_given?
+        other.each do |k, v|
+          if include?(k)
+            self[k] = yield(k, lookup(k), v)
+          else
+            self[k] = v
+          end
         end
+      else
+        other.each { |k, v| self[k] = v }
       end
-    else
-      other.each { |k, v| self[k] = v }
     end
+
     self
   end
   alias_method :merge!, :update

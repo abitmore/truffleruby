@@ -1,4 +1,4 @@
-# Copyright (c) 2019, 2024 Oracle and/or its affiliates. All rights reserved. This
+# Copyright (c) 2019, 2025 Oracle and/or its affiliates. All rights reserved. This
 # code is released under a tri EPL/GPL/LGPL license. You can use it,
 # redistribute it and/or modify it under the terms of the:
 #
@@ -27,7 +27,7 @@ describe "IRB" do
 
       if echo == ">> [B\n" # "[B" (echo'd by JLine) looks like a legal expression to IRB so we need to complete it
         io.puts "]"
-        io.gets.should == ">>   ]\n"
+        [">>   ]\n", "?>   ]\n"].should include(io.gets)
         io.gets.should == "=> [42]\n"
       end
 

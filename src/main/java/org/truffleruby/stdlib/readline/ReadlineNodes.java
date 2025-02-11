@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2016, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -77,11 +77,11 @@ public abstract class ReadlineNodes {
     public abstract static class SetBasicWordBreakCharactersNode extends CoreMethodNode {
 
         @TruffleBoundary
-        @Specialization(guards = "strings.isRubyString(charactersAsString)", limit = "1")
+        @Specialization(guards = "strings.isRubyString(this, charactersAsString)", limit = "1")
         static Object setBasicWordBreakCharacters(Object characters,
                 @Cached ToStrNode toStrNode,
                 @Cached RubyStringLibrary strings,
-                @Bind("this") Node node,
+                @Bind Node node,
                 @Bind("toStrNode.execute(node, characters)") Object charactersAsString) {
             final String delimiters = RubyGuards.getJavaString(charactersAsString);
             getContext(node).getConsoleHolder().getParser().setDelimiters(delimiters);

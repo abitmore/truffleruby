@@ -1,4 +1,4 @@
-# Copyright (c) 2020, 2024 Oracle and/or its affiliates. All rights reserved. This
+# Copyright (c) 2020, 2025 Oracle and/or its affiliates. All rights reserved. This
 # code is released under a tri EPL/GPL/LGPL license. You can use it,
 # redistribute it and/or modify it under the terms of the:
 #
@@ -17,6 +17,10 @@ gems = []
   gem, versions = line.split(' (', 2)
   versions = versions.chomp(')')
   versions = versions.split(', ')
+
+  # TODO: remove after upgrading Rubygems
+  # See https://github.com/rubygems/rubygems/issues/8178
+  versions = versions.map { |s| s.chomp(' ruby') }
 
   versions.each { |version|
     if version.include?('default: ')

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2014, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -54,6 +54,7 @@ public abstract class ObjectIDOperations {
 
     // primitive => ID
 
+    /** Whether the long fits as a tagged pointer (fixnum) in C */
     public static boolean isSmallFixnum(long fixnum) {
         // TODO: optimize
         return MIN_FIXNUM_VALUE <= fixnum && fixnum <= MAX_FIXNUM_VALUE;

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2013, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -118,7 +118,7 @@ public final class RubyContext {
     private final MarkingService markingService;
     private final ObjectSpaceManager objectSpaceManager = new ObjectSpaceManager();
     private final SharedObjects sharedObjects = new SharedObjects(this);
-    private final AtExitManager atExitManager = new AtExitManager(this);
+    private final AtExitManager atExitManager;
     private final CallStackManager callStack;
     private final CoreExceptions coreExceptions;
     private final EncodingManager encodingManager;
@@ -202,6 +202,7 @@ public final class RubyContext {
         finalizationService = new FinalizationService(referenceProcessor);
         markingService = new MarkingService();
         dataObjectFinalizationService = new DataObjectFinalizationService(language, referenceProcessor);
+        atExitManager = new AtExitManager(this, language);
 
         // We need to construct this at runtime
         random = createRandomInstance();
@@ -221,6 +222,7 @@ public final class RubyContext {
         coreLibrary = new CoreLibrary(this, language);
         nativeConfiguration = NativeConfiguration.loadNativeConfiguration(this);
         coreLibrary.initialize();
+        language.coreMethodAssumptions.registerAssumptions(coreLibrary);
         valueWrapperManager = new ValueWrapperManager();
         Metrics.printTime("after-create-core-library");
 
@@ -678,6 +680,7 @@ public final class RubyContext {
         return logger;
     }
 
+    @TruffleBoundary
     public ConsoleHolder getConsoleHolder() {
         if (consoleHolder == null) {
             synchronized (this) {

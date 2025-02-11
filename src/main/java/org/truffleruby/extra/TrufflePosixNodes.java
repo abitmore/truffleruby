@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2015, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -35,7 +35,7 @@ public abstract class TrufflePosixNodes {
     public abstract static class InvalidateEnvNode extends PrimitiveArrayArgumentsNode {
 
         @TruffleBoundary
-        @Specialization(guards = "libEnvVar.isRubyString(envVar)", limit = "1")
+        @Specialization(guards = "libEnvVar.isRubyString(this, envVar)", limit = "1")
         Object invalidate(Object envVar,
                 @Cached RubyStringLibrary libEnvVar) {
             invalidateENV(RubyGuards.getJavaString(envVar));

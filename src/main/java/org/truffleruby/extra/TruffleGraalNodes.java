@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2013, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -163,7 +163,7 @@ public abstract class TruffleGraalNodes {
     }
 
     @Primitive(name = "assert_not_compiled")
-    public abstract static class AssertNotCompilationConstantNode extends PrimitiveNode {
+    public abstract static class AssertNotCompiledNode extends PrimitiveNode {
 
         @Specialization
         Object assertNotCompiled() {
@@ -183,11 +183,11 @@ public abstract class TruffleGraalNodes {
     @Primitive(name = "compiler_bailout")
     public abstract static class BailoutNode extends PrimitiveArrayArgumentsNode {
 
-        @Specialization(guards = "strings.isRubyString(message)", limit = "1")
+        @Specialization(guards = "strings.isRubyString(this, message)", limit = "1")
         static Object bailout(Object message,
                 @Cached RubyStringLibrary strings,
                 @Cached ToJavaStringNode toJavaStringNode,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             CompilerDirectives.bailout(toJavaStringNode.execute(node, message));
             return nil;
         }
@@ -228,6 +228,26 @@ public abstract class TruffleGraalNodes {
 
     }
 
+    @CoreMethod(names = "boundary", onSingleton = true)
+    public abstract static class BoundaryNode extends CoreMethodArrayArgumentsNode {
+
+        @TruffleBoundary(allowInlining = false)
+        @Specialization
+        Object boundary() {
+            return nil;
+        }
+    }
+
+    @CoreMethod(names = "boundary_allow_inlining", onSingleton = true)
+    public abstract static class BoundaryAllowInliningNode extends CoreMethodArrayArgumentsNode {
+
+        @TruffleBoundary(allowInlining = true)
+        @Specialization
+        Object boundaryAllowInlining() {
+            return nil;
+        }
+    }
+
     @CoreMethod(names = "total_compilation_time", onSingleton = true)
     public abstract static class TotalCompilationTimeNode extends CoreMethodArrayArgumentsNode {
 
@@ -236,7 +256,7 @@ public abstract class TruffleGraalNodes {
         @SuppressFBWarnings("LI_LAZY_INIT_STATIC")
         @TruffleBoundary
         @Specialization
-        final long totalCompilationTime() {
+        long totalCompilationTime() {
             if (bean == null) {
                 var compilationMXBean = ManagementFactory.getCompilationMXBean();
                 VarHandle.storeStoreFence();

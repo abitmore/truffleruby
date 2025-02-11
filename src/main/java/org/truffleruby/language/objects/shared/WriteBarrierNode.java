@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2015, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -10,25 +10,26 @@
 package org.truffleruby.language.objects.shared;
 
 import com.oracle.truffle.api.CompilerAsserts;
+import com.oracle.truffle.api.dsl.GenerateCached;
 import com.oracle.truffle.api.dsl.GenerateInline;
+import com.oracle.truffle.api.dsl.ReportPolymorphism;
 import com.oracle.truffle.api.nodes.Node;
 import org.truffleruby.core.FinalizerReference;
 import org.truffleruby.language.RubyBaseNode;
 import org.truffleruby.language.RubyDynamicObject;
-import org.truffleruby.language.objects.ShapeCachingGuards;
 
 import java.util.ArrayList;
 
 import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
 import com.oracle.truffle.api.dsl.Cached;
 import com.oracle.truffle.api.dsl.GenerateUncached;
-import com.oracle.truffle.api.dsl.ImportStatic;
 import com.oracle.truffle.api.dsl.Specialization;
 import com.oracle.truffle.api.object.Shape;
 
-@ImportStatic(ShapeCachingGuards.class)
 @GenerateUncached
 @GenerateInline(inlineByDefault = true)
+@GenerateCached // for ShareObjectNode#createWriteBarrierNodes, ShareInternalFieldsNode#shareCachedQueue
+@ReportPolymorphism // inline cache
 public abstract class WriteBarrierNode extends RubyBaseNode {
 
     public static final WriteBarrierNode[] EMPTY_ARRAY = new WriteBarrierNode[0];
@@ -67,26 +68,16 @@ public abstract class WriteBarrierNode extends RubyBaseNode {
 
     @Specialization(
             guards = { "depth < MAX_DEPTH", "value.getShape() == cachedShape", "!cachedShape.isShared()" },
-            assumptions = "cachedShape.getValidAssumption()",
             // limit of 1 to avoid creating many nodes if the value's Shape is polymorphic.
             limit = "1")
     static void writeBarrierCached(Node node, RubyDynamicObject value, int depth,
             @Cached("value.getShape()") Shape cachedShape,
-            // Recursive inlining is not supported. ShareObjectNode contains cached parameter ShareInternalFieldsNode
-            // which contains again WriteBarrierNode
-            @Cached(inline = false) ShareObjectNode shareObjectNode) {
-        shareObjectNode.executeCached(value, depth + 1);
-    }
-
-    @Specialization(guards = "updateShape(value)")
-    static void updateShapeAndWriteBarrier(RubyDynamicObject value, int depth,
-            // Recursive inlining is not supported.
-            @Cached(inline = false) WriteBarrierNode writeBarrierNode) {
-        writeBarrierNode.executeCached(value, depth);
+            @Cached ShareObjectNode shareObjectNode) {
+        shareObjectNode.execute(node, value, depth + 1);
     }
 
     @Specialization(guards = "!value.getShape().isShared()",
-            replaces = { "writeBarrierCached", "updateShapeAndWriteBarrier" })
+            replaces = "writeBarrierCached")
     static void writeBarrierUncached(Node node, RubyDynamicObject value, int depth) {
         SharedObjects.writeBarrier(getLanguage(node), value);
     }

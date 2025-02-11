@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2019, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -10,7 +10,7 @@
 package org.truffleruby.language.globals;
 
 import com.oracle.truffle.api.Assumption;
-import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
+import com.oracle.truffle.api.CompilerAsserts;
 import org.truffleruby.RubyLanguage;
 import org.truffleruby.collections.SharedIndicesMap.ContextArray;
 
@@ -31,8 +31,9 @@ public final class GlobalVariableReader {
         this.unaliasedStorage = globalVariablesArray.get(index);
     }
 
-    @TruffleBoundary
     public Object getValue() {
+        CompilerAsserts.neverPartOfCompilation("Only behind @TruffleBoundary");
+
         if (globalVariableAliasedAssumption.isValid()) {
             return unaliasedStorage.getValue();
         } else {

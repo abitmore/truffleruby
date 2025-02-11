@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2015, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -47,6 +47,8 @@ package org.truffleruby.core.format.write.bytes;
 
 import java.nio.ByteOrder;
 
+import com.oracle.truffle.api.dsl.Bind;
+import com.oracle.truffle.api.nodes.Node;
 import com.oracle.truffle.api.strings.InternalByteArray;
 import com.oracle.truffle.api.strings.TruffleString;
 import org.truffleruby.core.format.FormatNode;
@@ -70,12 +72,13 @@ public abstract class WriteBitStringNode extends FormatNode {
         this.length = length;
     }
 
-    @Specialization(guards = "libString.isRubyString(string)", limit = "1")
+    @Specialization
     Object write(VirtualFrame frame, Object string,
+            @Bind Node node,
             @Cached RubyStringLibrary libString,
             @Cached TruffleString.GetInternalByteArrayNode byteArrayNode) {
-        var tstring = libString.getTString(string);
-        var encoding = libString.getTEncoding(string);
+        var tstring = libString.getTString(node, string);
+        var encoding = libString.getTEncoding(node, string);
 
         return write(frame, byteArrayNode.execute(tstring, encoding));
     }

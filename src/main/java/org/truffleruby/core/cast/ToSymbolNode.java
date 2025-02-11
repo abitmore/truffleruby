@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2014, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -10,7 +10,6 @@
 package org.truffleruby.core.cast;
 
 import com.oracle.truffle.api.dsl.Cached;
-import com.oracle.truffle.api.dsl.Cached.Shared;
 import com.oracle.truffle.api.dsl.Cached.Exclusive;
 import com.oracle.truffle.api.dsl.GenerateCached;
 import com.oracle.truffle.api.dsl.GenerateInline;
@@ -50,8 +49,8 @@ public abstract class ToSymbolNode extends RubyBaseNode {
 
     @Specialization(guards = "str == cachedStr", limit = "getCacheLimit()")
     static RubySymbol javaString(String str,
-            @Cached(value = "str") String cachedStr,
-            @Cached(value = "getSymbol(cachedStr)") RubySymbol rubySymbol) {
+            @Cached("str") String cachedStr,
+            @Cached("getSymbol(cachedStr)") RubySymbol rubySymbol) {
         return rubySymbol;
     }
 
@@ -62,22 +61,22 @@ public abstract class ToSymbolNode extends RubyBaseNode {
 
     @Specialization(
             guards = {
-                    "strings.isRubyString(str)",
+                    "strings.isRubyString(this, str)",
                     "equalNode.execute(node, strings, str, cachedTString, cachedEncoding)" },
             limit = "getCacheLimit()")
     static RubySymbol rubyString(Node node, Object str,
-            @Cached @Shared RubyStringLibrary strings,
-            @Cached(value = "asTruffleStringUncached(str)") TruffleString cachedTString,
-            @Cached(value = "strings.getEncoding(str)") RubyEncoding cachedEncoding,
+            @Cached @Exclusive RubyStringLibrary strings,
+            @Cached("asTruffleStringUncached(str)") TruffleString cachedTString,
+            @Cached("strings.getEncoding($node, str)") RubyEncoding cachedEncoding,
             @Cached StringHelperNodes.EqualSameEncodingNode equalNode,
-            @Cached(value = "getSymbol(node, cachedTString, cachedEncoding)") RubySymbol rubySymbol) {
+            @Cached("getSymbol(node, cachedTString, cachedEncoding)") RubySymbol rubySymbol) {
         return rubySymbol;
     }
 
-    @Specialization(guards = "strings.isRubyString(str)", replaces = "rubyString")
+    @Specialization(guards = "strings.isRubyString(this, str)", replaces = "rubyString", limit = "1")
     static RubySymbol rubyStringUncached(Node node, Object str,
-            @Cached @Shared RubyStringLibrary strings) {
-        return getSymbol(node, strings.getTString(str), strings.getEncoding(str));
+            @Cached @Exclusive RubyStringLibrary strings) {
+        return getSymbol(node, strings.getTString(node, str), strings.getEncoding(node, str));
     }
 
     @Specialization(guards = { "!isRubySymbol(object)", "!isString(object)", "isNotRubyString(object)" })
@@ -93,7 +92,7 @@ public abstract class ToSymbolNode extends RubyBaseNode {
                 coreLibrary(node).stringClass,
                 coreSymbols(node).TO_STR);
 
-        if (strings.isRubyString(coerced)) {
+        if (strings.isRubyString(node, coerced)) {
             return toSymbolNode.executeCached(coerced);
         } else {
             errorProfile.enter(node);

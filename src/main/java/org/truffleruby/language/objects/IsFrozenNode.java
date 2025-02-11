@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2023, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -21,7 +21,7 @@ import org.truffleruby.language.RubyDynamicObject;
 
 import static org.truffleruby.Layouts.FROZEN_FLAG;
 
-// Specializations are order by their frequency on railsbench using --engine.SpecializationStatistics
+// Specializations are ordered by their frequency on railsbench using --engine.SpecializationStatistics
 @GenerateUncached
 public abstract class IsFrozenNode extends RubyBaseNode {
 
@@ -39,9 +39,15 @@ public abstract class IsFrozenNode extends RubyBaseNode {
 
     @Specialization(guards = { "!isRubyObjectRange(object)", "isNotRubyString(object)" },
             limit = "getDynamicObjectCacheLimit()")
-    boolean isFrozen(RubyDynamicObject object,
+    boolean isFrozenCached(RubyDynamicObject object,
             @CachedLibrary("object") DynamicObjectLibrary objectLibrary) {
         return (objectLibrary.getShapeFlags(object) & FROZEN_FLAG) != 0;
+    }
+
+    // Avoid the uncached DynamicObjectLibrary: this is much faster as it does not have any Shape check/library overhead
+    @Specialization(guards = { "!isRubyObjectRange(object)", "isNotRubyString(object)" }, replaces = "isFrozenCached")
+    boolean isFrozenUncached(RubyDynamicObject object) {
+        return (object.getShape().getFlags() & FROZEN_FLAG) != 0;
     }
 
     @Specialization

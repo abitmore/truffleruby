@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2020, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -51,7 +51,7 @@ public final class ProxyForeignObject implements TruffleObject {
             @Cached DispatchNode dispatchNode,
             @Cached ForeignToRubyArgumentsNode foreignToRubyArgumentsNode,
             @CachedLibrary("this.delegate") ReflectionLibrary reflections,
-            @Bind("$node") Node node) throws Exception {
+            @Bind Node node) throws Exception {
 
         if (message == IS_META_INSTANCE) { // Workaround StackOverflowError in asserts (GR-37197)
             rawArgs = rawArgs.clone();

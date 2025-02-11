@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2020, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -62,10 +62,17 @@ VALUE rb_errinfo(void) {
 }
 
 void rb_syserr_fail(int eno, const char *message) {
-  polyglot_invoke(RUBY_CEXT, "rb_syserr_fail", eno, rb_tr_unwrap(rb_str_new_cstr(message == NULL ? "" : message)));
+  VALUE messageValue = (message == NULL) ? Qnil : rb_str_new_cstr(message);
+  polyglot_invoke(RUBY_CEXT, "rb_syserr_fail", eno, rb_tr_unwrap(messageValue));
   UNREACHABLE;
 }
 
+void rb_syserr_fail_str(int eno, VALUE message) {
+  polyglot_invoke(RUBY_CEXT, "rb_syserr_fail", eno, rb_tr_unwrap(message));
+  UNREACHABLE;
+}
+
+#undef rb_sys_fail
 void rb_sys_fail(const char *message) {
   int n = errno;
   errno = 0;
@@ -85,7 +92,7 @@ VALUE rb_syserr_new_str(int n, VALUE mesg) {
   return RUBY_CEXT_INVOKE("rb_syserr_new", INT2FIX(n), mesg);
 }
 
-VALUE make_errno_exc_str(VALUE mesg) {
+static VALUE make_errno_exc_str(VALUE mesg) {
   int n = errno;
 
   errno = 0;
@@ -97,6 +104,7 @@ VALUE make_errno_exc_str(VALUE mesg) {
   return rb_syserr_new_str(n, mesg);
 }
 
+#undef rb_sys_fail_str
 void rb_sys_fail_str(VALUE mesg) {
   rb_exc_raise(make_errno_exc_str(mesg));
 }
@@ -156,11 +164,19 @@ void rb_eof_error(void) {
 }
 
 void rb_tr_bug_va_list(const char *fmt, va_list args) {
-  rb_tr_not_implemented("rb_bug");
+  char buffer[1024];
+  vsnprintf(buffer, 1024, fmt, args);
+  VALUE message = rb_str_new_cstr(buffer);
+  RUBY_CEXT_INVOKE_NO_WRAP("rb_bug", message);
+  UNREACHABLE;
 }
 
 void rb_tr_fatal_va_list(const char *fmt, va_list args) {
-  rb_tr_not_implemented("rb_fatal");
+  char buffer[1024];
+  vsnprintf(buffer, 1024, fmt, args);
+  VALUE message = rb_str_new_cstr(buffer);
+  RUBY_CEXT_INVOKE_NO_WRAP("rb_fatal", message);
+  UNREACHABLE;
 }
 
 VALUE rb_make_exception(int argc, const VALUE *argv) {

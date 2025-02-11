@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2013, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -106,15 +106,17 @@ public abstract class BasicObjectNodes {
 
     }
 
-    @CoreMethod(names = "!=", required = 1)
-    public abstract static class NotEqualNode extends CoreMethodArrayArgumentsNode {
-
-        @Child private DispatchNode equalNode = DispatchNode.create();
+    // Needed to split since it calls `==`. But seems a bit expensive to split, so it should be AlwaysInlinedMethodNode.
+    @GenerateUncached
+    @CoreMethod(names = "!=", required = 1, alwaysInlined = true)
+    public abstract static class NotEqualNode extends AlwaysInlinedMethodNode {
 
         @Specialization
-        boolean equal(VirtualFrame frame, Object a, Object b,
-                @Cached BooleanCastNode booleanCastNode) {
-            return !booleanCastNode.execute(this, equalNode.call(a, "==", b));
+        boolean equal(Frame frame, Object self, Object[] rubyArgs, RootCallTarget target,
+                @Cached BooleanCastNode booleanCastNode,
+                @Cached DispatchNode equalNode) {
+            final Object object = RubyArguments.getArgument(rubyArgs, 0);
+            return !booleanCastNode.execute(this, equalNode.call(self, "==", object));
         }
 
     }
@@ -125,7 +127,6 @@ public abstract class BasicObjectNodes {
     @GenerateNodeFactory
     @CoreMethod(names = { "equal?", "==" }, required = 1)
     public abstract static class BasicObjectEqualNode extends CoreMethodArrayArgumentsNode {
-
 
         @Specialization
         boolean equal(Object a, Object b,
@@ -184,7 +185,7 @@ public abstract class BasicObjectNodes {
         @Specialization(replaces = "objectIDSmallFixnumOverflow")
         static Object objectIDLong(long value,
                 @Cached InlinedCountingConditionProfile smallProfile,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             if (smallProfile.profile(node, ObjectIDOperations.isSmallFixnum(value))) {
                 return ObjectIDOperations.smallFixnumToID(value);
             } else {
@@ -243,7 +244,7 @@ public abstract class BasicObjectNodes {
         static int objectIDForeign(Object value,
                 @CachedLibrary("value") InteropLibrary interop,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             if (interop.hasIdentity(value)) {
                 try {
                     return interop.identityHashCode(value);
@@ -293,7 +294,7 @@ public abstract class BasicObjectNodes {
                 @Cached ToStrNode toStrNode,
                 @Cached ToIntNode toIntNode,
                 @Cached IndirectCallNode callNode,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             final Object sourceCode;
             String fileName = coreStrings(node).EVAL_FILENAME_STRING.toString();
             int line = 1;
@@ -320,8 +321,8 @@ public abstract class BasicObjectNodes {
                     node,
                     callerFrame.materialize(),
                     self,
-                    strings.getTString(sourceCode),
-                    strings.getEncoding(sourceCode),
+                    strings.getTString(node, sourceCode),
+                    strings.getEncoding(node, sourceCode),
                     fileName,
                     line,
                     callNode);

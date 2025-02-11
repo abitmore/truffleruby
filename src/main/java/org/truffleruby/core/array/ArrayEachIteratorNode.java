@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2013, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -28,7 +28,7 @@ import com.oracle.truffle.api.nodes.NodeInterface;
 import org.truffleruby.language.yield.CallBlockNode;
 
 @ImportStatic(ArrayGuards.class)
-@ReportPolymorphism
+@ReportPolymorphism // for ArrayStoreLibrary
 @GenerateInline(inlineByDefault = true)
 public abstract class ArrayEachIteratorNode extends RubyBaseNode {
 

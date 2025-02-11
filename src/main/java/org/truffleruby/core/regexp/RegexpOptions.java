@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2016, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -9,8 +9,8 @@
  */
 package org.truffleruby.core.regexp;
 
-import org.jcodings.Encoding;
-import org.jcodings.specific.ASCIIEncoding;
+import org.graalvm.shadowed.org.jcodings.Encoding;
+import org.graalvm.shadowed.org.jcodings.specific.ASCIIEncoding;
 import org.truffleruby.core.string.KCode;
 import org.truffleruby.parser.ReOptions;
 

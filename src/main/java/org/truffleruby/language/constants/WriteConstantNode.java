@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2013, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -43,8 +43,18 @@ public final class WriteConstantNode extends RubyContextSourceAssignableNode {
 
     @Override
     public Object execute(VirtualFrame frame) {
+        // value should be evaluated after module
+        final Object moduleObject = moduleNode.execute(frame);
         final Object value = valueNode.execute(frame);
-        assign(frame, value);
+
+        // check module only after value evaluation
+        if (!moduleProfile.profile(moduleObject instanceof RubyModule)) {
+            throw new RaiseException(getContext(), coreExceptions().typeErrorIsNotAClassModule(moduleObject, this));
+        }
+
+        RubyModule module = (RubyModule) moduleObject;
+        assign(module, value);
+
         return value;
     }
 
@@ -102,7 +112,7 @@ public final class WriteConstantNode extends RubyContextSourceAssignableNode {
         var copy = new WriteConstantNode(
                 name,
                 moduleNode.cloneUninitialized(),
-                valueNode.cloneUninitialized());
+                cloneUninitialized(valueNode));
         return copy.copyFlags(this);
     }
 

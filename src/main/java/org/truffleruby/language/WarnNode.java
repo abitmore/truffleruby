@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2016, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -11,7 +11,6 @@ package org.truffleruby.language;
 
 import com.oracle.truffle.api.dsl.NeverDefault;
 import com.oracle.truffle.api.nodes.DenyReplace;
-import com.oracle.truffle.api.nodes.NodeCost;
 import com.oracle.truffle.api.strings.TruffleString;
 import org.truffleruby.RubyContext;
 import org.truffleruby.core.encoding.Encodings;
@@ -39,8 +38,8 @@ public class WarnNode extends RubyBaseNode {
     }
 
     public boolean shouldWarn() {
-        final Object verbosity = readVerboseNode.execute();
-        return verbosity != nil;
+        final Object verbose = readVerboseNode.execute();
+        return verbose != nil;
     }
 
     public final boolean shouldWarnForDeprecation() {
@@ -88,11 +87,6 @@ public class WarnNode extends RubyBaseNode {
                     getContext(), sourceSection, message, this,
                     TruffleString.FromJavaStringNode.getUncached(),
                     DispatchNode.getUncached());
-        }
-
-        @Override
-        public NodeCost getCost() {
-            return NodeCost.MEGAMORPHIC;
         }
 
         @Override

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2015, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -15,14 +15,17 @@ import org.truffleruby.core.basicobject.ReferenceEqualNode;
 import org.truffleruby.core.kernel.KernelNodes.SameOrEqlNode;
 import org.truffleruby.core.klass.RubyClass;
 import org.truffleruby.language.RubyDynamicObject;
+import org.truffleruby.language.objects.ObjectGraph;
+import org.truffleruby.language.objects.ObjectGraphNode;
 
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /** In Concurrent::Map, and so TruffleRuby::ConcurrentMap, keys are compared with #hash and #eql?, and values by
  * identity (#equal? in NonConcurrentMapBackend). To use custom code to compare the keys we need a wrapper for keys
  * implementing #hashCode and #equals. For comparing values by identity we use {@link ReferenceEqualNode} if the value
  * is a primitive, otherwise we rely on equals() being == on Ruby objects. */
-public final class RubyConcurrentMap extends RubyDynamicObject {
+public final class RubyConcurrentMap extends RubyDynamicObject implements ObjectGraphNode {
 
     public static final class Key {
 
@@ -77,4 +80,13 @@ public final class RubyConcurrentMap extends RubyDynamicObject {
     public ConcurrentHashMap<Key, Object> getMap() {
         return map;
     }
+
+    @Override
+    public void getAdjacentObjects(Set<Object> reachable) {
+        for (var entry : map.entrySet()) {
+            ObjectGraph.addProperty(reachable, entry.getKey().key);
+            ObjectGraph.addProperty(reachable, entry.getValue());
+        }
+    }
+
 }

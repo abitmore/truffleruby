@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2013, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -8,6 +8,8 @@
  * GNU Lesser General Public License version 2.1.
  */
 package org.truffleruby.language.loader;
+
+import static org.truffleruby.language.RubyBaseNode.nil;
 
 import java.io.File;
 import java.io.IOException;
@@ -21,9 +23,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.locks.ReentrantLock;
 
-import com.oracle.truffle.api.interop.UnknownIdentifierException;
-import com.oracle.truffle.api.interop.UnsupportedMessageException;
-import com.oracle.truffle.api.profiles.InlinedConditionProfile;
 import org.truffleruby.RubyContext;
 import org.truffleruby.RubyLanguage;
 import org.truffleruby.collections.ConcurrentOperations;
@@ -32,6 +31,7 @@ import org.truffleruby.core.array.ArrayUtils;
 import org.truffleruby.core.array.RubyArray;
 import org.truffleruby.core.encoding.TStringUtils;
 import org.truffleruby.core.module.RubyModule;
+import org.truffleruby.core.mutex.MutexOperations;
 import org.truffleruby.core.string.RubyString;
 import org.truffleruby.core.string.StringOperations;
 import org.truffleruby.core.support.IONodes.IOThreadBufferAllocateNode;
@@ -47,8 +47,8 @@ import org.truffleruby.language.control.RaiseException;
 import org.truffleruby.language.dispatch.DispatchNode;
 import org.truffleruby.platform.NativeConfiguration;
 import org.truffleruby.platform.TruffleNFIPlatform;
-import org.truffleruby.shared.Platform;
 import org.truffleruby.shared.Metrics;
+import org.truffleruby.shared.Platform;
 import org.truffleruby.shared.TruffleRuby;
 
 import com.oracle.truffle.api.CompilerDirectives;
@@ -56,11 +56,12 @@ import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
 import com.oracle.truffle.api.TruffleFile;
 import com.oracle.truffle.api.interop.InteropException;
 import com.oracle.truffle.api.interop.InteropLibrary;
+import com.oracle.truffle.api.interop.UnknownIdentifierException;
+import com.oracle.truffle.api.interop.UnsupportedMessageException;
 import com.oracle.truffle.api.nodes.Node;
+import com.oracle.truffle.api.profiles.InlinedConditionProfile;
 import com.oracle.truffle.api.source.Source;
 import com.oracle.truffle.api.source.SourceSection;
-
-import static org.truffleruby.language.RubyBaseNode.nil;
 
 public final class FeatureLoader {
 
@@ -78,7 +79,7 @@ public final class FeatureLoader {
     private final Map<String, Map<String, List<RubyConstant>>> registeredAutoloads = new HashMap<>();
     private final ReentrantLock registeredAutoloadsLock = new ReentrantLock();
 
-    private final Object cextImplementationLock = new Object();
+    private final ReentrantLock cextImplementationLock = new ReentrantLock();
     private boolean cextImplementationLoaded = false;
 
     private String cwd = null;
@@ -416,7 +417,8 @@ public final class FeatureLoader {
 
     @TruffleBoundary
     public void ensureCExtImplementationLoaded(String feature, RequireNode requireNode) {
-        synchronized (cextImplementationLock) {
+        MutexOperations.lockInternal(context, cextImplementationLock, requireNode);
+        try {
             if (cextImplementationLoaded) {
                 return;
             }
@@ -481,6 +483,8 @@ public final class FeatureLoader {
             }
 
             cextImplementationLoaded = true;
+        } finally {
+            MutexOperations.unlockInternal(cextImplementationLock);
         }
     }
 

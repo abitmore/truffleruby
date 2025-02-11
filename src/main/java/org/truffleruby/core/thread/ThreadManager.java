@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2013, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -9,14 +9,11 @@
  */
 package org.truffleruby.core.thread;
 
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.util.Objects;
 import java.util.Set;
 import java.util.Timer;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -25,7 +22,6 @@ import com.oracle.truffle.api.CompilerAsserts;
 import com.oracle.truffle.api.CompilerDirectives;
 import com.oracle.truffle.api.CompilerDirectives.ValueType;
 import com.oracle.truffle.api.TruffleContext;
-import com.oracle.truffle.api.TruffleOptions;
 import com.oracle.truffle.api.TruffleSafepoint;
 import com.oracle.truffle.api.TruffleSafepoint.Interrupter;
 import com.oracle.truffle.api.TruffleSafepoint.InterruptibleFunction;
@@ -36,7 +32,6 @@ import org.truffleruby.RubyContext;
 import org.truffleruby.RubyLanguage;
 import org.truffleruby.annotations.SuppressFBWarnings;
 import org.truffleruby.collections.ConcurrentWeakSet;
-import org.truffleruby.core.DummyNode;
 import org.truffleruby.core.InterruptMode;
 import org.truffleruby.core.basicobject.BasicObjectNodes.ObjectIDNode;
 import org.truffleruby.core.exception.RubyException;
@@ -99,7 +94,7 @@ public final class ThreadManager {
     }
 
     public void initialize() {
-        useLibRubySignal = context.getOptions().NATIVE_PLATFORM && !language.options.BUILDING_CORE_CEXTS;
+        useLibRubySignal = context.getOptions().NATIVE_PLATFORM;
         nativeInterrupt = context.getOptions().NATIVE_INTERRUPT && useLibRubySignal;
         if (useLibRubySignal) {
             LibRubySignal.loadLibrary(language.getRubyHome(), Platform.LIB_SUFFIX);
@@ -138,35 +133,9 @@ public final class ThreadManager {
 
         final RubyFiber rootFiber = rootThread.getRootFiber();
         rootFiber.restart();
-        rootFiber.finishedLatch = new CountDownLatch(1);
 
         PRNGRandomizerNodes.resetSeed(context, rootThread.randomizer);
     }
-
-    private static ThreadFactory getVirtualThreadFactory() {
-        if (TruffleOptions.AOT) {
-            return null; // GR-40931 native image does not support deoptimization + VirtualThread currently.
-        }
-
-        final Method ofVirtual, unstarted;
-        try {
-            ofVirtual = Thread.class.getMethod("ofVirtual");
-            unstarted = Class.forName("java.lang.Thread$Builder").getMethod("unstarted", Runnable.class);
-        } catch (ReflectiveOperationException e) {
-            return null;
-        }
-
-        return (runnable) -> {
-            try {
-                Object builder = ofVirtual.invoke(null);
-                return (Thread) unstarted.invoke(builder, runnable);
-            } catch (IllegalAccessException | InvocationTargetException e) {
-                throw new Error(e);
-            }
-        };
-    }
-
-    @CompilationFinal static ThreadFactory VIRTUAL_THREAD_FACTORY = getVirtualThreadFactory();
 
     public Thread createFiberJavaThread(RubyFiber fiber, SourceSection sourceSection, Runnable beforeEnter,
             Runnable body, Runnable afterLeave, Node node) {
@@ -175,23 +144,8 @@ public final class ThreadManager {
                     .shouldNotReachHere("fibers should not be created while pre-initializing the context");
         }
 
-        final Thread thread;
-        if (context.getOptions().VIRTUAL_THREAD_FIBERS) {
-            thread = VIRTUAL_THREAD_FACTORY.newThread(() -> {
-                var truffleContext = context.getEnv().getContext();
-                beforeEnter.run();
-                Object prev = truffleContext.enter(node);
-                try {
-                    body.run();
-                } finally {
-                    truffleContext.leave(node, prev);
-                    afterLeave.run();
-                }
-            });
-        } else {
-            thread = context.getEnv().newTruffleThreadBuilder(body).beforeEnter(beforeEnter).afterLeave(afterLeave)
-                    .build();
-        }
+        final Thread thread = context.getEnv().newTruffleThreadBuilder(body).beforeEnter(beforeEnter)
+                .afterLeave(afterLeave).virtual(context.getOptions().VIRTUAL_THREAD_FIBERS).build();
 
         language.rubyThreadInitMap.put(thread, fiber.rubyThread);
         language.rubyFiberInitMap.put(thread, fiber);
@@ -244,8 +198,6 @@ public final class ThreadManager {
 
                 // the Fiber is not yet initialized, unblock the caller and rethrow the exception to it
                 fiber.initializedLatch.countDown();
-                // the Fiber thread is dying, unblock the caller
-                fiber.finishedLatch.countDown();
             } catch (Throwable t) { // exception inside this UncaughtExceptionHandler
                 t.initCause(throwable);
                 printInternalError(t);
@@ -467,6 +419,7 @@ public final class ThreadManager {
 
         unregisterThread(thread);
         thread.thread = null;
+        thread.getRootFiber().thread = null;
 
         if (Thread.currentThread() == javaThread) {
             for (ReentrantLock lock : thread.ownedLocks) {
@@ -664,7 +617,7 @@ public final class ThreadManager {
         // Wait and join all Java threads we created
         for (Thread thread : rubyManagedThreads) {
             if (thread != Thread.currentThread()) {
-                runUntilResultKeepStatus(DummyNode.INSTANCE, t -> {
+                runUntilResultKeepStatus(null, t -> {
                     t.join();
                     return BlockingAction.SUCCESS;
                 }, thread);
@@ -680,8 +633,7 @@ public final class ThreadManager {
         SafepointPredicate predicate = (context, thread, action) -> Thread.currentThread() != initiatingJavaThread &&
                 language.getCurrentFiber() == thread.getCurrentFiber();
 
-        context.getSafepointManager().pauseAllThreadsAndExecute(
-                DummyNode.INSTANCE,
+        context.getSafepointManager().pauseAllThreadsAndExecute(null,
                 new SafepointAction("kill other threads for shutdown", predicate, true, true) {
                     @Override
                     public void run(RubyThread rubyThread, Node currentNode) {

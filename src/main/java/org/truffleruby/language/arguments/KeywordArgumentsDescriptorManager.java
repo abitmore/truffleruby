@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2021, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -16,13 +16,10 @@ import java.util.Arrays;
 
 public final class KeywordArgumentsDescriptorManager {
 
-    public static final KeywordArgumentsDescriptor EMPTY = new KeywordArgumentsDescriptor(
-            StringUtils.EMPTY_STRING_ARRAY);
-
     private final WeakValueCache<Key, KeywordArgumentsDescriptor> CANONICAL_KEYWORD_DESCRIPTORS = new WeakValueCache<>();
 
     public KeywordArgumentsDescriptorManager() {
-        CANONICAL_KEYWORD_DESCRIPTORS.put(new Key(StringUtils.EMPTY_STRING_ARRAY), EMPTY);
+        CANONICAL_KEYWORD_DESCRIPTORS.put(new Key(StringUtils.EMPTY_STRING_ARRAY), KeywordArgumentsDescriptor.EMPTY);
     }
 
     public KeywordArgumentsDescriptor getArgumentsDescriptor(String[] keywords) {

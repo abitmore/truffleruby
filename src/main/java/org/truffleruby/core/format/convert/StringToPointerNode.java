@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2018, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -36,11 +36,11 @@ public abstract class StringToPointerNode extends FormatNode {
     }
 
     @SuppressWarnings("unchecked")
-    @Specialization(guards = "strings.isRubyString(string)", limit = "1")
+    @Specialization(guards = "strings.isRubyString(this, string)", limit = "1")
     static long toPointer(VirtualFrame frame, Object string,
             @Cached CExtNodes.StringToNativeNode stringToNativeNode,
             @Cached RubyStringLibrary strings,
-            @Bind("this") Node node) {
+            @Bind Node node) {
 
         final Pointer pointer = stringToNativeNode.executeToNative(node, string, true);
 

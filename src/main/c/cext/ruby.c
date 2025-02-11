@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2020, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -39,6 +39,9 @@ static VALUE sulong_get_constant(const char* name) {
 
 void rb_tr_init_exception(void);
 
+// ensure it for the fiddle gem and its TruffleRuby-specific implementation
+RBIMPL_STATIC_ASSERT("sizeof(bool) is 1", sizeof(bool) == 1);
+
 // Run when loading C-extension support
 void rb_tr_init(void *ruby_cext) {
   rb_tr_cext = ruby_cext;
@@ -54,5 +57,13 @@ void rb_tr_init(void *ruby_cext) {
   polyglot_invoke(rb_tr_cext, "cext_start_new_handle_block");
   rb_tr_init_exception();
   rb_tr_init_global_constants(sulong_get_constant);
+
+  // In CRuby some core classes have custom allocation function.
+  // So mimic this CRuby implementation detail to satisfy rb_define_alloc_func's specs
+  // for classes that are used in these specs only.
+  rb_tr_set_default_alloc_func(rb_cBasicObject, rb_tr_default_alloc_func);
+  rb_tr_set_default_alloc_func(rb_cArray, rb_tr_default_alloc_func);
+  rb_tr_set_default_alloc_func(rb_cString, rb_tr_default_alloc_func);
+
   polyglot_invoke(rb_tr_cext, "cext_start_new_handle_block");
 }

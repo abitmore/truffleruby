@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2018, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -78,7 +78,7 @@ public final class SharedArrayStorage implements ObjectGraphNode {
     protected void write(int index, Object value,
             @Cached @Shared WriteBarrierNode writeBarrierNode,
             @CachedLibrary("this.storage") ArrayStoreLibrary stores,
-            @Bind("$node") Node node) {
+            @Bind Node node) {
         writeBarrierNode.execute(node, value);
         stores.write(storage, index, value);
     }
@@ -87,7 +87,7 @@ public final class SharedArrayStorage implements ObjectGraphNode {
     protected void fill(int start, int length, Object value,
             @Cached @Shared WriteBarrierNode writeBarrierNode,
             @CachedLibrary("this.storage") ArrayStoreLibrary stores,
-            @Bind("$node") Node node) {
+            @Bind Node node) {
         writeBarrierNode.execute(node, value);
         stores.fill(storage, start, length, value);
     }

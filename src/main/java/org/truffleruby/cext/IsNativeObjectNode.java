@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2020, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -28,7 +28,7 @@ import com.oracle.truffle.api.dsl.Specialization;
 public abstract class IsNativeObjectNode extends RubyBaseNode {
 
     /** Returns true if handle was natively allocated. */
-    public abstract Object execute(Node node, Object handle);
+    public abstract boolean execute(Node node, Object handle);
 
     @Specialization
     static boolean isNativeObjectTaggedObject(long handle) {

@@ -52,6 +52,16 @@ describe "The rescue keyword" do
       RescueSpecs::SafeNavigationSetterCaptor.should_capture_exception
     end
 
+    it 'using a safely navigated setter method on a nil target' do
+      target = nil
+      begin
+        raise SpecificExampleException, "Raising this to be handled below"
+      rescue SpecificExampleException => target&.captured_error
+        :caught
+      end.should == :caught
+      target.should be_nil
+    end
+
     it 'using a setter method' do
       RescueSpecs::SetterCaptor.should_capture_exception
     end
@@ -551,6 +561,23 @@ describe "The rescue keyword" do
   it "requires the 'rescue' in method arguments to be wrapped in parens" do
     -> { eval '1.+(1 rescue 1)' }.should raise_error(SyntaxError)
     eval('1.+((1 rescue 1))').should == 2
+  end
+
+  ruby_version_is "3.4" do
+    it "does not introduce extra backtrace entries" do
+      def foo
+        begin
+          raise "oops"
+        rescue
+          return caller(0, 2)
+        end
+      end
+      line = __LINE__
+      foo.should == [
+        "#{__FILE__}:#{line-3}:in 'foo'",
+        "#{__FILE__}:#{line+1}:in 'block (3 levels) in <top (required)>'"
+      ]
+    end
   end
 
   describe "inline form" do

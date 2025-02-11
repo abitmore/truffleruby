@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2018, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -78,6 +78,7 @@ public abstract class ReferenceProcessingService<R extends ReferenceProcessingSe
             this.context = context;
         }
 
+        @TruffleBoundary
         void processReferenceQueue(ReferenceProcessingService<?, ?> service) {
             if (processOnMainThread()) {
                 drainReferenceQueues();
@@ -116,9 +117,9 @@ public abstract class ReferenceProcessingService<R extends ReferenceProcessingSe
             final String sharingReason = "creating " + THREAD_NAME + " thread for " +
                     service.getClass().getSimpleName();
 
-            threadManager.initialize(newThread, DummyNode.INSTANCE, THREAD_NAME, sharingReason, () -> {
+            threadManager.initialize(newThread, null, THREAD_NAME, sharingReason, () -> {
                 while (true) {
-                    final PhantomProcessingReference<?, ?> reference = threadManager.runUntilResult(DummyNode.INSTANCE,
+                    final PhantomProcessingReference<?, ?> reference = threadManager.runUntilResult(null,
                             () -> (PhantomProcessingReference<?, ?>) processingQueue.remove());
                     reference.service().processReference(context, language, reference);
                 }

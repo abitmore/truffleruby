@@ -11,6 +11,12 @@ ast: |
           sourceLength = 18
       children:
           body = [
+              EmitWarningsNode
+                  attributes:
+                      flags = 0
+                      sourceCharIndex = -1
+                      sourceLength = 0
+                      warnings = RubyDeferredWarnings(WarningMessage(message = 'possibly useless use of a literal in void context', verbosity = VERBOSE, fileName = '<parse_ast>', lineNumber = 1))
               WriteLocalVariableNode
                   attributes:
                       flags = 0
@@ -43,32 +49,32 @@ ast: |
                           ToSNodeGen
                               children:
                                   valueNode_ =
-                                      StringLiteralNode
+                                      FrozenStringLiteralNode
                                           attributes:
-                                              encoding = UTF-8
+                                              definition = "expression" (ASCII-8BIT)
                                               flags = 1
+                                              frozenString = "ab" (UTF-8)
                                               sourceCharIndex = 1
                                               sourceLength = 2
-                                              tstring = ab
                           ToSNodeGen
                               children:
                                   valueNode_ =
-                                      StringLiteralNode
+                                      FrozenStringLiteralNode
                                           attributes:
-                                              encoding = UTF-8
+                                              definition = "expression" (ASCII-8BIT)
                                               flags = 0
+                                              frozenString = "123" (UTF-8)
                                               sourceCharIndex = 6
                                               sourceLength = 7
-                                              tstring = 123
                           ToSNodeGen
                               children:
                                   valueNode_ =
-                                      StringLiteralNode
+                                      FrozenStringLiteralNode
                                           attributes:
-                                              encoding = UTF-8
+                                              definition = "expression" (ASCII-8BIT)
                                               flags = 0
+                                              frozenString = "cd" (UTF-8)
                                               sourceCharIndex = 15
                                               sourceLength = 2
-                                              tstring = cd
                       ]
           ]
