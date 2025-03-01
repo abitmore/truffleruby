@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Copyright (c) 2016, 2024 Oracle and/or its affiliates. All rights reserved. This
+# Copyright (c) 2016, 2025 Oracle and/or its affiliates. All rights reserved. This
 # code is released under a tri EPL/GPL/LGPL license. You can use it,
 # redistribute it and/or modify it under the terms of the:
 #
@@ -283,9 +283,9 @@ module Truffle
     # The mechanism does track the line numbers,
     # and updates $. accordingly.
     #
-    def gets(sep = $/)
+    def gets(...)
       while advance!
-        line = @stream.gets(sep)
+        line = @stream.gets(...)
 
         unless line
           return nil if @use_stdin_only

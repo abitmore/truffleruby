@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2015, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -44,8 +44,8 @@ public abstract class AllocationTracing {
 
     public static void traceInlined(RubyDynamicObject instance, String className, String allocatingMethod,
             AlwaysInlinedMethodNode node) {
-        final RubyLanguage language = node.getLanguage();
-        final RubyContext context = node.getContext();
+        final RubyLanguage language = RubyLanguage.get(node);
+        final RubyContext context = RubyContext.get(node);
 
         truffleTracing(language, instance);
 

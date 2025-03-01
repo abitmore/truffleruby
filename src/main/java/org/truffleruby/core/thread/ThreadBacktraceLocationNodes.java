@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2015, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -9,15 +9,16 @@
  */
 package org.truffleruby.core.thread;
 
+import com.oracle.truffle.api.nodes.Node;
 import com.oracle.truffle.api.strings.TruffleString;
 import org.truffleruby.RubyContext;
+import org.truffleruby.RubyLanguage;
 import org.truffleruby.annotations.CoreMethod;
 import org.truffleruby.annotations.CoreModule;
 import org.truffleruby.builtins.CoreMethodArrayArgumentsNode;
 import org.truffleruby.core.encoding.Encodings;
 import org.truffleruby.core.encoding.TStringUtils;
 import org.truffleruby.core.string.RubyString;
-import org.truffleruby.language.RubyBaseNode;
 import org.truffleruby.language.backtrace.Backtrace;
 
 import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
@@ -27,7 +28,6 @@ import com.oracle.truffle.api.dsl.Specialization;
 import com.oracle.truffle.api.source.Source;
 import com.oracle.truffle.api.source.SourceSection;
 import org.truffleruby.language.backtrace.BacktraceFormatter;
-import org.truffleruby.parser.RubySource;
 
 @CoreModule(value = "Thread::Backtrace::Location", isClass = true)
 public abstract class ThreadBacktraceLocationNodes {
@@ -53,9 +53,9 @@ public abstract class ThreadBacktraceLocationNodes {
         }
 
         @TruffleBoundary
-        public static Object getAbsolutePath(SourceSection sourceSection, RubyBaseNode node) {
-            var context = node.getContext();
-            var language = node.getLanguage();
+        public static Object getAbsolutePath(SourceSection sourceSection, Node node) {
+            var context = RubyContext.get(node);
+            var language = RubyLanguage.get(node);
 
             if (sourceSection == null) {
                 return language.coreStrings.UNKNOWN.createInstance(context);
@@ -68,10 +68,10 @@ public abstract class ThreadBacktraceLocationNodes {
                     final String canonicalPath = context.getFeatureLoader().canonicalize(path, source);
                     var cachedTString = language.tstringCache.getTString(TStringUtils.utf8TString(canonicalPath),
                             Encodings.UTF_8);
-                    return node.createString(cachedTString, Encodings.UTF_8);
+                    return createString(node, cachedTString, Encodings.UTF_8);
                 } else { // eval()
                     var cachedPath = language.getPathToTStringCache().getCachedPath(source);
-                    return node.createString(cachedPath, Encodings.UTF_8);
+                    return createString(node, cachedPath, Encodings.UTF_8);
                 }
             }
         }
@@ -133,7 +133,7 @@ public abstract class ThreadBacktraceLocationNodes {
         int lineno(RubyBacktraceLocation threadBacktraceLocation) {
             final SourceSection sourceSection = getAvailableSourceSection(getContext(), threadBacktraceLocation);
 
-            return RubySource.getStartLineAdjusted(getContext(), sourceSection);
+            return getLanguage().getStartLineAdjusted(sourceSection);
         }
 
     }

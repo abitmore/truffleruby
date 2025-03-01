@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2023, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -54,10 +54,10 @@ public final class YARPExecutedOnceExpression {
         if (node instanceof Nodes.SelfNode) {
             return node;
         } else if (node instanceof Nodes.SplatNode) {
-            var read = new Nodes.LocalVariableReadNode(name, 0, 0, 0);
-            return new Nodes.SplatNode(read, node.startOffset, node.length);
+            var read = new Nodes.LocalVariableReadNode(0, 0, name, 0);
+            return new Nodes.SplatNode(node.startOffset, node.length, read);
         } else {
-            return new Nodes.LocalVariableReadNode(name, 0, node.startOffset, node.length);
+            return new Nodes.LocalVariableReadNode(node.startOffset, node.length, name, 0);
         }
     }
 

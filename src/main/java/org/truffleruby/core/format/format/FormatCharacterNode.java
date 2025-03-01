@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2016, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -73,11 +73,11 @@ public abstract class FormatCharacterNode extends FormatNode {
                         getContext(),
                         getContext().getCoreExceptions().charRangeError(codepointArgument, this));
             }
-        } else if (strings.isRubyString(stringArgument)) {
+        } else if (strings.isRubyString(this, stringArgument)) {
             /* This implementation follows the CRuby approach. CRuby ignores encoding of argument and interprets binary
              * representation of a character as if it's in the format sequence's encoding. */
-            final AbstractTruffleString originalCharacter = strings.getTString(stringArgument);
-            character = forceEncodingNode().execute(originalCharacter, strings.getTEncoding(stringArgument),
+            final AbstractTruffleString originalCharacter = strings.getTString(this, stringArgument);
+            character = forceEncodingNode().execute(originalCharacter, strings.getTEncoding(this, stringArgument),
                     encoding.tencoding);
 
             final int size = codePointLengthNode().execute(character, encoding.tencoding);

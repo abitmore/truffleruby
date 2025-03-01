@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Copyright (c) 2014, 2024 Oracle and/or its affiliates. All rights reserved. This
+# Copyright (c) 2014, 2025 Oracle and/or its affiliates. All rights reserved. This
 # code is released under a tri EPL/GPL/LGPL license. You can use it,
 # redistribute it and/or modify it under the terms of the:
 #
@@ -212,20 +212,10 @@ class Thread
 
   # Fiber-local variables
 
-  private def convert_to_local_name(name)
-    if Primitive.is_a?(name, Symbol)
-      name
-    elsif Primitive.is_a?(name, String)
-      name.to_sym
-    else
-      Kernel.raise TypeError, "#{name.inspect} is not a symbol nor a string"
-    end
-  end
-
   def fetch(name, default = undefined)
     Primitive.warn_block_supersedes_default_value_argument if !Primitive.undefined?(default) && block_given?
 
-    key = convert_to_local_name(name)
+    key = Truffle::Type.coerce_to_symbol(name)
     locals = Primitive.thread_get_fiber_locals self
     if Primitive.object_ivar_defined? locals, key
       return Primitive.object_ivar_get locals, key
@@ -241,20 +231,23 @@ class Thread
   end
 
   def [](name)
-    var = convert_to_local_name(name)
+    var = Truffle::Type.coerce_to_symbol(name)
     locals = Primitive.thread_get_fiber_locals self
     Primitive.object_ivar_get locals, var
   end
 
   def []=(name, value)
-    var = convert_to_local_name(name)
-    Primitive.check_frozen self
+    if frozen?
+      raise FrozenError, "can't modify frozen thread locals"
+    end
+
+    var = Truffle::Type.coerce_to_symbol(name)
     locals = Primitive.thread_get_fiber_locals self
     Primitive.object_ivar_set locals, var, value
   end
 
   def key?(name)
-    var = convert_to_local_name(name)
+    var = Truffle::Type.coerce_to_symbol(name)
     locals = Primitive.thread_get_fiber_locals self
     Primitive.object_ivar_defined? locals, var
   end
@@ -267,17 +260,27 @@ class Thread
   # Thread-local variables
 
   def thread_variable_get(name)
-    var = convert_to_local_name(name)
+    var = Truffle::Type.coerce_to_symbol(name)
     TruffleRuby.synchronized(self) { Primitive.thread_local_variables(self)[var] }
   end
 
   def thread_variable_set(name, value)
-    var = convert_to_local_name(name)
-    TruffleRuby.synchronized(self) { Primitive.thread_local_variables(self)[var] = value }
+    if frozen?
+      Kernel.raise FrozenError, "can't modify frozen thread locals"
+    end
+
+    var = Truffle::Type.coerce_to_symbol(name)
+    TruffleRuby.synchronized(self) do
+      if Primitive.nil?(value)
+        Primitive.thread_local_variables(self).delete(var)
+      else
+        Primitive.thread_local_variables(self)[var] = value
+      end
+    end
   end
 
   def thread_variable?(name)
-    var = convert_to_local_name(name)
+    var = Truffle::Type.coerce_to_symbol(name)
     TruffleRuby.synchronized(self) { Primitive.thread_local_variables(self).key? var }
   end
 
@@ -368,7 +371,7 @@ class ConditionVariable
   end
 end
 
-Truffle::KernelOperations.define_read_only_global(:$!, -> { Primitive.thread_get_exception })
+Truffle::KernelOperations.define_read_only_global(:$!, -> { Primitive.fiber_get_exception })
 Truffle::KernelOperations.define_read_only_global(:$?, -> { Primitive.thread_get_return_code })
 
 Truffle::KernelOperations.define_hooked_variable(

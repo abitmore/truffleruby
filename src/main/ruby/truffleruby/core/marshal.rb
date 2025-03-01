@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Copyright (c) 2015, 2024 Oracle and/or its affiliates. All rights reserved. This
+# Copyright (c) 2015, 2025 Oracle and/or its affiliates. All rights reserved. This
 # code is released under a tri EPL/GPL/LGPL license. You can use it,
 # redistribute it and/or modify it under the terms of the:
 #
@@ -140,7 +140,7 @@ class Exception
 end
 
 class Time
-  def __custom_marshal__(ms)
+  private def __custom_marshal__(ms)
     out = ''.b
 
     # Order matters.
@@ -335,12 +335,12 @@ class Range
 
     ivars = self.instance_variables
     Primitive.string_binary_append out, ms.serialize_integer(3 + ivars.size)
+    Primitive.string_binary_append out, ms.serialize(:excl)
+    Primitive.string_binary_append out, ms.serialize(self.exclude_end?)
     Primitive.string_binary_append out, ms.serialize(:begin)
     Primitive.string_binary_append out, ms.serialize(self.begin)
     Primitive.string_binary_append out, ms.serialize(:end)
     Primitive.string_binary_append out, ms.serialize(self.end)
-    Primitive.string_binary_append out, ms.serialize(:excl)
-    Primitive.string_binary_append out, ms.serialize(self.exclude_end?)
     ivars.each do |ivar|
       val = Primitive.object_ivar_get self, ivar
       Primitive.string_binary_append out, ms.serialize(ivar)
@@ -427,6 +427,39 @@ class Struct
     Primitive.string_binary_append out, ms.serialize_integer(self.length)
 
     self.each_pair do |name, value|
+      Primitive.string_binary_append out, ms.serialize(name)
+      Primitive.string_binary_append out, ms.serialize(value)
+    end
+
+    Primitive.string_binary_append out, ms.serialize_instance_variables_suffix(self)
+
+    out
+  end
+end
+
+class Data
+  # Data is serialized like Struct with the same type 'S'
+  private def __marshal__(ms)
+    # Data instances are frozen so no instance variables could be set (with #instance_variable_set).
+    # But when Data class has no members - then its instances are allowed to be assigned instance variables.
+    #   Foo = Data.define
+    #   f = Foo.new
+    #   f.instance_variable_set(:@a, 42) # => 42
+    # So keep the logic of serializing instance variables for now.
+    out =  ms.serialize_instance_variables_prefix(self)
+    Primitive.string_binary_append out, ms.serialize_extended_object(self)
+
+    Primitive.string_binary_append out, 'S'
+
+    cls = Primitive.class self
+    if Primitive.module_anonymous?(cls)
+      raise TypeError, "can't dump anonymous class #{cls}"
+    end
+    class_name = Primitive.module_name cls
+    Primitive.string_binary_append out, ms.serialize(class_name.to_sym)
+    Primitive.string_binary_append out, ms.serialize_integer(self.members.length)
+
+    self.to_h.each_pair do |name, value|
       Primitive.string_binary_append out, ms.serialize(name)
       Primitive.string_binary_append out, ms.serialize(value)
     end
@@ -608,10 +641,22 @@ module Marshal
     end
 
     def add_non_immediate_object(obj)
-      # Skip entities that cannot be referenced as objects.
-      # Integers that are bigger than 4 bytes also increase the object links counter.
-      return if Primitive.immediate_value?(obj) && !serialize_as_bignum?(obj)
-      add_object(obj)
+      # Skip entities that cannot be referenced as objects in Marshal format.
+      #
+      # The following objects are considered immediate in Ruby
+      # - nil, true, false
+      # - Float,
+      # - Integer that fits in native long
+      # - Symbol
+      #
+      # The Marshal format has some additional rules:
+      # - Float is always serialized as object, so it is not "immediate"
+      # - Integer is "immediate" only if it is immediate on the x32 architecture that is fits in 4 bytes
+
+      unless Primitive.nil?(obj) || Primitive.true?(obj) || Primitive.false?(obj) || Primitive.is_a?(obj, Symbol) ||
+        (Primitive.is_a?(obj, Integer) && !serialize_as_bignum?(obj))
+        add_object(obj)
+      end
     end
 
     def add_object(obj)
@@ -952,6 +997,7 @@ module Marshal
       store_unique_object obj
     end
 
+    # handle both Struct and Data classes
     def construct_struct
       name = get_symbol
 
@@ -969,6 +1015,8 @@ module Marshal
 
         Primitive.object_hidden_var_set obj, slot, construct
       end
+
+      obj.freeze if Primitive.is_a?(obj, Data)
 
       obj
     end
@@ -1259,8 +1307,8 @@ module Marshal
     end
 
     def serialize_user_defined(obj)
-      if Primitive.respond_to? obj, :__custom_marshal__, false
-        return obj.__custom_marshal__(self)
+      if Primitive.respond_to? obj, :__custom_marshal__, true
+        return obj.send(:__custom_marshal__, self)
       end
 
       str = obj.__send__ :_dump, @depth

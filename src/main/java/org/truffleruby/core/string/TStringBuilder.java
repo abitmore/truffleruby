@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2016, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -11,7 +11,7 @@ package org.truffleruby.core.string;
 
 import com.oracle.truffle.api.strings.InternalByteArray;
 import com.oracle.truffle.api.strings.TruffleString;
-import org.jcodings.Encoding;
+import org.graalvm.shadowed.org.jcodings.Encoding;
 import org.truffleruby.collections.ByteArrayBuilder;
 import org.truffleruby.core.encoding.Encodings;
 import org.truffleruby.core.encoding.RubyEncoding;

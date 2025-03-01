@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2019, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -24,7 +24,7 @@ public final class AutoloadConstant {
     private volatile ReentrantLock autoloadLock;
 
     AutoloadConstant(Object feature) {
-        assert RubyStringLibrary.getUncached().isRubyString(feature);
+        assert RubyStringLibrary.isRubyStringUncached(feature);
         this.feature = feature;
         this.autoloadPath = RubyGuards.getJavaString(this.feature);
     }

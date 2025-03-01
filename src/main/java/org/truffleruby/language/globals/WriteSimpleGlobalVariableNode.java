@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2018, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -48,7 +48,7 @@ public abstract class WriteSimpleGlobalVariableNode extends RubyBaseNode {
             @Cached(value = "getLanguage().getGlobalVariableIndex(name)", neverDefault = false) @Shared int index,
             @Cached("getContext().getGlobalVariableStorage(index)") GlobalVariableStorage storage,
             @Cached("storage.getValue()") Object previousValue,
-            @Bind("this") Node node) {
+            @Bind Node node) {
         // NOTE: we still do the volatile write to get the proper memory barrier,
         // as the global variable could be used as a publication mechanism.
         storage.setValueInternal(value);

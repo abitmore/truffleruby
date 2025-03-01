@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2017, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -282,7 +282,8 @@ public class CoreModuleChecks {
         for (String guard : guards) {
             if (guard.equals("wasProvided(" + name + ")") ||
                     guard.equals("wasNotProvided(" + name + ")") ||
-                    (!guard.startsWith("!") && guard.endsWith(".isRubyString(" + name + ")"))) {
+                    (!guard.startsWith("!") && (guard.endsWith(".isRubyString(this, " + name + ")") ||
+                            guard.endsWith(".isRubyString(node, " + name + ")")))) {
                 return true;
             }
         }

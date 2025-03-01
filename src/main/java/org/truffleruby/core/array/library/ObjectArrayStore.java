@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2016, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -98,7 +98,7 @@ public final class ObjectArrayStore {
                 @CachedLibrary("store") ArrayStoreLibrary arrayStoreLibrary,
                 @Cached @Exclusive LoopConditionProfile loopProfile,
                 @Cached WriteBarrierNode writeBarrierNode,
-                @Bind("$node") Node node) {
+                @Bind Node node) {
             int i = start;
             try {
                 for (; loopProfile.inject(i < end); i++) {

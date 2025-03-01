@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Copyright (c) 2015, 2024 Oracle and/or its affiliates. All rights reserved. This
+# Copyright (c) 2015, 2025 Oracle and/or its affiliates. All rights reserved. This
 # code is released under a tri EPL/GPL/LGPL license. You can use it,
 # redistribute it and/or modify it under the terms of the:
 #
@@ -120,7 +120,7 @@ class Array
   end
 
   def ==(other)
-    result = Primitive.array_equal self, other
+    result = Primitive.array_equal? self, other
     unless Primitive.undefined?(result)
       return result
     end
@@ -376,7 +376,7 @@ class Array
   end
 
   def eql?(other)
-    result = Primitive.array_eql self, other
+    result = Primitive.array_eql? self, other
     unless Primitive.undefined?(result)
       return result
     end
@@ -394,10 +394,6 @@ class Array
     end
 
     true
-  end
-
-  def empty?
-    size == 0
   end
 
   def fetch(idx, default = undefined)
@@ -719,6 +715,20 @@ class Array
     Array.new self[-n..-1]
   end
 
+  def pack(format, buffer: nil)
+    if Primitive.nil? buffer
+      Primitive.array_pack(self, format, '')
+    else
+      unless Primitive.is_a?(buffer, String)
+        raise TypeError, "buffer must be String, not #{Primitive.class(buffer)}"
+      end
+
+      string = Primitive.array_pack(self, format, buffer)
+      buffer.replace string.force_encoding(buffer.encoding)
+    end
+  end
+  Truffle::Graal.always_split instance_method(:pack)
+
   def permutation(num = undefined, &block)
     unless block_given?
       return to_enum(:permutation, num) do
@@ -830,7 +840,7 @@ class Array
     # Check the result size will fit in an Array.
     sum = args.inject(size) { |n, x| n * x.size }
 
-    unless Primitive.integer_fits_into_long(sum)
+    unless Primitive.integer_fits_into_long?(sum)
       raise RangeError, 'product result is too large'
     end
 
@@ -1282,19 +1292,10 @@ class Array
   end
 
   def to_h
-    h = Hash.new
+    h = {}
     each_with_index do |elem, i|
       elem = yield(elem) if block_given?
-      unless elem.respond_to?(:to_ary)
-        raise TypeError, "wrong element type #{Primitive.class(elem)} at #{i} (expected array)"
-      end
-
-      ary = elem.to_ary
-      if ary.size != 2
-        raise ArgumentError, "wrong array length at #{i} (expected 2, was #{ary.size})"
-      end
-
-      h[ary[0]] = ary[1]
+      Truffle::HashOperations.assoc_key_value_pair_with_position(h, elem, i)
     end
     h
   end

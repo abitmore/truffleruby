@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2014, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -13,6 +13,7 @@ import com.oracle.truffle.api.nodes.Node;
 import com.oracle.truffle.api.source.Source;
 import org.prism.Nodes;
 import org.truffleruby.RubyLanguage;
+import org.truffleruby.RubyLanguage.RubySourceOptions;
 import org.truffleruby.annotations.SuppressFBWarnings;
 import org.truffleruby.language.control.BreakID;
 import org.truffleruby.language.control.ReturnID;
@@ -28,11 +29,10 @@ public final class ParseEnvironment {
     /** Used to compute line numbers */
     public Nodes.Source yarpSource;
     public final ParserContext parserContext;
+    private final boolean coverageEnabled;
     public final Node currentNode;
 
     private final boolean inCore;
-    private final boolean coverageEnabled;
-
 
     // Set once after parsing and before translating
     public Boolean allowTruffleRubyPrimitives = null;
@@ -49,7 +49,7 @@ public final class ParseEnvironment {
         this.currentNode = currentNode;
 
         this.inCore = RubyLanguage.getPath(source).startsWith(language.corePath);
-        this.coverageEnabled = RubyLanguage.MIME_TYPE_COVERAGE.equals(rubySource.getSource().getMimeType());
+        this.coverageEnabled = rubySource.getSource().getOptions(language).get(RubySourceOptions.Coverage);
     }
 
     public boolean inCore() {

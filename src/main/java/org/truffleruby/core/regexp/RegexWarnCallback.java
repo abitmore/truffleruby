@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2018, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -9,7 +9,7 @@
  */
 package org.truffleruby.core.regexp;
 
-import org.joni.WarnCallback;
+import org.graalvm.shadowed.org.joni.WarnCallback;
 import org.truffleruby.parser.RubyWarnings;
 
 public final class RegexWarnCallback implements WarnCallback {

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2013, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -31,7 +31,7 @@ import org.truffleruby.core.string.CoreStrings;
 import org.truffleruby.core.string.RubyString;
 import org.truffleruby.core.string.StringOperations;
 import org.truffleruby.core.string.StringUtils;
-import org.truffleruby.core.thread.ThreadNodes.ThreadGetExceptionNode;
+import org.truffleruby.core.fiber.FiberNodes.FiberGetExceptionNode;
 import org.truffleruby.language.Nil;
 import org.truffleruby.language.RubyBaseNode;
 import org.truffleruby.language.RubyGuards;
@@ -89,7 +89,7 @@ public final class CoreExceptions {
             if (backtrace != null && backtrace.getStackTrace().length > 0) {
                 from = " at " + debugBacktraceFormatter.formatLine(backtrace.getStackTrace(), 0, null);
             }
-            if (RubyStringLibrary.getUncached().isRubyString(message)) {
+            if (RubyStringLibrary.isRubyStringUncached(message)) {
                 message = RubyGuards.getJavaString(message);
             }
             final String output = "Exception `" + exceptionClass + "'" + from + " - " + message + "\n";
@@ -128,7 +128,7 @@ public final class CoreExceptions {
     // ArgumentError
 
     public RubyException argumentErrorOneHashRequired(RubyBaseNode currentNode) {
-        return argumentError(coreStrings().ONE_HASH_REQUIRED.createInstance(currentNode.getContext()), currentNode,
+        return argumentError(coreStrings().ONE_HASH_REQUIRED.createInstance(RubyContext.get(currentNode)), currentNode,
                 null);
     }
 
@@ -137,7 +137,7 @@ public final class CoreExceptions {
     }
 
     public RubyException argumentErrorProcWithoutBlock(RubyBaseNode currentNode) {
-        return argumentError(coreStrings().PROC_WITHOUT_BLOCK.createInstance(currentNode.getContext()), currentNode,
+        return argumentError(coreStrings().PROC_WITHOUT_BLOCK.createInstance(RubyContext.get(currentNode)), currentNode,
                 null);
     }
 
@@ -153,24 +153,22 @@ public final class CoreExceptions {
 
     public RubyException argumentErrorXOutsideOfString(Node currentNode) {
         return argumentError(coreStrings().X_OUTSIDE_OF_STRING.createInstance(RubyContext.get(currentNode)),
-                currentNode,
-                null);
+                currentNode, null);
     }
 
     public RubyException argumentErrorCantCompressNegativeNumbers(Node currentNode) {
         return argumentError(coreStrings().CANT_COMPRESS_NEGATIVE.createInstance(RubyContext.get(currentNode)),
-                currentNode,
-                null);
+                currentNode, null);
     }
 
     public RubyException argumentErrorOutOfRange(RubyBaseNode currentNode) {
-        return argumentError(coreStrings().ARGUMENT_OUT_OF_RANGE.createInstance(currentNode.getContext()), currentNode,
-                null);
+        return argumentError(coreStrings().ARGUMENT_OUT_OF_RANGE.createInstance(RubyContext.get(currentNode)),
+                currentNode, null);
     }
 
     public RubyException argumentErrorNegativeArraySize(RubyBaseNode currentNode) {
-        return argumentError(coreStrings().NEGATIVE_ARRAY_SIZE.createInstance(currentNode.getContext()), currentNode,
-                null);
+        return argumentError(coreStrings().NEGATIVE_ARRAY_SIZE.createInstance(RubyContext.get(currentNode)),
+                currentNode, null);
     }
 
     public RubyException argumentErrorCharacterRequired(Node currentNode) {
@@ -312,7 +310,7 @@ public final class CoreExceptions {
         RubyClass exceptionClass = context.getCoreLibrary().frozenErrorClass;
         RubyString errorMessage = StringOperations.createUTF8String(context, language, message);
         final Backtrace backtrace = context.getCallStack().getBacktrace(currentNode);
-        final Object cause = ThreadGetExceptionNode.getLastException(language);
+        final Object cause = FiberGetExceptionNode.getLastException(language);
         showExceptionIfDebug(exceptionClass, errorMessage, backtrace);
         return new RubyFrozenError(
                 exceptionClass,
@@ -387,7 +385,7 @@ public final class CoreExceptions {
 
     @TruffleBoundary
     public RubyException noMatchingPatternError(Object errorMessage, Node currentNode) {
-        assert RubyStringLibrary.getUncached().isRubyString(errorMessage);
+        assert RubyStringLibrary.isRubyStringUncached(errorMessage);
         RubyClass exceptionClass = context.getCoreLibrary().noMatchingPatternErrorClass;
         return ExceptionOperations.createRubyException(context, exceptionClass, errorMessage, currentNode, null);
     }
@@ -845,7 +843,7 @@ public final class CoreExceptions {
         final RubyString messageString = StringOperations.createUTF8String(context, language, message);
         final RubyClass exceptionClass = context.getCoreLibrary().nameErrorClass;
         final Backtrace backtrace = context.getCallStack().getBacktrace(currentNode);
-        final Object cause = ThreadGetExceptionNode.getLastException(language);
+        final Object cause = FiberGetExceptionNode.getLastException(language);
         showExceptionIfDebug(exceptionClass, messageString, backtrace);
         return new RubyNameError(
                 context.getCoreLibrary().nameErrorClass,
@@ -862,7 +860,7 @@ public final class CoreExceptions {
             Node currentNode) {
         // omit = 1 to skip over the call to `method_missing'. MRI does not show this is the backtrace.
         final Backtrace backtrace = context.getCallStack().getBacktrace(currentNode, 1);
-        final Object cause = ThreadGetExceptionNode.getLastException(language);
+        final Object cause = FiberGetExceptionNode.getLastException(language);
 
         final RubyProc formatterProc = formatter.getProc(context);
         final String message = formatter.getMessage(formatterProc, name, receiver);
@@ -889,7 +887,7 @@ public final class CoreExceptions {
 
         // omit = 1 to skip over the call to `method_missing'. MRI does not show this is the backtrace.
         final Backtrace backtrace = context.getCallStack().getBacktrace(currentNode, 1);
-        final Object cause = ThreadGetExceptionNode.getLastException(language);
+        final Object cause = FiberGetExceptionNode.getLastException(language);
 
         final RubyProc formatterProc = formatter.getProc(context);
         final String message = formatter.getMessage(formatterProc, name, receiver);
@@ -915,7 +913,7 @@ public final class CoreExceptions {
         final RubyArray argsArray = createArray(context, language, args);
         final RubyClass exceptionClass = context.getCoreLibrary().noMethodErrorClass;
         final Backtrace backtrace = context.getCallStack().getBacktrace(currentNode);
-        final Object cause = ThreadGetExceptionNode.getLastException(language);
+        final Object cause = FiberGetExceptionNode.getLastException(language);
 
         showExceptionIfDebug(exceptionClass, messageString, backtrace);
 
@@ -936,7 +934,7 @@ public final class CoreExceptions {
                 "super called outside of method");
         final RubyClass exceptionClass = context.getCoreLibrary().nameErrorClass;
         final Backtrace backtrace = context.getCallStack().getBacktrace(currentNode);
-        final Object cause = ThreadGetExceptionNode.getLastException(language);
+        final Object cause = FiberGetExceptionNode.getLastException(language);
         showExceptionIfDebug(exceptionClass, messageString, backtrace);
         // TODO BJF Jul 21, 2016 Review to add receiver
         return new RubyNoMethodError(
@@ -1012,7 +1010,7 @@ public final class CoreExceptions {
     public RubySyntaxError syntaxError(String message, Node currentNode, SourceSection sourceLocation) {
         String messageWithFileLine;
         if (sourceLocation != null) {
-            messageWithFileLine = context.fileLine(sourceLocation) + ": " + message;
+            messageWithFileLine = language.fileLine(sourceLocation) + ": " + message;
         } else {
             messageWithFileLine = "(unknown):1: " + message;
         }
@@ -1026,7 +1024,7 @@ public final class CoreExceptions {
                 message);
         RubyClass exceptionClass = context.getCoreLibrary().syntaxErrorClass;
         final Backtrace backtrace = context.getCallStack().getBacktrace(currentNode);
-        final Object cause = ThreadGetExceptionNode.getLastException(language);
+        final Object cause = FiberGetExceptionNode.getLastException(language);
         showExceptionIfDebug(exceptionClass, messageString, backtrace);
         return new RubySyntaxError(
                 exceptionClass,
@@ -1065,9 +1063,9 @@ public final class CoreExceptions {
     // RangeError
 
     @TruffleBoundary
-    public RubyException rangeError(long code, RubyEncoding encoding, Node currentNode) {
+    public RubyException rangeError(long code, Node currentNode) {
         return rangeError(
-                StringUtils.format("invalid codepoint %x in %s", code, encoding),
+                StringUtils.format("%d out of char range", code),
                 currentNode);
     }
 
@@ -1263,7 +1261,7 @@ public final class CoreExceptions {
         final RubyString message = StringOperations.createUTF8String(context, language, "exit");
         final RubyClass exceptionClass = context.getCoreLibrary().systemExitClass;
         final Backtrace backtrace = context.getCallStack().getBacktrace(currentNode);
-        final Object cause = ThreadGetExceptionNode.getLastException(language);
+        final Object cause = FiberGetExceptionNode.getLastException(language);
         showExceptionIfDebug(exceptionClass, message, backtrace);
         return new RubySystemExit(
                 exceptionClass,

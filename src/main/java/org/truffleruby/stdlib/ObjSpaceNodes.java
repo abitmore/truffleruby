@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2015, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -38,7 +38,6 @@ import com.oracle.truffle.api.dsl.Cached;
 import com.oracle.truffle.api.dsl.Cached.Exclusive;
 import com.oracle.truffle.api.dsl.Fallback;
 import com.oracle.truffle.api.dsl.Specialization;
-import org.truffleruby.parser.RubySource;
 
 @CoreModule("Truffle::ObjSpace")
 public abstract class ObjSpaceNodes {
@@ -58,13 +57,13 @@ public abstract class ObjSpaceNodes {
         @Specialization
         int memsizeOfString(RubyString object,
                 @Cached @Exclusive RubyStringLibrary libString) {
-            return memsizeOfObject(object) + libString.byteLength(object);
+            return memsizeOfObject(object) + libString.byteLength(this, object);
         }
 
         @Specialization
         int memsizeOfString(ImmutableRubyString object,
                 @Cached @Exclusive RubyStringLibrary libString) {
-            return 1 + libString.byteLength(object);
+            return 1 + libString.byteLength(this, object);
         }
 
         @Specialization
@@ -245,7 +244,7 @@ public abstract class ObjSpaceNodes {
             if (trace == null) {
                 return nil;
             } else {
-                return RubySource.getStartLineAdjusted(getContext(), trace.allocatingSourceSection);
+                return getLanguage().getStartLineAdjusted(trace.allocatingSourceSection);
             }
         }
 

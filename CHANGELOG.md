@@ -1,3 +1,162 @@
+# 25.0.0
+
+New features:
+
+
+Bug fixes:
+
+
+Compatibility:
+
+* Implement `StringScanner#{peek_byte,scan_byte,scan_integer,named_captures}` methods (#3788, @andrykonchin).
+* Support String patterns in `StringScanner#{exist?,scan_until,skip_until,check_until,search_full}` methods (@andrykonchin).
+* Implement `ObjectSpace::WeakKeyMap` (#3681, @andrykonchin).
+* Fix `String#slice` called with negative offset (@andrykonchin).
+
+Performance:
+
+
+Changes:
+
+
+Memory Footprint:
+
+
+# 24.2.0
+
+New features:
+
+* Updated to Ruby 3.3.5 (#3681, @andrykonchin, @eregon).
+
+Bug fixes:
+
+* Fix `Module#name` called inside the `Module#const_added` callback when the module is defined in the top-level scope (#3683, @andrykonchin).
+* Fix duplicated calls of a `Module#const_added` callback when a module with nested modules is assigned to a constant (@andrykonchin).
+* Support OpenSSL 1.1-3.4 and prefer in order OpenSSL 3.0.x, 3.x and 1.1 (EOL). There was a compilation issue with OpenSSL 3.4 (#3724, @eregon).
+* Fix `Time{.at,.new,.now,#getlocal,#localtime}` methods and validation of seconds in utc offset in String format (@andrykonchin).
+* Fix `ObjectSpace.undefine_finalizer` and raise `FrozenError` when called for a frozen object (@andrykonchin).
+* Fix `Integer#/` when called with a bignum argument (@andrykonchin).
+
+Compatibility:
+
+* Fix `Module#include` so a module included into a reopened nested module is added into an ancestors chain (#3570, @andrykonchin).
+* Fix `Kernel#eval` to ignore shebang with non-Ruby interpreter (#3623, @andrykonchin).
+* Fix `Env#delete` and return value returned by a block if variable doesn't exist (@andrykonchin).
+* Fix `Env#update` and accept multiple hashes (@andrykonchin).
+* Add `MAJOR`, `MINOR`, `TEENY`, `PATCHLEVEL`, `RUBY_API_VERSION`, and `RUBY_PROGRAM_VERSION` to `RbConfig::CONFIG` (#3396, @rwstauner).
+* Set `RbConfig::CONFIG['archincludedir']` (#3396, @andrykonchin).
+* Support the index/length arguments for the string argument to `String#bytesplice` added in 3.3 (#3656, @rwstauner).
+* Implement `rb_str_strlen()` (#3697, @Th3-M4jor).
+* Support `Time.new` with String argument and error when invalid (#3693, @rwstauner).
+* Implement `rb_enc_interned_str()` (#3703, @Th3-M4jor).
+* Implement `rb_hash_bulk_insert()` (#3705, @Th3-M4jor).
+* Remove deprecated `Pathname#{taint,untaint}` methods (#3681, @andrykonchin).
+* Add `rb_category_warn` function (#3710, @andrykonchin).
+* Add `rb_gc_mark_locations()` (#3704, @andrykonchin).
+* Implement `rb_str_format()` (#3716, @andrykonchin).
+* Add `IO#{pread, pwrite}` methods (#3718, @andrykonchin).
+* Add `rb_io_closed_p()` (#3681, @andrykonchin).
+* Add `rb_io_open_descriptor()` (#3681, @andrykonchin).
+* Support serializing of `Data` instances into Marshal format (#3726, @andrykonchin).
+* `Array#pack` now raises `ArgumentError` for unknown directives (#3681, @Th3-M4jor).
+* `String#unpack` now raises `ArgumentError` for unknown directives (#3681, @Th3-M4jor).
+* `Thread::Queue#freeze` now raises `TypeError` when called (#3681, @Th3-M4jor).
+* `Thread::SizedQueue#freeze` now raises `TypeError` when called (#3681, @Th3-M4jor).
+* Add `Range#reverse_each` (#3681, @andrykonchin).
+* Emit a warning when `it` call without arguments is used in a block without parameters (#3681, @andrykonchin).
+* Add `rb_syserr_fail_str()` (#3732, @andrykonchin).
+* Add `Dir.for_fd` (#3681, @andrykonchin).
+* Add `Dir.fchdir` (#3681, @andrykonchin).
+* Add `Dir#chdir` (#3681, @andrykonchin).
+* Declare `File::SHARE_DELETE` constant (#3745, @andrykonchin).
+* Support `symbolize_names` argument to `MatchData#named_captures` (#3681, @rwstauner).
+* Support `Proc#initialize_{dup,copy}` for subclasses (#3681, @rwstauner).
+* Remove deprecated `Encoding#replicate` method (#3681, @rwstauner).
+* Add `ObjectSpace::WeakMap#delete` (#3681, @andrykonchin).
+* `Kernel#lambda` with now raises `ArgumentError` when given a non-lambda, non-literal block (#3681, @Th3-M4jor).
+* Add `rb_data_define()` to define Data (#3681, @andrykonchin).
+* Add `Refinement#target` (#3681, @andrykonchin).
+* Add `Range#overlap?` (#3681, @andrykonchin).
+* Update `NoMethodError#message` to not use `#inspect` on receiver (#3681, @rwstauner).
+* Socket `#recv*` methods (`{BasicSocket,IPSocket,TCPSocket,UDPSocket,Socket}#{recv,recv_nonblock,recvmsg,recvmsg_nonblock,recvfrom,recvfrom_nonblock}`) return `nil` instead of an empty String on closed connections (#3681, @andrykonchyn).
+* Fix `Marshal.dump` when a Float value is dumped repeatedly (#3747, @andrykochin).
+* Emit warning when `Kernel#format` called with excessive arguments (@andrykonchin).
+* Fix `Integer#ceil` when self is 0 (@andrykonchin).
+* Fix `Module#remove_const` and emit warning when constant is deprecated (@andrykonchin).
+* Add `Module#set_temporary_name` (#3681, @andrykonchin).
+* Modify `Float#round` to match MRI behavior (#3676, @andrykonchin).
+* Support Timezone argument to `Time.{new,at}` and `Time#{getlocal,localtime}` (#1717, @patricklinpl, @manefz, @rwstauner).
+
+Performance:
+
+* Speedup some C extensions like `sqlite3`, `trilogy` and `json` by 2 to 3 times by using the Panama NFI backend for faster upcalls in JVM mode (@eregon).
+* Optimize encoding negotiation for ASCII-compatible encodings (@eregon, @andrykonchin).
+
+Changes:
+* Inherit `Polyglot::ForeignException` from `StandardError` instead of `Exception` (#3620, @andrykonchin).
+
+Memory Footprint:
+
+# 24.1.0
+
+New features:
+
+* Add `--reuse-precompiled-gems` option (@andrykonchin).
+* Update to Ruby 3.2.4 (@andrykonchin).
+
+Bug fixes:
+
+* Add missing thread-safe objects write barriers for `TruffleRuby::ConcurrentMap` (#3179, @eregon).
+* Fix repeated calling of methods `Dir#{each,each_child,children}` (#3464, @andrykonchin).
+* Fix `IO#{wait,wait_readable,wait_writable}` methods and switch the current thread into a sleep state (@andrykonchin).
+* Fix `rb_global_variable()` for `Float` and bignum values during the `Init_` function (#3478, @eregon).
+* Fix `rb_gc_register_mark_object()` for `Float` and bignum values (#3502, @eregon, @andrykonchin).
+* Fix parsing literal floats when the locale does not use `.` for the decimal separator (e.g. `LANG=fr_FR.UTF-8`) (#3512, @eregon).
+* Fix `IO#{read_nonblock,readpartial,sysread}`, `BasicSocket#{recv,recv_nonblock}`, `{Socket,UDPSocket}#recvfrom_nonblock`, `UnixSocket#recvfrom` and preserve a provided buffer's encoding (#3506, @andrykonchyn).
+* Repair `IO#{wait_readable,wait_writable,wait}` to be interruptible (#3504, @andrykonchin).
+* Fix Hash value omission for constant names (@andrykonchin).
+* Fix `MatchData#[index, length]` when index is larger than number of matched values (@andrykonchin).
+* Fix `#each` for a foreign iterator which is also iterable (#3630, @eregon).
+
+Compatibility:
+
+* Move `IO#wait_readable`, `IO#wait_writable`, `IO#wait_priority` and `IO#wait` into core library (@andrykonchin).
+* Change assignment evaluation order for fully qualified constant and evaluate left-hand-side before right-hand-side (#3039, @andrykonchin).
+* Fix evaluation order for multi-assignment and evaluate left-hand-side before right-hand-side (@andrykonchin).
+* Add `Regexp.linear_time?` method (#3039, @andrykonchin).
+* Allow null encoding pointer in `rb_enc_interned_str_cstr` (@thomasmarshall).
+* Allow anonymous memberless Struct (@simonlevasseur).
+* Set `$!` when a `Kernel#at_exit` hook raises an exception (#3535, @andrykonchin).
+* Support `:buffer` keyword argument to `Array#pack` (#3559, @andrykonchyn).
+* Set `RbConfig::CONFIG['host_cpu']` to `arm64` on darwin platform (#3571, @andrykonchin).
+* Fix `RegexpError` messages to match CRuby better (#3398, @andrykonchin).
+* Fix `Enumerable#reduce` to handle non-Symbol method name parameter (#2931, @andrykonchin).
+* Fix `RangeError` message to match CRuby for `Integer#chr` called with invalid codepoint argument (#2795, @andrykonchin).
+* Joni has been updated from 2.1.44 to 2.2.1 (@andrykonchin).
+* Fix `Hash#to_h` called with a block and pass key and value to the block as separate arguments (#3607, @andrykonchin).
+* Fix `StringIO#initialize` and preserve initial string's encoding when mode is `w` so the initial string is truncated (#3599, @andrykonchin).
+* Fix `IO#{autoclose=,autoclose?}` and raise `IOError` when io is closed (@andrykonchin).
+* Fix `Thread#{thread_variable_get,thread_variable_set,thread_variable?,key?,[],[]=,fetch}` and convert a non-String/Symbol thread-local variable name to String using `#to_str` (@andrykonchin).
+* Fix formatting in `Exception#full_message` when `RuntimeError` is not handled and `highlight` option is specified (@andrykonchin).
+* Fix `String#encode` and convert fallback values into String using `#to_str` (@andrykonchin).
+* Fix `Kernel.warn` and don't call `Warning#warn` if a specified category is disabled (@andrykonchin).
+* Fix `$!` global variable and make it fiber-local (@andrykonchin).
+* Fix `rb_set_errinfo` and `rb_errinfo` and store an error separately from `$!` (#2890, @andrykonchin).
+* Fix `rb_mutex_synchronize` to not wrap/unwrap result value (#3624, @andrykonchin).
+* Add `StringIO#set_encoding_by_bom` method (#3632, @andrykonchin).
+
+Performance:
+
+* Fix inline caching for Regexp creation from Strings (#3492, @andrykonchin, @eregon).
+* Optimize `Integer#pow` method for small modulus values (#3544, @andrykonchin).
+* Avoid repeated copies from native to managed string when matching Regexps on a native string (#2193, @eregon).
+
+Changes:
+
+Memory Footprint:
+
+* Use inlined core method nodes even when modules are prepended to core classes (#3546, @eregon).
+
 # 24.0.0
 
 New features:
@@ -58,6 +217,7 @@ Compatibility:
 * Remove deprecated `Fixnum` and `Bignum` constants (#3039, @andrykonchin).
 * Add `rb_enc_interned_str_cstr` function (#3408, @goyox86, @thomasmarshall).
 * Add `rb_str_to_interned_str` function (#3408, @thomasmarshall).
+* Add `SyntaxError#path` method (#3039, @wasabigeek).
 
 Performance:
 

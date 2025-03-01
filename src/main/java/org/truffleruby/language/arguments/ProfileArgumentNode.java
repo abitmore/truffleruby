@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2016, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -23,14 +23,11 @@ import com.oracle.truffle.api.dsl.Cached.Shared;
 import com.oracle.truffle.api.dsl.NodeChild;
 import com.oracle.truffle.api.dsl.Specialization;
 import com.oracle.truffle.api.dsl.TypeSystemReference;
-import com.oracle.truffle.api.nodes.NodeCost;
-import com.oracle.truffle.api.nodes.NodeInfo;
 
 import java.util.Objects;
 
 @TypeSystemReference(NoImplicitCastsToLong.class)
 @ImportStatic(CompilerDirectives.class)
-@NodeInfo(cost = NodeCost.NONE)
 @NodeChild(value = "childNode", type = RubyNode.class)
 public abstract class ProfileArgumentNode extends RubyContextSourceNode {
 

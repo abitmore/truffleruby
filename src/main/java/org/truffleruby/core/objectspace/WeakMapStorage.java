@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2020, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -12,5 +12,6 @@ package org.truffleruby.core.objectspace;
 import org.truffleruby.collections.WeakValueCache;
 import org.truffleruby.core.hash.CompareByRubyIdentityWrapper;
 
+// An alias of WeakValueCache<CompareByRubyIdentityWrapper, Object> to keep things short
 public final class WeakMapStorage extends WeakValueCache<CompareByRubyIdentityWrapper, Object> {
 }

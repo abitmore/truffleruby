@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2016, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -277,6 +277,11 @@ public final class SimpleUnpackTreeBuilder implements SimplePackListener {
         // Please implement this method in case it's needed.
         // The `warn` method is needed in the SimplePackParser class and consequantly was added to the SimplePackListener interface.
         throw CompilerDirectives.shouldNotReachHere();
+    }
+
+    @Override
+    public String packListenerMode() {
+        return "unpack";
     }
 
     public FormatNode getNode() {

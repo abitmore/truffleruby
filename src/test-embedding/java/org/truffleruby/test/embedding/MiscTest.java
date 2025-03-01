@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2017, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -90,7 +90,7 @@ public class MiscTest {
     }
 
     @Test
-    public void testEvalFromIntegratorThreadSingleThreaded() throws Throwable {
+    public void testEvalFromEmbedderThreadSingleThreaded() throws Throwable {
         final String codeDependingOnCurrentThread = "Thread.current.object_id";
 
         try (Context context = RubyTest.createContext()) {
@@ -106,7 +106,7 @@ public class MiscTest {
     }
 
     @Test
-    public void testFiberFromIntegratorThread() throws Throwable {
+    public void testFiberFromEmbedderThread() throws Throwable {
         try (Context context = RubyTest.createContext()) {
             context.eval("ruby", ":init");
 
@@ -120,7 +120,7 @@ public class MiscTest {
     }
 
     @Test
-    public void testIntegratorThreadRubyThreadInitialization() throws Throwable {
+    public void testEmbedderThreadRubyThreadInitialization() throws Throwable {
         try (Context context = Context.newBuilder("ruby").allowCreateThread(true).build()) {
             context.initialize("ruby");
             TestingThread thread = new TestingThread(() -> {
@@ -171,7 +171,7 @@ public class MiscTest {
     }
 
     @Test
-    public void testIntegratorThreadContextClosedOnOtherThread() throws Throwable {
+    public void testEmbedderThreadContextClosedOnOtherThread() throws Throwable {
         try (Context context = Context.newBuilder("ruby").allowCreateThread(true).build()) {
             TestingThread thread = new TestingThread(() -> {
                 assertEquals(context.eval("ruby", "Thread.current"), context.eval("ruby", "Thread.main"));

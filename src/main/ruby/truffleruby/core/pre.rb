@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Copyright (c) 2015, 2024 Oracle and/or its affiliates. All rights reserved. This
+# Copyright (c) 2015, 2025 Oracle and/or its affiliates. All rights reserved. This
 # code is released under a tri EPL/GPL/LGPL license. You can use it,
 # redistribute it and/or modify it under the terms of the:
 #
@@ -82,6 +82,7 @@ module Kernel
   def define_singleton_method(*args, &block)
     singleton_class.define_method(*args, &block)
   end
+  Truffle::Graal.never_split instance_method(:define_singleton_method)
 
   def extend(mod)
     mod.__send__ :extend_object, self

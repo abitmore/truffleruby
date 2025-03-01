@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2018, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -48,12 +48,12 @@ public class RubyFileTypeDetectorTest extends RubyTest {
                         if (testCase.hasRubyMimeType) {
                             assertEquals(
                                     testCase.path.toString(),
-                                    RubyLanguage.getMimeType(false),
+                                    RubyLanguage.MIME_TYPE,
                                     fileTypeDetector.findMimeType(file));
                         } else {
                             assertNotEquals(
                                     testCase.path.toString(),
-                                    RubyLanguage.getMimeType(false),
+                                    RubyLanguage.MIME_TYPE,
                                     fileTypeDetector.findMimeType(file));
                         }
                     }
@@ -70,12 +70,12 @@ public class RubyFileTypeDetectorTest extends RubyTest {
             if (testCase.hasRubyMimeType) {
                 assertEquals(
                         testCase.path.toString(),
-                        RubyLanguage.getMimeType(false),
+                        RubyLanguage.MIME_TYPE,
                         Source.findMimeType(testCase.path.toFile()));
             } else {
                 assertNotEquals(
                         testCase.path.toString(),
-                        RubyLanguage.getMimeType(false),
+                        RubyLanguage.MIME_TYPE,
                         Source.findMimeType(testCase.path.toFile()));
             }
         }

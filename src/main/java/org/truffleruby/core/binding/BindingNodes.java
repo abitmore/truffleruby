@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2013, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -28,6 +28,7 @@ import org.truffleruby.RubyLanguage;
 import org.truffleruby.annotations.CoreMethod;
 import org.truffleruby.annotations.CoreModule;
 import org.truffleruby.annotations.Primitive;
+import org.truffleruby.annotations.Split;
 import org.truffleruby.annotations.Visibility;
 import org.truffleruby.builtins.CoreMethodArrayArgumentsNode;
 import org.truffleruby.builtins.PrimitiveArrayArgumentsNode;
@@ -204,7 +205,7 @@ public abstract class BindingNodes {
     }
 
     @ImportStatic({ BindingNodes.class, FindDeclarationVariableNodes.class })
-    @CoreMethod(names = "local_variable_defined?", required = 1)
+    @CoreMethod(names = "local_variable_defined?", required = 1, split = Split.ALWAYS)
     public abstract static class BindingLocalVariableDefinedNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization
@@ -220,6 +221,7 @@ public abstract class BindingNodes {
     @ImportStatic({ BindingNodes.class, FindDeclarationVariableNodes.class })
     @GenerateCached(false)
     @GenerateInline
+    @ReportPolymorphism // inline cache
     public abstract static class LocalVariableDefinedNode extends RubyBaseNode {
 
         public abstract boolean execute(Node node, RubyBinding binding, String name);
@@ -299,7 +301,6 @@ public abstract class BindingNodes {
         }
     }
 
-    @ReportPolymorphism
     @CoreMethod(names = "local_variable_set", required = 2)
     public abstract static class BindingLocalVariableSetNode extends CoreMethodArrayArgumentsNode {
 
@@ -313,6 +314,7 @@ public abstract class BindingNodes {
     }
 
 
+    @ReportPolymorphism // inline cache
     @GenerateUncached
     @ImportStatic({ BindingNodes.class, FindDeclarationVariableNodes.class })
     @GenerateCached(false)
@@ -465,7 +467,7 @@ public abstract class BindingNodes {
         Object sourceLocation(RubyBinding binding,
                 @Cached TruffleString.FromJavaStringNode fromJavaStringNode) {
             var sourceSection = binding.sourceSection;
-            return getLanguage().rubySourceLocation(getContext(), sourceSection, fromJavaStringNode, this);
+            return getLanguage().rubySourceLocation(sourceSection, fromJavaStringNode, this);
         }
     }
 

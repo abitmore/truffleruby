@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2013, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -12,6 +12,8 @@ package org.truffleruby.language.methods;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.truffleruby.RubyContext;
+import org.truffleruby.RubyLanguage;
 import org.truffleruby.collections.ConcurrentOperations;
 import org.truffleruby.core.module.RubyModule;
 import org.truffleruby.core.string.StringUtils;
@@ -54,7 +56,7 @@ public final class ModuleBodyDefinition {
                 new DeclarationContext.FixedDefaultDefinee(module),
                 RubyArguments.getDeclarationContext(frame).getRefinements());
         return new InternalMethod(
-                node.getContext(),
+                RubyContext.get(node),
                 sharedMethodInfo,
                 lexicalScope,
                 declarationContext,
@@ -74,7 +76,7 @@ public final class ModuleBodyDefinition {
         if (staticLexicalScope != null) {
             staticLexicalScope.unsafeSetLiveModule(module);
             return staticLexicalScope;
-        } else if (node.getLanguage().singleContext) {
+        } else if (RubyLanguage.get(node).singleContext) {
             // Cache the scope per module in case the module body is run multiple times.
             // This allows dynamic constant lookup to cache better.
             return ConcurrentOperations.getOrCompute(

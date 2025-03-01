@@ -1,6 +1,6 @@
 # truffleruby_primitives: true
 
-# Copyright (c) 2019, 2024 Oracle and/or its affiliates. All rights reserved. This
+# Copyright (c) 2019, 2025 Oracle and/or its affiliates. All rights reserved. This
 # code is released under a tri EPL/GPL/LGPL license. You can use it,
 # redistribute it and/or modify it under the terms of the:
 #
@@ -152,7 +152,7 @@ module TruffleInteropSpecs
 
     def polyglot_array_element_insertable?(index)
       @log << [__callee__, index]
-      index >= @storage.size && Primitive.integer_fits_into_int(index)
+      index >= @storage.size && Primitive.integer_fits_into_int?(index)
     end
 
     def polyglot_array_element_removable?(index)

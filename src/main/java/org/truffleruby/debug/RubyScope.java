@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2019, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -128,7 +128,7 @@ public final class RubyScope implements TruffleObject {
         @Specialization(guards = "!RECEIVER_MEMBER.equals(member)")
         static Object read(RubyScope scope, String member,
                 @Cached @Exclusive BindingNodes.LocalVariableGetNode localVariableGetNode,
-                @Bind("this") Node node)
+                @Bind Node node)
                 throws UnknownIdentifierException {
             try {
                 return localVariableGetNode.execute(node, scope.binding, member);
@@ -155,7 +155,7 @@ public final class RubyScope implements TruffleObject {
         @Specialization(guards = "!RECEIVER_MEMBER.equals(member)")
         static boolean isMemberReadable(RubyScope scope, String member,
                 @Cached @Exclusive BindingNodes.HasLocalVariableNode hasLocalVariableNode,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             return hasLocalVariableNode.execute(node, scope.binding, member);
         }
     }
@@ -170,7 +170,7 @@ public final class RubyScope implements TruffleObject {
         @Specialization(guards = "!RECEIVER_MEMBER.equals(member)")
         static boolean isMemberModifiable(RubyScope scope, String member,
                 @Cached @Exclusive BindingNodes.HasLocalVariableNode hasLocalVariableNode,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             return hasLocalVariableNode.execute(node, scope.binding, member);
         }
     }
@@ -182,7 +182,7 @@ public final class RubyScope implements TruffleObject {
         static void writeMember(RubyScope scope, String member, Object value,
                 @CachedLibrary("scope") InteropLibrary interopLibrary,
                 @Cached BindingNodes.LocalVariableSetNode localVariableSetNode,
-                @Bind("this") Node node) throws UnknownIdentifierException {
+                @Bind Node node) throws UnknownIdentifierException {
             if (interopLibrary.isMemberModifiable(scope, member)) {
                 localVariableSetNode.execute(node, scope.binding, member, value);
             } else {

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2020, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -34,7 +34,7 @@ public abstract class ArrayStoreLibrary extends Library {
     private static final Object INITIAL_STORE = ZeroLengthArrayStore.ZERO_LENGTH_STORE;
     private static final ArrayAllocator INITIAL_ALLOCATOR = ZeroLengthArrayStore.ZERO_LENGTH_ALLOCATOR;
 
-    private static final Object SHARED_INITIAL_STORE = new SharedArrayStorage(ZeroLengthArrayStore.ZERO_LENGTH_STORE);
+    public static final Object SHARED_INITIAL_STORE = new SharedArrayStorage(ZeroLengthArrayStore.ZERO_LENGTH_STORE);
     private static final ArrayAllocator SHARED_INITIAL_ALLOCATOR = SharedArrayStorage.SHARED_ZERO_LENGTH_ARRAY_ALLOCATOR;
 
     private static final LibraryFactory<ArrayStoreLibrary> FACTORY = LibraryFactory.resolve(ArrayStoreLibrary.class);

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2021, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -79,7 +79,7 @@ public final class EmptyHashStore {
     @ExportMessage
     protected void replace(RubyHash hash, RubyHash dest,
             @Cached PropagateSharingNode propagateSharing,
-            @Bind("$node") Node node) {
+            @Bind Node node) {
         if (hash == dest) {
             return;
         }

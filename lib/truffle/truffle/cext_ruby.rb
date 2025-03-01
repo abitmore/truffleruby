@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 # truffleruby_primitives: true
 
-# Copyright (c) 2018, 2024 Oracle and/or its affiliates. All rights reserved. This
+# Copyright (c) 2018, 2025 Oracle and/or its affiliates. All rights reserved. This
 # code is released under a tri EPL/GPL/LGPL license. You can use it,
 # redistribute it and/or modify it under the terms of the:
 #
@@ -33,13 +33,9 @@ module Truffle::CExt
         args = [function, Primitive.cext_wrap(self), *args.map! { |arg| Primitive.cext_wrap(arg) }]
       end
 
-      exc = $!
-      Primitive.thread_set_exception(nil)
       # We must set block argument if given here so that the
       # `rb_block_*` functions will be able to find it by walking the stack.
-      res = Primitive.call_with_c_mutex_and_frame_and_unwrap(wrapper, args, Primitive.caller_special_variables_if_available, block)
-      Primitive.thread_set_exception(exc)
-      res
+      Primitive.call_with_c_mutex_and_frame_and_unwrap(wrapper, args, Primitive.caller_special_variables_if_available, block)
     end
 
     # Even if the argc is -2, the arity number

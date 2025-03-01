@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Copyright (c) 2015, 2024 Oracle and/or its affiliates. All rights reserved. This
+# Copyright (c) 2015, 2025 Oracle and/or its affiliates. All rights reserved. This
 # code is released under a tri EPL/GPL/LGPL license. You can use it,
 # redistribute it and/or modify it under the terms of the:
 #
@@ -78,35 +78,63 @@ class Module
 
   def include(*modules)
     raise ArgumentError, 'wrong number of arguments (given 0, expected 1+)' if modules.empty?
+
     if Primitive.is_a?(self, Refinement)
-      warn 'Refinement#include is deprecated and will be removed in Ruby 3.2', category: :deprecated, uplevel: 1
+      raise TypeError, 'Refinement#include has been removed'
     end
-    modules.reverse_each do |mod|
+
+    block = proc do |mod|
       if !Primitive.is_a?(mod, Module) or Primitive.is_a?(mod, Class)
         raise TypeError, "wrong argument type #{Primitive.class(mod)} (expected Module)"
+      end
+
+      if Primitive.is_a?(mod, Refinement)
+        raise TypeError, 'Cannot include refinement'
       end
 
       mod.__send__ :append_features, self
       mod.__send__ :included, self
     end
+
+    # __send__ calls above report polymorphism because they see different singleton classes for each module instance.
+    # But these methods are called only once per object and module pair, so it is not worth to split for them.
+    Truffle::Graal.never_split block
+
+    modules.reverse_each(&block)
+
     self
   end
+  Truffle::Graal.never_split instance_method(:include)
 
   def prepend(*modules)
     raise ArgumentError, 'wrong number of arguments (given 0, expected 1+)' if modules.empty?
+
     if Primitive.is_a?(self, Refinement)
-      warn 'Refinement#prepend is deprecated and will be removed in Ruby 3.2', category: :deprecated, uplevel: 1
+      raise TypeError, 'Refinement#prepend has been removed'
     end
-    modules.reverse_each do |mod|
+
+    block = proc do |mod|
       if !Primitive.is_a?(mod, Module) or Primitive.is_a?(mod, Class)
         raise TypeError, "wrong argument type #{Primitive.class(mod)} (expected Module)"
+      end
+
+      if Primitive.is_a?(mod, Refinement)
+        raise TypeError, 'Cannot prepend refinement'
       end
 
       mod.__send__ :prepend_features, self
       mod.__send__ :prepended, self
     end
+
+    # __send__ calls above report polymorphism because they see different singleton classes for each module instance.
+    # But these methods are called only once per object and module pair, so it is not worth to split for them.
+    Truffle::Graal.never_split block
+
+    modules.reverse_each(&block)
+
     self
   end
+  Truffle::Graal.never_split instance_method(:prepend)
 
   def const_defined?(name, inherit = true)
     Primitive.module_const_defined?(self, name, inherit, true)
@@ -149,6 +177,7 @@ class Module
     end
     res
   end
+  Truffle::Graal.always_split instance_method(:const_get)
 
   private def remove_const(name)
     Primitive.module_remove_const(self, name)

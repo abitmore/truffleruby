@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2013, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -80,7 +80,7 @@ public abstract class TruffleKernelNodes {
     public abstract static class LoadNode extends PrimitiveArrayArgumentsNode {
 
         @TruffleBoundary
-        @Specialization(guards = "strings.isRubyString(file)")
+        @Specialization(guards = "strings.isRubyString(this, file)")
         boolean load(Object file, Nil wrapModule,
                 @Cached @Shared RubyStringLibrary strings,
                 @Cached @Shared IndirectCallNode callNode) {
@@ -106,7 +106,7 @@ public abstract class TruffleKernelNodes {
         }
 
         @TruffleBoundary
-        @Specialization(guards = "strings.isRubyString(file)")
+        @Specialization(guards = "strings.isRubyString(this, file)")
         boolean load(Object file, RubyModule wrapModule,
                 @Cached @Shared RubyStringLibrary strings,
                 @Cached @Shared IndirectCallNode callNode) {
@@ -205,6 +205,7 @@ public abstract class TruffleKernelNodes {
         return count;
     }
 
+    // Splitting: naturally split by usages
     @ImportStatic(TruffleKernelNodes.class)
     @GenerateUncached
     @GenerateInline(inlineByDefault = true)
@@ -341,6 +342,7 @@ public abstract class TruffleKernelNodes {
         }
     }
 
+    // Splitting: naturally split as a Primitive
     @Primitive(name = "share_special_variables")
     @ImportStatic(TruffleKernelNodes.class)
     public abstract static class ShareSpecialVariableStorage extends PrimitiveArrayArgumentsNode {

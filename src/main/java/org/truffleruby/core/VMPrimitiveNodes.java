@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2015, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -161,7 +161,7 @@ public abstract class VMPrimitiveNodes {
 
     }
 
-    @Primitive(name = "vm_method_is_basic")
+    @Primitive(name = "vm_method_is_basic?")
     public abstract static class VMMethodIsBasicNode extends PrimitiveArrayArgumentsNode {
 
         @Specialization
@@ -239,7 +239,7 @@ public abstract class VMPrimitiveNodes {
         static Object foreignException(Object exception,
                 @CachedLibrary("exception") InteropLibrary interopLibrary,
                 @Cached TranslateInteropExceptionNode translateInteropExceptionNode,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 throw interopLibrary.throwException(exception);
             } catch (UnsupportedMessageException e) {
@@ -273,7 +273,8 @@ public abstract class VMPrimitiveNodes {
     public abstract static class VMWatchSignalNode extends PrimitiveArrayArgumentsNode {
 
         @TruffleBoundary
-        @Specialization(guards = { "libSignalString.isRubyString(signalString)", "libAction.isRubyString(action)" },
+        @Specialization(
+                guards = { "libSignalString.isRubyString(this, signalString)", "libAction.isRubyString(this, action)" },
                 limit = "1")
         boolean watchSignalString(Object signalString, boolean isRubyDefaultHandler, Object action,
                 @Cached @Shared RubyStringLibrary libSignalString,
@@ -294,7 +295,7 @@ public abstract class VMPrimitiveNodes {
         }
 
         @TruffleBoundary
-        @Specialization(guards = "libSignalString.isRubyString(signalString)")
+        @Specialization(guards = "libSignalString.isRubyString(this, signalString)")
         boolean watchSignalProc(Object signalString, boolean isRubyDefaultHandler, RubyProc proc,
                 @Cached @Shared RubyStringLibrary libSignalString) {
             final RubyContext context = getContext();
@@ -308,7 +309,7 @@ public abstract class VMPrimitiveNodes {
 
             return registerHandler(signalName, signal -> {
                 var rootThread = context.getThreadManager().getRootThread();
-                context.getSafepointManager().pauseRubyThreadAndExecute(DummyNode.INSTANCE,
+                context.getSafepointManager().pauseRubyThreadAndExecute(null,
                         callProcSafepointAction(proc, signal, rootThread));
             }, isRubyDefaultHandler);
         }
@@ -571,7 +572,7 @@ public abstract class VMPrimitiveNodes {
     @Primitive(name = "should_not_reach_here")
     public abstract static class ShouldNotReachHereNode extends PrimitiveArrayArgumentsNode {
 
-        @Specialization(guards = "libString.isRubyString(message)", limit = "1")
+        @Specialization(guards = "libString.isRubyString(this, message)", limit = "1")
         Object shouldNotReachHere(Object message,
                 @Cached RubyStringLibrary libString) {
             CompilerDirectives.transferToInterpreterAndInvalidate();
@@ -671,6 +672,16 @@ public abstract class VMPrimitiveNodes {
         @Specialization
         boolean singleContext() {
             return isSingleContext();
+        }
+    }
+
+    @Primitive(name = "vm_splitting_enabled?")
+    public abstract static class VMSplittingEnabledNode extends PrimitiveArrayArgumentsNode {
+
+        @TruffleBoundary
+        @Specialization
+        boolean isSplittingEnabled() {
+            return getContext().getCoreLibrary().isSplittingEnabled();
         }
     }
 

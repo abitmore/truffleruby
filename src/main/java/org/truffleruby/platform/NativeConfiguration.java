@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2015, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -49,6 +49,7 @@ import org.truffleruby.language.objects.ObjectGraph;
 
 import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
 import org.truffleruby.shared.Platform;
+import org.truffleruby.shared.TruffleRuby;
 
 public final class NativeConfiguration {
 
@@ -82,7 +83,7 @@ public final class NativeConfiguration {
                 break;
         }
 
-        RubyLanguage.LOGGER.severe("no native configuration for platform " + RubyLanguage.PLATFORM);
+        RubyLanguage.LOGGER.severe("no native configuration for platform " + TruffleRuby.RUBY_PLATFORM);
         return nativeConfiguration;
     }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2015, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -82,15 +82,14 @@ public abstract class GetTimeZoneNode extends RubyBaseNode {
     @TruffleBoundary
     protected TimeZoneAndName getTimeZone(Object tz) {
         String tzString = "";
-        final RubyStringLibrary libString = RubyStringLibrary.getUncached();
-        if (libString.isRubyString(tz)) {
+        if (RubyStringLibrary.isRubyStringUncached(tz)) {
             tzString = RubyGuards.getJavaString(tz);
         }
 
         if (tz == nil) {
             // $TZ is not set, use the system timezone
             return new TimeZoneAndName(getContext().getEnv().getTimeZone());
-        } else if (libString.isRubyString(tz)) {
+        } else if (RubyStringLibrary.isRubyStringUncached(tz)) {
             return parse(tzString);
         } else {
             throw CompilerDirectives.shouldNotReachHere();

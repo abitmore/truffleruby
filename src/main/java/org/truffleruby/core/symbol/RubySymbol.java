@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2020, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -20,8 +20,6 @@ import org.truffleruby.core.encoding.RubyEncoding;
 import org.truffleruby.core.klass.RubyClass;
 import org.truffleruby.core.string.ImmutableRubyString;
 
-import com.oracle.truffle.api.dsl.Cached;
-import com.oracle.truffle.api.dsl.Specialization;
 import com.oracle.truffle.api.interop.InteropLibrary;
 import com.oracle.truffle.api.interop.TruffleObject;
 import com.oracle.truffle.api.library.ExportLibrary;
@@ -39,6 +37,8 @@ public final class RubySymbol extends ImmutableRubyObjectNotCopyable implements 
     public static final int UNASSIGNED_ID = -1;
 
     private static final int CLASS_SALT = 92021474; // random number, stops hashes for similar values but different classes being the same, static because we want deterministic hashes
+
+    public static final RubySymbol[] EMPTY_ARRAY = new RubySymbol[0];
 
     public final RubyEncoding encoding;
     private final String string;
@@ -133,18 +133,8 @@ public final class RubySymbol extends ImmutableRubyObjectNotCopyable implements 
     }
 
     @ExportMessage
-    public static final class AsString {
-        @Specialization(guards = "symbol == cachedSymbol", limit = "1")
-        static String asStringCached(RubySymbol symbol,
-                @Cached("symbol") RubySymbol cachedSymbol,
-                @Cached("cachedSymbol.getString()") String cachedString) {
-            return cachedString;
-        }
-
-        @Specialization(replaces = "asStringCached")
-        static String asStringUncached(RubySymbol symbol) {
-            return symbol.getString();
-        }
+    public String asString() {
+        return string;
     }
     // endregion
     // endregion

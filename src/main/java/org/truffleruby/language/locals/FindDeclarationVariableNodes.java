@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2013, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -76,11 +76,11 @@ public abstract class FindDeclarationVariableNodes {
         return null;
     }
 
-    @ReportPolymorphism
+    @ReportPolymorphism // inline cache
     @GenerateUncached
-    @ImportStatic(FindDeclarationVariableNodes.class)
     @GenerateInline
     @GenerateCached(false)
+    @ImportStatic(FindDeclarationVariableNodes.class)
     public abstract static class FindAndReadDeclarationVariableNode extends RubyBaseNode {
 
         public abstract Object execute(Frame frame, Node node, String name, Object defaultValue);

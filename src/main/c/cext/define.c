@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2020, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -107,6 +107,14 @@ void rb_undef_alloc_func(VALUE ruby_class) {
 
 rb_alloc_func_t rb_get_alloc_func(VALUE klass) {
   return RUBY_CEXT_INVOKE_NO_WRAP("rb_get_alloc_func", klass);
+}
+
+void rb_tr_set_default_alloc_func(VALUE ruby_class, rb_alloc_func_t alloc_function) {
+  polyglot_invoke(RUBY_CEXT, "rb_tr_set_default_alloc_func", rb_tr_unwrap(ruby_class), alloc_function);
+}
+
+VALUE rb_tr_default_alloc_func(VALUE klass) {
+  return RUBY_CEXT_INVOKE("rb_tr_default_alloc_func", klass);
 }
 
 VALUE rb_define_class_id(ID id, VALUE super) {

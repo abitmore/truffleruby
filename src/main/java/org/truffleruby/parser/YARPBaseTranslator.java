@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2024, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -17,7 +17,6 @@ import com.oracle.truffle.api.nodes.Node;
 import org.prism.AbstractNodeVisitor;
 import org.prism.Nodes;
 import org.truffleruby.RubyLanguage;
-import org.truffleruby.core.DummyNode;
 import org.truffleruby.core.array.ArrayUtils;
 import org.truffleruby.core.encoding.RubyEncoding;
 import org.truffleruby.core.encoding.TStringUtils;
@@ -48,9 +47,11 @@ public abstract class YARPBaseTranslator extends AbstractNodeVisitor<RubyNode> {
     protected final Node currentNode;
 
     public static final Nodes.Node[] EMPTY_NODE_ARRAY = Nodes.Node.EMPTY_ARRAY;
+    public static final Nodes.OptionalParameterNode[] EMPTY_OPTIONAL_PARAMETER_NODE_ARRAY = {};
+    public static final Nodes.BlockLocalVariableNode[] EMPTY_BLOCK_LOCAL_VARIABLE_NODE_ARRAY = {};
 
-    public static final Nodes.ParametersNode ZERO_PARAMETERS_NODE = new Nodes.ParametersNode(EMPTY_NODE_ARRAY,
-            EMPTY_NODE_ARRAY, null, EMPTY_NODE_ARRAY, EMPTY_NODE_ARRAY, null, null, 0, 0);
+    public static final Nodes.ParametersNode ZERO_PARAMETERS_NODE = new Nodes.ParametersNode(0, 0, EMPTY_NODE_ARRAY,
+            EMPTY_OPTIONAL_PARAMETER_NODE_ARRAY, null, EMPTY_NODE_ARRAY, EMPTY_NODE_ARRAY, null, null);
 
     public static final short NO_FLAGS = 0;
 
@@ -72,7 +73,7 @@ public abstract class YARPBaseTranslator extends AbstractNodeVisitor<RubyNode> {
         var context = RubyLanguage.getCurrentContext();
         String code = toString(node);
         var message = this.getClass().getSimpleName() + " does not know how to translate " +
-                node.getClass().getSimpleName() + " at " + context.fileLine(getSourceSection(node)) +
+                node.getClass().getSimpleName() + " at " + language.fileLine(getSourceSection(node)) +
                 "\nCode snippet:\n" + code + "\nPrism AST:\n" + node;
         throw new RaiseException(context,
                 context.getCoreExceptions().syntaxError(message, null, getSourceSection(node)));
@@ -131,9 +132,8 @@ public abstract class YARPBaseTranslator extends AbstractNodeVisitor<RubyNode> {
 
     protected static Nodes.CallNode callNode(Nodes.Node location, short flags, Nodes.Node receiver, String methodName,
             Nodes.Node... arguments) {
-        return new Nodes.CallNode(flags, receiver, methodName,
-                new Nodes.ArgumentsNode(NO_FLAGS, arguments, location.startOffset, location.length), null,
-                location.startOffset, location.length);
+        return new Nodes.CallNode(location.startOffset, location.length, flags, receiver, methodName,
+                new Nodes.ArgumentsNode(location.startOffset, location.length, NO_FLAGS, arguments), null);
     }
 
     protected final TruffleString toTString(Nodes.Node node) {
@@ -201,7 +201,7 @@ public abstract class YARPBaseTranslator extends AbstractNodeVisitor<RubyNode> {
 
     protected final void copyNewlineFlag(Nodes.Node yarpNode, RubyNode rubyNode) {
         if (yarpNode.hasNewLineFlag()) {
-            TruffleSafepoint.poll(DummyNode.INSTANCE);
+            TruffleSafepoint.poll(currentNode);
 
             if (parseEnvironment.isCoverageEnabled()) {
                 rubyNode.unsafeSetIsCoverageLine();
@@ -211,6 +211,10 @@ public abstract class YARPBaseTranslator extends AbstractNodeVisitor<RubyNode> {
 
             rubyNode.unsafeSetIsNewLine();
         }
+    }
+
+    protected void copyNewLineFlag(Nodes.Node source, Nodes.Node target) {
+        target.setNewLineFlag(source.hasNewLineFlag());
     }
 
     protected static RubyNode sequence(Nodes.Node yarpNode, RubyNode... sequence) {

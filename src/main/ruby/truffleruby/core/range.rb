@@ -442,8 +442,52 @@ class Range
     end
   end
 
+  def overlap?(other)
+    Truffle::Type.rb_check_type(other, Range)
+
+    # ranges don't overlap
+    return false if Truffle::RangeOperations.greater_than?(self.begin, other.end, other.exclude_end?)
+    return false if Truffle::RangeOperations.greater_than?(other.begin, self.end, self.exclude_end?)
+
+    # empty range doesn't overlap any other range
+    return false if Truffle::RangeOperations.greater_than?(self.begin, self.end, self.exclude_end?)
+    return false if Truffle::RangeOperations.greater_than?(other.begin, other.end, other.exclude_end?)
+
+    true
+  end
+
   def %(n)
     Truffle::RangeOperations.step_no_block(self, n)
+  end
+
+  def reverse_each(&block)
+    return to_enum(:reverse_each) { size } unless block_given?
+
+    if Primitive.nil?(self.end)
+      raise TypeError, "can't iterate from NilClass"
+    end
+
+    if Primitive.is_a?(self.begin, Integer) && Primitive.is_a?(self.end, Integer)
+      last = exclude_end? ? self.end - 1 : self.end
+
+      i = last
+      while i >= first
+        yield i
+        i -= 1
+      end
+    elsif Primitive.nil?(self.begin) && Primitive.is_a?(self.end, Integer)
+      last = exclude_end? ? self.end - 1 : self.end
+
+      i = last
+      while true
+        yield i
+        i -= 1
+      end
+    else
+      method(:reverse_each).super_method.call(&block)
+    end
+
+    self
   end
 
   private def step_internal(step_size = 1, &block) # :yields: object

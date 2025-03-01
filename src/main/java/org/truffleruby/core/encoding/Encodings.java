@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2014, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -13,18 +13,20 @@
 package org.truffleruby.core.encoding;
 
 import com.oracle.truffle.api.CompilerDirectives;
+import com.oracle.truffle.api.CompilerDirectives.CompilationFinal;
 import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
+import com.oracle.truffle.api.dsl.Idempotent;
 import com.oracle.truffle.api.strings.TruffleString;
-import org.jcodings.Encoding;
-import org.jcodings.EncodingDB;
-import org.jcodings.specific.ASCIIEncoding;
-import org.jcodings.specific.ISO8859_1Encoding;
-import org.jcodings.specific.USASCIIEncoding;
-import org.jcodings.specific.UTF16BEEncoding;
-import org.jcodings.specific.UTF16LEEncoding;
-import org.jcodings.specific.UTF32BEEncoding;
-import org.jcodings.specific.UTF32LEEncoding;
-import org.jcodings.specific.UTF8Encoding;
+import org.graalvm.shadowed.org.jcodings.Encoding;
+import org.graalvm.shadowed.org.jcodings.EncodingDB;
+import org.graalvm.shadowed.org.jcodings.specific.ASCIIEncoding;
+import org.graalvm.shadowed.org.jcodings.specific.ISO8859_1Encoding;
+import org.graalvm.shadowed.org.jcodings.specific.USASCIIEncoding;
+import org.graalvm.shadowed.org.jcodings.specific.UTF16BEEncoding;
+import org.graalvm.shadowed.org.jcodings.specific.UTF16LEEncoding;
+import org.graalvm.shadowed.org.jcodings.specific.UTF32BEEncoding;
+import org.graalvm.shadowed.org.jcodings.specific.UTF32LEEncoding;
+import org.graalvm.shadowed.org.jcodings.specific.UTF8Encoding;
 import org.truffleruby.RubyLanguage;
 import org.truffleruby.core.string.FrozenStringLiterals;
 import org.truffleruby.core.string.ImmutableRubyString;
@@ -55,6 +57,18 @@ public final class Encodings {
     public static final RubyEncoding UTF32_DUMMY = getBuiltInEncoding(
             EncodingDB.getEncodings().get(StringOperations.encodeAsciiBytes("UTF-32")).getEncoding());
 
+    @CompilationFinal(dimensions = 1) public static final RubyEncoding[] STANDARD_ENCODINGS = new RubyEncoding[3];
+    static {
+        if (Encodings.BINARY.index >= 3 || Encodings.UTF_8.index >= 3 || Encodings.US_ASCII.index >= 3) {
+            throw new Error("Expected standard encoding indices to be 0, 1 or 2");
+        }
+
+        STANDARD_ENCODINGS[BINARY.index] = BINARY;
+        STANDARD_ENCODINGS[UTF_8.index] = UTF_8;
+        STANDARD_ENCODINGS[US_ASCII.index] = US_ASCII;
+    }
+    public static final int NUMBER_OF_STANDARD_ENCODINGS = STANDARD_ENCODINGS.length;
+
     /** On Linux and macOS the filesystem encoding is always UTF-8 */
     public static final RubyEncoding FILESYSTEM = UTF_8;
     public static final Charset FILESYSTEM_CHARSET = StandardCharsets.UTF_8;
@@ -62,6 +76,14 @@ public final class Encodings {
     static final Encoding DUMMY_ENCODING_BASE = createDummyEncoding();
 
     public Encodings() {
+    }
+
+    /** Indicates whether the encoding is one of the runtime-default encodings. Many (most?) applications do not
+     * override the default encodings and as such, this set of encodings is used very frequently in real-world Ruby
+     * applications. */
+    @Idempotent
+    public static boolean isStandardEncoding(RubyEncoding encoding) {
+        return encoding.index < NUMBER_OF_STANDARD_ENCODINGS;
     }
 
     private static int getUsAsciiIndex() {
@@ -149,4 +171,5 @@ public final class Encodings {
 
         return null;
     }
+
 }

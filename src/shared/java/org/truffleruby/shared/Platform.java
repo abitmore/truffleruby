@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2015, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -51,18 +51,24 @@ public abstract class Platform {
     }
 
     public enum ARCH {
-        AMD64("x86_64"),
-        AARCH64("aarch64");
+        AMD64,
+        AARCH64;
+    }
 
-        private final String rubyName;
-
-        ARCH(String rubyName) {
-            this.rubyName = rubyName;
-        }
+    private static String determineArchName(OS_TYPE os, ARCH architecture) {
+        return switch (architecture) {
+            case AMD64 -> "x86_64";
+            case AARCH64 ->
+                switch (os) {
+                    case LINUX -> "aarch64";
+                    case DARWIN -> "arm64";
+                };
+        };
     }
 
     public static final OS_TYPE OS = determineOS();
     public static final ARCH ARCHITECTURE = determineArchitecture();
+    private static final String ARCH_NAME = determineArchName(OS, ARCHITECTURE);
 
     public static final String LIB_SUFFIX = determineLibSuffix();
     public static final String CEXT_SUFFIX = OS == OS_TYPE.DARWIN ? ".bundle" : LIB_SUFFIX;
@@ -73,7 +79,7 @@ public abstract class Platform {
     }
 
     public static String getArchName() {
-        return ARCHITECTURE.rubyName;
+        return ARCH_NAME;
     }
 
     public static OS_TYPE determineOS() {

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2017, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -118,8 +118,8 @@ public class CommandLineParser {
                     value = null;
                 }
 
-                // Switches without values are stored separately in ARGV_GLOBAL_FLAGS. Otherwise it would not be
-                // possible to determine if the value is suppose to be `true` or `"true"`.
+                // Switches without values are stored separately in ARGV_GLOBAL_FLAGS. Otherwise, it would not be
+                // possible to determine if the value is supposed to be `true` or `"true"`.
                 final OptionDescriptor optionDescription = value != null
                         ? OptionsCatalog.ARGV_GLOBAL_VALUES
                         : OptionsCatalog.ARGV_GLOBAL_FLAGS;

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2015, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -14,6 +14,7 @@ import com.oracle.truffle.api.nodes.NodeUtil;
 import com.oracle.truffle.api.profiles.InlinedBranchProfile;
 import com.oracle.truffle.api.strings.TruffleString;
 import org.truffleruby.annotations.CoreMethod;
+import org.truffleruby.annotations.Split;
 import org.truffleruby.builtins.CoreMethodArrayArgumentsNode;
 import org.truffleruby.annotations.CoreModule;
 import org.truffleruby.annotations.Primitive;
@@ -72,7 +73,7 @@ public abstract class UnboundMethodNodes {
 
     }
 
-    @CoreMethod(names = "bind", required = 1)
+    @CoreMethod(names = "bind", required = 1, split = Split.ALWAYS)
     public abstract static class BindNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization
@@ -200,7 +201,7 @@ public abstract class UnboundMethodNodes {
         Object sourceLocation(RubyUnboundMethod unboundMethod,
                 @Cached TruffleString.FromJavaStringNode fromJavaStringNode) {
             var sourceSection = unboundMethod.method.getSharedMethodInfo().getSourceSection();
-            return getLanguage().rubySourceLocation(getContext(), sourceSection, fromJavaStringNode, this);
+            return getLanguage().rubySourceLocation(sourceSection, fromJavaStringNode, this);
         }
     }
 

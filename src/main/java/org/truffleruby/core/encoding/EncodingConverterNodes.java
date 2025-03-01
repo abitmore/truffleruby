@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2014, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -20,13 +20,13 @@ import com.oracle.truffle.api.object.Shape;
 import com.oracle.truffle.api.profiles.InlinedBranchProfile;
 import com.oracle.truffle.api.strings.InternalByteArray;
 import com.oracle.truffle.api.strings.TruffleString;
-import org.jcodings.Encoding;
-import org.jcodings.Ptr;
-import org.jcodings.transcode.EConv;
-import org.jcodings.transcode.EConvFlags;
-import org.jcodings.transcode.EConvResult;
-import org.jcodings.transcode.Transcoder;
-import org.jcodings.transcode.TranscoderDB;
+import org.graalvm.shadowed.org.jcodings.Encoding;
+import org.graalvm.shadowed.org.jcodings.Ptr;
+import org.graalvm.shadowed.org.jcodings.transcode.EConv;
+import org.graalvm.shadowed.org.jcodings.transcode.EConvFlags;
+import org.graalvm.shadowed.org.jcodings.transcode.EConvResult;
+import org.graalvm.shadowed.org.jcodings.transcode.Transcoder;
+import org.graalvm.shadowed.org.jcodings.transcode.TranscoderDB;
 import org.truffleruby.annotations.CoreMethod;
 import org.truffleruby.builtins.CoreMethodArrayArgumentsNode;
 import org.truffleruby.builtins.CoreMethodNode;
@@ -194,7 +194,7 @@ public abstract class EncodingConverterNodes {
                 @Cached TruffleString.GetInternalByteArrayNode getInternalByteArrayNode) {
             // Taken from org.jruby.RubyConverter#primitive_convert.
 
-            var tencoding = libString.getTEncoding(source);
+            var tencoding = libString.getTEncoding(this, source);
             var tstring = source.tstring;
 
             final TStringBuilder outBytes = TStringBuilder.create(target);
@@ -446,16 +446,16 @@ public abstract class EncodingConverterNodes {
     @NodeChild(value = "replacement", type = RubyBaseNodeWithExecute.class)
     public abstract static class EncodingConverterSetReplacementNode extends CoreMethodNode {
 
-        @Specialization(guards = "libReplacement.isRubyString(replacement)", limit = "1")
+        @Specialization(guards = "libReplacement.isRubyString(this, replacement)", limit = "1")
         static Object setReplacement(RubyEncodingConverter encodingConverter, Object replacement,
                 @Cached InlinedBranchProfile errorProfile,
                 @Cached TruffleString.GetInternalByteArrayNode bytesNode,
                 @Cached RubyStringLibrary libReplacement,
                 @Cached ToStrNode toStrNode,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             final var replacementAsString = toStrNode.execute(node, replacement);
-            var tstring = libReplacement.getTString(replacementAsString);
-            var encoding = libReplacement.getEncoding(replacementAsString);
+            var tstring = libReplacement.getTString(node, replacementAsString);
+            var encoding = libReplacement.getEncoding(node, replacementAsString);
 
             final InternalByteArray byteArray = bytesNode.execute(tstring, encoding.tencoding);
             int ret = setReplacement(encodingConverter.econv, byteArray.getArray(), byteArray.getOffset(),

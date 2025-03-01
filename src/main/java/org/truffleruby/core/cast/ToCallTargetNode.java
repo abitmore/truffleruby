@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2021, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -54,7 +54,7 @@ public abstract class ToCallTargetNode extends RubyBaseNode {
     @Specialization
     static RootCallTarget string(Node node, Object string) {
         var code = new TStringWithEncoding(RubyGuards.asTruffleStringUncached(string),
-                RubyStringLibrary.getUncached().getEncoding(string));
+                RubyStringLibrary.getEncodingUncached(string));
         Source source = Source.newBuilder("ruby", new ByteBasedCharSequence(code), "<parse_ast>").build();
         TranslatorEnvironment.resetTemporaryVariablesIndex();
         var parserContext = ParserContext.TOP_LEVEL;

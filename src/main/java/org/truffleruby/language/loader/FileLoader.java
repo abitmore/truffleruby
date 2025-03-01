@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2013, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -132,17 +132,15 @@ public final class FileLoader {
          * which are not reloaded since Coverage.result should not report coverage, so it seems really difficult to do
          * any caching when coverage is enabled. */
         final boolean coverageEnabled = language.coverageManager.isEnabled();
-        final String mimeType = mainSource
-                ? RubyLanguage.MIME_TYPE_MAIN_SCRIPT
-                : RubyLanguage.getMimeType(coverageEnabled);
 
         final Source source = Source
                 .newBuilder(TruffleRuby.LANGUAGE_ID, file)
                 .canonicalizePath(false)
-                .mimeType(mimeType)
                 .content(new ByteBasedCharSequence(sourceTStringWithEncoding))
                 .internal(internal)
                 .cached(!coverageEnabled)
+                .option("ruby.MainScript", Boolean.toString(mainSource))
+                .option("ruby.Coverage", Boolean.toString(coverageEnabled))
                 .build();
 
         assert source.getPath().equals(path) : "Source#getPath() = " + source.getPath() + " is not the same as " + path;

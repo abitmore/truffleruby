@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2013, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -10,6 +10,7 @@
 package org.truffleruby.core.array;
 
 import org.truffleruby.RubyLanguage;
+import org.truffleruby.core.array.library.ArrayStoreLibrary;
 import org.truffleruby.core.array.library.ZeroLengthArrayStore;
 
 public final class ArrayGuards {
@@ -40,5 +41,9 @@ public final class ArrayGuards {
 
     public static boolean zeroLengthStore(Object store) {
         return store == ZeroLengthArrayStore.ZERO_LENGTH_STORE;
+    }
+
+    public static boolean isZeroLengthArrayStore(Object store) {
+        return store == ZeroLengthArrayStore.ZERO_LENGTH_STORE || store == ArrayStoreLibrary.SHARED_INITIAL_STORE;
     }
 }

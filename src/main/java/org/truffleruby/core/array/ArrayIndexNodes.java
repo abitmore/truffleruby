@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2013, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -31,7 +31,7 @@ public abstract class ArrayIndexNodes {
 
     @NodeChild(value = "arrayNode", type = RubyNode.class)
     @ImportStatic(ArrayGuards.class)
-    @ReportPolymorphism
+    @ReportPolymorphism // for ArrayStoreLibrary
     public abstract static class ReadConstantIndexNode extends RubyContextSourceNode {
 
         private final int index;
@@ -71,7 +71,7 @@ public abstract class ArrayIndexNodes {
     }
 
     @ImportStatic(ArrayGuards.class)
-    @ReportPolymorphism
+    @ReportPolymorphism // for ArrayStoreLibrary
     public abstract static class ReadNormalizedNode extends PrimitiveArrayArgumentsNode {
 
         @NeverDefault

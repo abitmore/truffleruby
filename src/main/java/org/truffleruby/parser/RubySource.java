@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2018, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -13,10 +13,7 @@ import java.io.BufferedReader;
 import java.io.StringReader;
 import java.util.Objects;
 
-import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
-import com.oracle.truffle.api.source.SourceSection;
 import com.oracle.truffle.api.strings.TruffleString;
-import org.truffleruby.RubyContext;
 import org.truffleruby.RubyFileTypeDetector;
 import org.truffleruby.RubyLanguage;
 
@@ -26,6 +23,9 @@ import org.truffleruby.core.encoding.RubyEncoding;
 import org.truffleruby.core.encoding.TStringUtils;
 import org.truffleruby.core.string.TStringWithEncoding;
 
+/** A RubySource object contains extra data for a Source. RubySource objects are created just before parsing, so they
+ * are just a convenient to pass extra data together with the Source and short-lived (not stored anywhere). It notably
+ * contains the source as a byte[] or TruffleString to avoid extra byte[]->java.lang.String->byte[] conversions. */
 public final class RubySource {
 
     private final Source source;
@@ -116,16 +116,6 @@ public final class RubySource {
 
     public int getLineOffset() {
         return lineOffset;
-    }
-
-    @TruffleBoundary
-    public static int getStartLineAdjusted(RubyContext context, SourceSection sourceSection) {
-        final Integer lineOffset = context.getSourceLineOffsets().get(sourceSection.getSource());
-        if (lineOffset != null) {
-            return sourceSection.getStartLine() + lineOffset;
-        } else {
-            return sourceSection.getStartLine();
-        }
     }
 
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2015, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -11,6 +11,7 @@ package org.truffleruby.language.objects;
 
 import com.oracle.truffle.api.dsl.Cached.Shared;
 import com.oracle.truffle.api.dsl.NeverDefault;
+import com.oracle.truffle.api.dsl.ReportPolymorphism;
 import com.oracle.truffle.api.profiles.InlinedConditionProfile;
 import org.truffleruby.core.klass.RubyClass;
 import org.truffleruby.core.module.ModuleOperations;
@@ -23,7 +24,11 @@ import com.oracle.truffle.api.dsl.Cached;
 import com.oracle.truffle.api.dsl.GenerateUncached;
 import com.oracle.truffle.api.dsl.Specialization;
 
+/* Splitting: inline cache, much faster when `module` is not a Class.
+ * Also useful to split Ruby methods which do something like `if obj.is_a?(Foo) then foo else bar end`
+ * such as NoBorderImagePadded#index used by NoBorderImage#[] in the image-demo benchmarks. */
 @GenerateUncached
+@ReportPolymorphism // see comment above
 public abstract class IsANode extends RubyBaseNode {
 
     @NeverDefault
@@ -46,7 +51,7 @@ public abstract class IsANode extends RubyBaseNode {
             limit = "getCacheLimit()")
     boolean isAMetaClassCached(Object self, RubyModule module,
             @Cached @Shared MetaClassNode metaClassNode,
-            @Cached("metaClassNode.execute(this, self)") RubyClass cachedMetaClass,
+            @Cached("metaClassNode.execute($node, self)") RubyClass cachedMetaClass,
             @Cached("module") RubyModule cachedModule,
             @Cached("isA(cachedMetaClass, cachedModule)") boolean result) {
         return result;

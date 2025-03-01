@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2018, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -55,12 +55,10 @@ public abstract class EvalLoader {
         }
 
         final Source source = Source.newBuilder(TruffleRuby.LANGUAGE_ID, new ByteBasedCharSequence(sourceTString), file)
+                .option("ruby.LineOffset", Integer.toString(line - 1))
                 .build();
 
-        final RubySource rubySource = new RubySource(source, file, sourceTString, true, line - 1);
-
-        context.getSourceLineOffsets().put(source, line - 1);
-        return rubySource;
+        return new RubySource(source, file, sourceTString, true, line - 1);
     }
 
 }

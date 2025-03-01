@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2018, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -64,23 +64,13 @@ public final class ValueWrapperManager {
 
     private volatile HandleBlockWeakReference[] blockMap = new HandleBlockWeakReference[0];
 
-    public static HandleBlockHolder getBlockHolder(RubyContext context, RubyLanguage language) {
+    public static HandleBlockHolder getBlockHolder(RubyLanguage language) {
         return language.getCurrentFiber().handleData;
     }
 
-    /* We keep a map of long wrappers that have been generated because various C extensions assume that any given fixnum
-     * will translate to a given VALUE. */
-    public ValueWrapper longWrapper(long value) {
-        return new ValueWrapper(value, UNSET_HANDLE, null);
-    }
-
-    public ValueWrapper doubleWrapper(double value) {
-        return new ValueWrapper(value, UNSET_HANDLE, null);
-    }
-
     @TruffleBoundary
-    public synchronized HandleBlock addToBlockMap(RubyContext context, RubyLanguage language) {
-        HandleBlock block = new HandleBlock(context, language, this);
+    public synchronized HandleBlock addToBlockMap(RubyLanguage language) {
+        HandleBlock block = new HandleBlock(language, this);
         int blockIndex = block.getIndex();
         HandleBlockWeakReference[] map = growMapIfRequired(blockMap, blockIndex);
         blockMap = map;
@@ -90,9 +80,9 @@ public final class ValueWrapperManager {
     }
 
     @TruffleBoundary
-    public HandleBlock addToSharedBlockMap(RubyContext context, RubyLanguage language) {
+    public HandleBlock addToSharedBlockMap(RubyLanguage language) {
         synchronized (language) {
-            HandleBlock block = new HandleBlock(context, language, this);
+            HandleBlock block = new HandleBlock(language, this);
             int blockIndex = block.getIndex();
             HandleBlockWeakReference[] map = growMapIfRequired(language.handleBlockSharedMap, blockIndex);
             language.handleBlockSharedMap = map;
@@ -153,7 +143,7 @@ public final class ValueWrapperManager {
         }
     }
 
-    public void cleanup(RubyContext context, HandleBlockHolder holder) {
+    public void cleanup(HandleBlockHolder holder) {
         holder.handleBlock = null;
     }
 
@@ -215,7 +205,7 @@ public final class ValueWrapperManager {
 
         @SuppressWarnings("unused") private Cleanable cleanable;
 
-        public HandleBlock(RubyContext context, RubyLanguage language, ValueWrapperManager manager) {
+        public HandleBlock(RubyLanguage language, ValueWrapperManager manager) {
             HandleBlockAllocator allocator = language.handleBlockAllocator;
             long base = allocator.getFreeBlock();
             this.base = base;
@@ -297,7 +287,7 @@ public final class ValueWrapperManager {
                     wrapper,
                     getContext(node),
                     getLanguage(node),
-                    getBlockHolder(getContext(node), getLanguage(node)),
+                    getBlockHolder(getLanguage(node)),
                     false);
         }
 
@@ -311,7 +301,7 @@ public final class ValueWrapperManager {
                     wrapper,
                     getContext(node),
                     getLanguage(node),
-                    getBlockHolder(getContext(node), getLanguage(node)),
+                    getBlockHolder(getLanguage(node)),
                     true);
         }
 
@@ -339,10 +329,10 @@ public final class ValueWrapperManager {
 
             if (block == null || block.isFull()) {
                 if (shared) {
-                    block = context.getValueWrapperManager().addToSharedBlockMap(context, language);
+                    block = context.getValueWrapperManager().addToSharedBlockMap(language);
                     holder.sharedHandleBlock = block;
                 } else {
-                    block = context.getValueWrapperManager().addToBlockMap(context, language);
+                    block = context.getValueWrapperManager().addToBlockMap(language);
                     holder.handleBlock = block;
                 }
 
@@ -356,10 +346,8 @@ public final class ValueWrapperManager {
     }
 
     public static HandleBlock allocateNewBlock(RubyContext context, RubyLanguage language) {
-        HandleBlockHolder holder = getBlockHolder(context, language);
-        HandleBlock block = holder.handleBlock;
-
-        block = context.getValueWrapperManager().addToBlockMap(context, language);
+        HandleBlockHolder holder = getBlockHolder(language);
+        HandleBlock block = context.getValueWrapperManager().addToBlockMap(language);
 
         holder.handleBlock = block;
         return block;
@@ -397,7 +385,7 @@ public final class ValueWrapperManager {
         @ExportMessage
         protected Object execute(Object[] arguments,
                 @Cached UnwrapNode unwrapNode,
-                @Bind("$node") Node node) {
+                @Bind Node node) {
             return unwrapNode.execute(node, arguments[0]);
         }
     }
@@ -431,7 +419,7 @@ public final class ValueWrapperManager {
         public Object execute(Object[] arguments,
                 @Cached UnwrapNode unwrapNode,
                 @Cached SymbolToIDNode symbolTOIDNode,
-                @Bind("$node") Node node) {
+                @Bind Node node) {
             return symbolTOIDNode.execute(unwrapNode.execute(node, arguments[0]));
         }
     }
@@ -446,7 +434,7 @@ public final class ValueWrapperManager {
         }
 
         @ExportMessage
-        protected Object execute(Object[] arguments,
+        protected ValueWrapper execute(Object[] arguments,
                 @Cached WrapNode wrapNode) {
             return wrapNode.execute(arguments[0]);
         }
@@ -462,9 +450,9 @@ public final class ValueWrapperManager {
         }
 
         @ExportMessage
-        protected Object execute(Object[] arguments,
+        protected boolean execute(Object[] arguments,
                 @Cached IsNativeObjectNode isNativeObjectNode,
-                @Bind("$node") Node node) {
+                @Bind Node node) {
             return isNativeObjectNode.execute(node, arguments[0]);
         }
     }
@@ -479,7 +467,7 @@ public final class ValueWrapperManager {
         }
 
         @ExportMessage
-        protected Object execute(Object[] arguments,
+        protected long execute(Object[] arguments,
                 @CachedLibrary(limit = "1") InteropLibrary values) throws UnsupportedMessageException {
             values.toNative(arguments[0]);
             return values.asPointer(arguments[0]);

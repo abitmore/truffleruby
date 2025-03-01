@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2014, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -22,10 +22,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import com.oracle.truffle.api.CompilerDirectives;
 import com.oracle.truffle.api.interop.InteropException;
 import com.oracle.truffle.api.interop.InteropLibrary;
-import org.graalvm.nativeimage.ImageInfo;
-import org.graalvm.nativeimage.ProcessProperties;
-import org.jcodings.Encoding;
-import org.jcodings.EncodingDB;
+import org.graalvm.shadowed.org.jcodings.Encoding;
+import org.graalvm.shadowed.org.jcodings.EncodingDB;
 import org.truffleruby.RubyContext;
 import org.truffleruby.RubyLanguage;
 import org.truffleruby.annotations.SuppressFBWarnings;
@@ -129,17 +127,12 @@ public final class EncodingManager {
     }
 
     private void initializeLocaleEncoding(TruffleNFIPlatform nfi, NativeConfiguration nativeConfiguration) {
-        if (ImageInfo.inImageRuntimeCode()) {
-            // Call setlocale(LC_ALL, "") to ensure the locale is set to the environment's locale
-            // rather than the default "C" locale.
-            ProcessProperties.setLocale("LC_ALL", "");
-        }
-
         final String localeEncodingName;
         final String detector;
         if (nfi != null) {
             final int codeset = (int) nativeConfiguration.get("platform.langinfo.CODESET");
 
+            // nl_langinfo() needs setlocale(LC_CTYPE, "") before, which is done in RubyLanguage#setupLocale()
             // char *nl_langinfo(nl_item item);
             // nl_item is int on at least Linux and macOS
             final Object nl_langinfo = nfi.getFunction(context, "nl_langinfo", "(sint32):string");
@@ -261,16 +254,6 @@ public final class EncodingManager {
 
         final byte[] nameBytes = StringOperations.encodeAsciiBytes(name);
         return defineDynamicEncoding(Encodings.DUMMY_ENCODING_BASE, nameBytes);
-    }
-
-    @TruffleBoundary
-    public synchronized RubyEncoding replicateEncoding(RubyEncoding encoding, String name) {
-        if (getRubyEncoding(name) != null) {
-            return null;
-        }
-
-        final byte[] nameBytes = StringOperations.encodeAsciiBytes(name);
-        return defineDynamicEncoding(encoding.jcoding, nameBytes);
     }
 
     public RubyEncoding getLocaleEncoding() {

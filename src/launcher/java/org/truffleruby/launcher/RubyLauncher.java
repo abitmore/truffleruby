@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2017, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -88,10 +88,6 @@ public class RubyLauncher extends AbstractLanguageLauncher {
     }
 
     @Override
-    protected void validateArguments(Map<String, String> polyglotOptions) {
-    }
-
-    @Override
     protected void printVersion() {
         getOutput().println(TruffleRuby.getVersionString(getImplementationNameFromEngine()));
         getOutput().println();
@@ -131,10 +127,11 @@ public class RubyLauncher extends AbstractLanguageLauncher {
             if (config.readRubyOptEnv) {
                 /* Calling processArguments() here will also add any unrecognized arguments such as
                  * --jvm/--native/--vm.* arguments and polyglot options to `config.getUnknownArguments()`, which will
-                 * then be processed by AbstractLanguageLauncher and Launcher. If we are going to run Native, Launcher
-                 * will apply VM options to the current process. If we are going to run on JVM, Launcher will collect
-                 * them and pass them when execve()'ing to bin/java. Polyglot options are parsed by
-                 * AbstractLanguageLauncher in the final process. */
+                 * then be processed by AbstractLanguageLauncher. For VM arguments, #validateVmArguments() will be
+                 * called to check that the guessed --vm.* arguments match the actual ones (should always be the case,
+                 * except if --vm.* arguments are added dynamically like --vm.Xmn1g for gem/bundle on native). If they
+                 * do not match then the thin launcher will relaunch by execve(). Polyglot options are parsed by
+                 * AbstractLanguageLauncher#parseUnrecognizedOptions. */
                 // Process RUBYOPT
                 final List<String> rubyoptArgs = getArgsFromEnvVariable("RUBYOPT");
                 new CommandLineParser(rubyoptArgs, config, false, true).processArguments();
@@ -382,7 +379,7 @@ public class RubyLauncher extends AbstractLanguageLauncher {
         String value = System.getenv(name);
         if (value != null) {
             value = value.strip();
-            if (value.length() != 0) {
+            if (!value.isEmpty()) {
                 return new ArrayList<>(Arrays.asList(value.split("\\s+")));
             }
         }
@@ -391,7 +388,7 @@ public class RubyLauncher extends AbstractLanguageLauncher {
 
     private static List<String> getPathListFromEnvVariable(String name) {
         final String value = System.getenv(name);
-        if (value != null && value.length() != 0) {
+        if (value != null && !value.isEmpty()) {
             return new ArrayList<>(Arrays.asList(value.split(":")));
         }
         return Collections.emptyList();
@@ -444,7 +441,7 @@ public class RubyLauncher extends AbstractLanguageLauncher {
      * To update this:
      *   - run `ruby --help | ruby -e 'puts STDIN.readlines.map { |line| "out.println(#{line.chomp.inspect});" }'`
      *   - replace "ruby" by "truffleruby" in the first line
-     *   - remove unsupported flags (--*jit, --dump)
+     *   - remove unsupported flags (--*jit, --dump, --parser, --crash-report, -y, --yydebug)
      *   - add an extra `out.println();` before:
      *     - `out.println("Features:");` and
      *     - `out.println("Warning categories:");`
@@ -454,6 +451,7 @@ public class RubyLauncher extends AbstractLanguageLauncher {
     private static void printHelp(PrintStream out) {
         out.println("Usage: truffleruby [switches] [--] [programfile] [arguments]");
         out.println("  -0[octal]       specify record separator (\\0, if no argument)");
+        out.println("                  (-00 for paragraph mode, -0777 for slurp mode)");
         out.println("  -a              autosplit mode with -n or -p (splits $_ into $F)");
         out.println("  -c              check syntax only");
         out.println("  -Cdirectory     cd to directory before executing your script");
@@ -476,9 +474,11 @@ public class RubyLauncher extends AbstractLanguageLauncher {
         out.println("                  set warning level; 0=silence, 1=medium, 2=verbose");
         out.println("  -x[directory]   strip off text before #!ruby line and perhaps cd to directory");
         out.println("  --copyright     print the copyright");
-        out.println("  --enable={jit|rubyopt|...}[,...], --disable={jit|rubyopt|...}[,...]");
+        out.println("  --enable={rubyopt|...}[,...]");
+        out.println("  --disable={rubyopt|...}[,...]");
         out.println("                  enable or disable features. see below for available features");
-        out.println("  --external-encoding=encoding, --internal-encoding=encoding");
+        out.println("  --external-encoding=encoding");
+        out.println("  --internal-encoding=encoding");
         out.println("                  specify the default external or internal character encoding");
         out.println("  --backtrace-limit=num");
         out.println("                  limit the maximum length of backtrace");

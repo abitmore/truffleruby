@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2013, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -119,7 +119,7 @@ public abstract class ClassNodes {
                 superclass);
 
         if (lexicalParent != null) {
-            rubyClass.fields.getAdoptedByLexicalParent(context, lexicalParent, name, currentNode);
+            lexicalParent.fields.setConstant(context, currentNode, name, rubyClass);
         }
 
         return rubyClass;

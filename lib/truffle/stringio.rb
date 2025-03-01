@@ -134,7 +134,6 @@ class StringIO
     ensure
       io.close
       io.__data__.string = nil
-      self
     end
   end
 
@@ -164,6 +163,14 @@ class StringIO
       end
     else
       mode_from_string(string.frozen? ? 'r' : 'r+')
+    end
+
+    if @writable && @__data__.string.frozen?
+      raise Errno::EACCES, 'Permission denied'
+    end
+
+    if @truncate
+      @__data__.string.replace(''.force_encoding(@__data__.string.encoding))
     end
 
     self
@@ -201,6 +208,22 @@ class StringIO
     end
 
     self
+  end
+
+  def set_encoding_by_bom
+    Primitive.check_frozen self
+    return nil unless @readable
+
+    encoding = Truffle::IOOperations.strip_bom(self)
+    return nil unless encoding
+
+    d = @__data__
+    TruffleRuby.synchronized(d) do
+      d.encoding = encoding
+      d.string.force_encoding(encoding) if @writable
+    end
+
+    encoding
   end
 
   def external_encoding
@@ -450,6 +473,8 @@ class StringIO
       pos = d.pos
       string = d.string
 
+      # intentionally don't preserve buffer's encoding
+      # see https://bugs.ruby-lang.org/issues/20418
       if length
         length = Truffle::Type.coerce_to length, Integer, :to_int
         raise ArgumentError if length < 0
@@ -670,7 +695,7 @@ class StringIO
   end
 
   private def mode_from_string(mode)
-    @append = truncate = false
+    @append = @truncate = false
 
     if mode[0] == ?r
       @readable = true
@@ -678,7 +703,7 @@ class StringIO
     end
 
     if mode[0] == ?w
-      @writable = truncate = true
+      @writable = @truncate = true
       @readable = mode[-1] == ?+ ? true : false
     end
 
@@ -686,27 +711,21 @@ class StringIO
       @append = @writable = true
       @readable = mode[-1] == ?+ ? true : false
     end
-
-    d = @__data__ # no sync, only called from initialize
-    raise Errno::EACCES, 'Permission denied' if @writable && d.string.frozen?
-    d.string.replace('') if truncate
   end
 
   private def mode_from_integer(mode)
-    @readable = @writable = @append = false
-    d = @__data__ # no sync, only called from initialize
+    @readable = @writable = @append = @truncate = false
 
     if mode == 0 or mode & IO::RDWR != 0
       @readable = true
     end
 
     if mode & (IO::WRONLY | IO::RDWR) != 0
-      raise Errno::EACCES, 'Permission denied' if d.string.frozen?
       @writable = true
     end
 
     @append = true if (mode & IO::APPEND) != 0
-    d.string.replace('') if (mode & IO::TRUNC) != 0
+    @truncate = true if (mode & IO::TRUNC) != 0
   end
 
   private def getline(arg_error, sep, limit, chomp = false)

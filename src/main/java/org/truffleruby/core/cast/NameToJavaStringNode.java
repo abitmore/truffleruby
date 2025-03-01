@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2015, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -40,7 +40,7 @@ public abstract class NameToJavaStringNode extends RubyBaseNode {
         return NameToJavaStringNodeGen.getUncached().execute(null, name);
     }
 
-    @Specialization(guards = "libString.isRubyString(value)", limit = "1")
+    @Specialization(guards = "libString.isRubyString(this, value)", limit = "1")
     static String stringNameToJavaString(Node node, Object value,
             @Cached @Exclusive RubyStringLibrary libString,
             @Cached @Shared ToJavaStringNode toJavaStringNode) {
@@ -78,7 +78,7 @@ public abstract class NameToJavaStringNode extends RubyBaseNode {
             }
         }
 
-        if (libString.isRubyString(coerced)) {
+        if (libString.isRubyString(node, coerced)) {
             return toJavaStringNode.execute(node, coerced);
         } else {
             errorProfile.enter(node);

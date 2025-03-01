@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Copyright (c) 2016, 2024 Oracle and/or its affiliates. All rights reserved. This
+# Copyright (c) 2016, 2025 Oracle and/or its affiliates. All rights reserved. This
 # code is released under a tri EPL/GPL/LGPL license. You can use it,
 # redistribute it and/or modify it under the terms of the:
 #
@@ -180,6 +180,10 @@ module Truffle::FFI
           i += 1
         end
       end
+    end
+
+    def read_array_of_string(count = nil)
+      get_array_of_string(0, count)
     end
 
     def get_bytes(offset, length)

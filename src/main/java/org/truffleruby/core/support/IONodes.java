@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2015, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -66,6 +66,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Arrays;
 
+import com.oracle.truffle.api.dsl.Bind;
 import com.oracle.truffle.api.nodes.Node;
 import com.oracle.truffle.api.profiles.InlinedBranchProfile;
 import com.oracle.truffle.api.profiles.InlinedConditionProfile;
@@ -130,17 +131,19 @@ public abstract class IONodes {
     @Primitive(name = "file_fnmatch", lowerFixnum = 2)
     public abstract static class FileFNMatchPrimitiveNode extends PrimitiveArrayArgumentsNode {
 
-        @Specialization(guards = { "stringsPattern.isRubyString(pattern)", "stringsPath.isRubyString(path)" },
+        @Specialization(
+                guards = { "stringsPattern.isRubyString(node, pattern)", "stringsPath.isRubyString(node, path)" },
                 limit = "1")
-        boolean fnmatch(Object pattern, Object path, int flags,
+        static boolean fnmatch(Object pattern, Object path, int flags,
+                @Bind Node node,
                 @Cached RubyStringLibrary stringsPattern,
                 @Cached RubyStringLibrary stringsPath,
                 @Cached TruffleString.GetInternalByteArrayNode getInternalByteArrayPatternNode,
                 @Cached TruffleString.GetInternalByteArrayNode getInternalByteArrayPathNode) {
-            var patternByteArray = getInternalByteArrayPatternNode.execute(stringsPattern.getTString(pattern),
-                    stringsPattern.getTEncoding(pattern));
-            var pathByteArray = getInternalByteArrayPathNode.execute(stringsPath.getTString(path),
-                    stringsPath.getTEncoding(path));
+            var patternByteArray = getInternalByteArrayPatternNode.execute(stringsPattern.getTString(node, pattern),
+                    stringsPattern.getTEncoding(node, pattern));
+            var pathByteArray = getInternalByteArrayPathNode.execute(stringsPath.getTString(node, path),
+                    stringsPath.getTEncoding(node, path));
 
             return fnmatch(
                     patternByteArray.getArray(),
@@ -465,7 +468,7 @@ public abstract class IONodes {
     public abstract static class IOWritePolyglotNode extends PrimitiveArrayArgumentsNode {
 
         @TruffleBoundary
-        @Specialization(guards = "strings.isRubyString(string)", limit = "1")
+        @Specialization(guards = "strings.isRubyString(this, string)", limit = "1")
         int write(int fd, Object string,
                 @Cached RubyStringLibrary strings) {
             final OutputStream stream;
@@ -482,7 +485,8 @@ public abstract class IONodes {
                     throw CompilerDirectives.shouldNotReachHere();
             }
 
-            var byteArray = strings.getTString(string).getInternalByteArrayUncached(strings.getTEncoding(string));
+            var byteArray = strings.getTString(this, string)
+                    .getInternalByteArrayUncached(strings.getTEncoding(this, string));
 
             getContext().getThreadManager().runUntilResult(this, () -> {
                 try {

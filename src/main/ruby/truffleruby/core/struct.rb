@@ -33,19 +33,14 @@ class Struct
     alias_method :subclass_new, :new
   end
 
-  def self.new(klass_name, *attrs, keyword_init: nil, &block)
-    if klass_name
-      if Primitive.is_a?(klass_name, Symbol) # Truffle: added to avoid exception and match MRI
-        attrs.unshift klass_name
-        klass_name = nil
-      else
-        begin
-          klass_name = StringValue klass_name
-        rescue TypeError
-          attrs.unshift klass_name
-          klass_name = nil
-        end
-      end
+  def self.new(*attrs, keyword_init: nil, &block)
+    klass_name = nil
+
+    first = attrs[0]
+    if attrs.size >= 1 && !Primitive.is_a?(first, Symbol)
+      # nil check because Struct.new(nil, :foo) is valid
+      klass_name = StringValue(first) unless Primitive.nil?(first)
+      attrs.shift
     end
 
     attrs = attrs.map { |a| Truffle::Type.symbol_or_string_to_symbol(a) }
@@ -114,18 +109,9 @@ class Struct
 
   def to_h
     h = {}
-    each_pair.each_with_index do |elem, i|
-      elem = yield(elem) if block_given?
-      unless elem.respond_to?(:to_ary)
-        raise TypeError, "wrong element type #{Primitive.class(elem)} at #{i} (expected array)"
-      end
-
-      ary = elem.to_ary
-      if ary.size != 2
-        raise ArgumentError, "element has wrong array length (expected 2, was #{ary.size})"
-      end
-
-      h[ary[0]] = ary[1]
+    each_pair do |k, v|
+      pair = block_given? ? yield(k, v) : [k, v]
+      Truffle::HashOperations.assoc_key_value_pair(h, pair)
     end
     h
   end

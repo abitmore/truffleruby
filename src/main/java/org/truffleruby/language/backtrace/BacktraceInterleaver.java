@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2015, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -58,7 +58,7 @@ public final class BacktraceInterleaver {
         return (className.equals("com.oracle.truffle.runtime.OptimizedCallTarget") &&
                 methodName.equals("executeRootNode")) ||
                 (className.equals("com.oracle.truffle.api.impl.DefaultCallTarget") &&
-                        methodName.equals("callDirectOrIndirect"));
+                        (methodName.equals("callDirectOrIndirect") || methodName.equals("call")));
     }
 
     private static boolean isIntoRuby(StackTraceElement[] elements, int index) {

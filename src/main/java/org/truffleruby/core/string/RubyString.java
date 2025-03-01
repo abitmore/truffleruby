@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2020, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -14,6 +14,7 @@ import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
 import com.oracle.truffle.api.dsl.Bind;
 import com.oracle.truffle.api.dsl.Cached.Shared;
 import com.oracle.truffle.api.dsl.ImportStatic;
+import com.oracle.truffle.api.dsl.ReportPolymorphism;
 import com.oracle.truffle.api.dsl.Specialization;
 import com.oracle.truffle.api.interop.InteropLibrary;
 import com.oracle.truffle.api.library.ExportLibrary;
@@ -121,18 +122,19 @@ public final class RubyString extends RubyDynamicObject {
 
     @ExportMessage
     protected TruffleString asTruffleString(
-            @Cached @Shared RubyStringLibrary libString,
             @Cached TruffleString.AsTruffleStringNode asTruffleStringNode) {
-        return asTruffleStringNode.execute(tstring, libString.getTEncoding(this));
+        return asTruffleStringNode.execute(tstring, encoding.tencoding);
     }
 
-    @ImportStatic(RubyBaseNode.class)
     @ExportMessage
+    @ReportPolymorphism // inline cache
+    @ImportStatic(RubyBaseNode.class)
     public static final class AsString {
         @Specialization(
-                guards = "equalNode.execute(string.tstring, libString.getEncoding(string), cachedTString, cachedEncoding)",
+                guards = "equalNode.execute(string.tstring, libString.getEncoding(node, string), cachedTString, cachedEncoding)",
                 limit = "getLimit()")
         static String asStringCached(RubyString string,
+                @Bind Node node,
                 @Cached @Shared RubyStringLibrary libString,
                 @Cached("string.asTruffleStringUncached()") TruffleString cachedTString,
                 @Cached("string.getEncodingUncached()") RubyEncoding cachedEncoding,
@@ -147,8 +149,8 @@ public final class RubyString extends RubyDynamicObject {
                 @Cached TruffleString.GetByteCodeRangeNode codeRangeNode,
                 @Cached TruffleString.ToJavaStringNode toJavaStringNode,
                 @Cached InlinedConditionProfile binaryNonAsciiProfile,
-                @Bind("this") Node node) {
-            var encoding = libString.getEncoding(string);
+                @Bind Node node) {
+            var encoding = libString.getEncoding(node, string);
             if (binaryNonAsciiProfile.profile(node, encoding == Encodings.BINARY &&
                     !StringGuards.is7Bit(string.tstring, encoding, codeRangeNode))) {
                 return getJavaStringBoundary(string);

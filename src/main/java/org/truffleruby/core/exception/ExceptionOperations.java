@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2013, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -14,12 +14,12 @@ import com.oracle.truffle.api.exception.AbstractTruffleException;
 import com.oracle.truffle.api.profiles.InlinedConditionProfile;
 import org.truffleruby.RubyContext;
 import org.truffleruby.RubyLanguage;
+import org.truffleruby.core.fiber.FiberNodes.FiberGetExceptionNode;
 import org.truffleruby.core.kernel.KernelNodes;
 import org.truffleruby.core.klass.RubyClass;
 import org.truffleruby.core.module.ModuleFields;
 import org.truffleruby.core.module.RubyModule;
 import org.truffleruby.core.proc.RubyProc;
-import org.truffleruby.core.thread.ThreadNodes.ThreadGetExceptionNode;
 import org.truffleruby.language.Nil;
 import org.truffleruby.language.RubyConstant;
 import org.truffleruby.language.RubyGuards;
@@ -104,11 +104,10 @@ public abstract class ExceptionOperations {
     @TruffleBoundary
     public static String messageFieldToString(RubyException exception) {
         Object message = exception.message;
-        RubyStringLibrary strings = RubyStringLibrary.getUncached();
         if (message == null || message == Nil.INSTANCE) {
             final ModuleFields exceptionClass = exception.getLogicalClass().fields;
             return exceptionClass.getName(); // What Exception#message would return if no message is set
-        } else if (strings.isRubyString(message)) {
+        } else if (RubyStringLibrary.isRubyStringUncached(message)) {
             return RubyGuards.getJavaString(message);
         } else {
             return message.toString();
@@ -123,7 +122,7 @@ public abstract class ExceptionOperations {
         } catch (RaiseException e) {
             // Fall back to the internal message field
         }
-        if (messageObject != null && RubyStringLibrary.getUncached().isRubyString(messageObject)) {
+        if (messageObject != null && RubyStringLibrary.isRubyStringUncached(messageObject)) {
             return RubyGuards.getJavaString(messageObject);
         } else {
             return messageFieldToString(exception);
@@ -140,7 +139,7 @@ public abstract class ExceptionOperations {
     public static RubyException createRubyException(RubyContext context, RubyClass rubyClass, Object message,
             Backtrace backtrace) {
         final RubyLanguage language = context.getLanguageSlow();
-        final Object cause = ThreadGetExceptionNode.getLastException(language);
+        final Object cause = FiberGetExceptionNode.getLastException(language);
         context.getCoreExceptions().showExceptionIfDebug(rubyClass, message, backtrace);
         final Shape shape = language.exceptionShape;
         return new RubyException(rubyClass, shape, message, backtrace, cause);
@@ -151,7 +150,7 @@ public abstract class ExceptionOperations {
             boolean showExceptionIfDebug) {
         final RubyLanguage language = context.getLanguageSlow();
         final RubyClass rubyClass = context.getCoreLibrary().systemStackErrorClass;
-        final Object cause = ThreadGetExceptionNode.getLastException(language);
+        final Object cause = FiberGetExceptionNode.getLastException(language);
         if (showExceptionIfDebug) {
             context.getCoreExceptions().showExceptionIfDebug(rubyClass, message, backtrace);
         }
@@ -163,7 +162,7 @@ public abstract class ExceptionOperations {
     public static RubySystemCallError createSystemCallError(RubyContext context, RubyClass rubyClass,
             Object message, int errno, Backtrace backtrace) {
         final RubyLanguage language = context.getLanguageSlow();
-        final Object cause = ThreadGetExceptionNode.getLastException(language);
+        final Object cause = FiberGetExceptionNode.getLastException(language);
         context.getCoreExceptions().showExceptionIfDebug(rubyClass, message, backtrace);
         final Shape shape = language.systemCallErrorShape;
         return new RubySystemCallError(rubyClass, shape, message, backtrace, cause, errno);

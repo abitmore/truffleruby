@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2020, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -150,7 +150,7 @@ public abstract class ImmutableRubyObject implements TruffleObject {
             @Cached @Exclusive DispatchNode dispatchMember,
             @Cached @Exclusive ForeignToRubyArgumentsNode foreignToRubyArgumentsNode,
             @Cached @Shared BranchProfile errorProfile,
-            @Bind("$node") Node node)
+            @Bind Node node)
             throws UnknownIdentifierException {
         Object[] convertedArguments = foreignToRubyArgumentsNode.executeConvert(node, arguments);
         Object result = dispatchMember.call(PRIVATE_RETURN_MISSING, this, name, convertedArguments);

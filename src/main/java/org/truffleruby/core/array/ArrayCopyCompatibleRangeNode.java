@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2013, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -27,7 +27,7 @@ import com.oracle.truffle.api.library.CachedLibrary;
  * <p>
  * Typically only called after {@link ArrayPrepareForCopyNode} has been invoked on the destination. */
 @ImportStatic(ArrayGuards.class)
-@ReportPolymorphism
+@ReportPolymorphism // for ArrayStoreLibrary
 public abstract class ArrayCopyCompatibleRangeNode extends RubyBaseNode {
 
     public static ArrayCopyCompatibleRangeNode create() {
@@ -49,7 +49,6 @@ public abstract class ArrayCopyCompatibleRangeNode extends RubyBaseNode {
             limit = "storageStrategyLimit()")
     void copy(Object dstStore, Object srcStore, int dstStart, int srcStart, int length,
             @CachedLibrary("srcStore") ArrayStoreLibrary stores) {
-
         stores.copyContents(srcStore, srcStart, dstStore, dstStart, length);
     }
 }
