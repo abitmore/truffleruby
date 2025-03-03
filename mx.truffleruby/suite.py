@@ -1,6 +1,8 @@
 suite = {
-    "mxversion": "6.44.0",
+    "mxversion": "7.27.0",
     "name": "truffleruby",
+    "version": "25.0.0",
+    "release": False,
     "groupId": "org.graalvm.ruby",
     "url": "https://www.graalvm.org/ruby/",
     "developer": {
@@ -20,7 +22,7 @@ suite = {
             {
                 "name": "regex",
                 "subdir": True,
-                "version": "d6243acce05af06b17d63dddb2972e739141dc6d",
+                "version": "17039dd23a3abc4d9d761b77c5a5ea94114019f8",
                 "urls": [
                     {"url": "https://github.com/oracle/graal.git", "kind": "git"},
                     {"url": "https://curio.ssw.jku.at/nexus/content/repositories/snapshots", "kind": "binary"},
@@ -29,7 +31,7 @@ suite = {
             {
                 "name": "sulong",
                 "subdir": True,
-                "version": "d6243acce05af06b17d63dddb2972e739141dc6d",
+                "version": "17039dd23a3abc4d9d761b77c5a5ea94114019f8",
                 "urls": [
                     {"url": "https://github.com/oracle/graal.git", "kind": "git"},
                     {"url": "https://curio.ssw.jku.at/nexus/content/repositories/snapshots", "kind": "binary"},
@@ -69,27 +71,15 @@ suite = {
 
         # ------------- Libraries -------------
 
-        "JCODINGS": {
-            "moduleName": "org.jruby.jcodings",
-            "maven": {
-                "groupId": "org.jruby.jcodings",
-                "artifactId": "jcodings",
-                "version": "1.0.58"
-            },
-            "digest": "sha512:625210aa07d1e08bf2f5fdc9da6c491a4e5a56e7db297cba1aa73636670ac1d62f3fd763716ef6ede862456b17169272ed9c8461d07100f95262163dc9c18ef8",
-            "sourceDigest": "sha512:d0f883f658310f7ad091aea08df28f1f5fe12080d6cb266cd91aec7e34cda1d57736d32618e8632b329854367d6e4d5fc91b5eb8ac9b823b26113fae3f75f50c",
-            "license": ["MIT"],
-        },
-
         "JONI": {
             "moduleName": "org.jruby.joni",
             "maven": {
                 "groupId": "org.jruby.joni",
                 "artifactId": "joni",
-                "version": "2.1.44"
+                "version": "2.2.1"
             },
-            "digest": "sha512:59b901333d93b8eaf0c28a2d269d159e6806701902505113148c4df6b2ade973e97f9b888b8b5b4dff4d3c667b4594eeee8133f4260e7f1f3d9af1a031b9cab4",
-            "sourceDigest": "sha512:773051c47893799ecc0b916b80c4dedac0efe2988743d455ce8529460aed2d7664d4b12cd51e449a8b20ac0c37e32ead89d72f6acf4f6a780268b55fdd67e3cf",
+            "digest": "sha512:e4fa4dda7478d5254b80aa77014d6df05317ac55d957da9ade6c9a80968aaf49d87d58930b8ddd44333270fa38984649858655b54c3aa8463602e0da8902d53a",
+            "sourceDigest": "sha512:90b9a5216c748cc170a17bf58289553e0fe7695b16e7cacefd126d506ee7700e4cd7739e2d2500442ae7077fb88fcd64621c5a005b1fc6909ea75c88ce8cb536",
             "license": ["MIT"],
         },
 
@@ -164,6 +154,7 @@ suite = {
             "requires": ["java.management"],
             "dependencies": [
                 "truffleruby:TRUFFLERUBY-ANNOTATIONS",
+                "sdk:NATIVEIMAGE",
                 "sdk:POLYGLOT",
             ],
             "annotationProcessors": [
@@ -234,7 +225,15 @@ suite = {
             "dir": "src/main/c/yarp",
             # "makeTarget": "all-no-debug", # Can use this to build without asserts
             "results": ["build/libprism.a"],
-            "description": "YARP used as a static library"
+            "description": "YARP used as a static library with only semantics fields"
+        },
+
+        "org.prism.libprism.for.gem": {
+            "class": "YARPNativeProject",
+            "dir": "src/main/c/prism-gem",
+            # "makeTarget": "all-no-debug", # Can use this to build without asserts
+            "results": ["build/<lib:prism>"],
+            "description": "YARP used as a dynamic library with all fields"
         },
 
         "org.truffleruby.yarp.bindings": {
@@ -273,9 +272,12 @@ suite = {
                 "sulong:SULONG_API",
                 "sulong:SULONG_NFI",
                 "sdk:JLINE3",
-                # Libraries, keep in sync with TRUFFLERUBY.exclude and truffle_jars (in mx_truffleruby.py)
-                "truffleruby:JCODINGS",
-                "truffleruby:JONI",
+                "sdk:COLLECTIONS",
+                "sdk:NATIVEIMAGE",
+                "sdk:POLYGLOT",
+                # Library distributions, keep in sync with truffle_jars in mx_truffleruby.py
+                "truffle:TRUFFLE_JCODINGS",
+                "truffleruby:TRUFFLERUBY_JONI",
             ],
             "annotationProcessors": [
                 "truffle:TRUFFLE_DSL_PROCESSOR",
@@ -323,6 +325,7 @@ suite = {
                 "sdk:POLYGLOT",
                 "sdk:LAUNCHER_COMMON",
                 "sdk:MAVEN_DOWNLOADER",
+                "sdk:NATIVEIMAGE",
             ],
             "jacoco": "include",
             "javaCompliance": "17+",
@@ -380,7 +383,7 @@ suite = {
                 "TRUFFLERUBY", # We need this jar to run extconf.rb
                 "TRUFFLERUBY-LAUNCHER", # We need this jar to run extconf.rb
                 "sulong:SULONG_NATIVE", # We need this jar to find the toolchain with Toolchain#getToolPath
-                "org.truffleruby.yarp.bindings", # libyarpbindings.so
+                "TRUFFLERUBY_BOOTSTRAP_HOME", # libyarpbindings.so, librubysignal.so
             ],
             "license": ["EPL-2.0"],
         },
@@ -416,13 +419,45 @@ suite = {
                 "src/main/c/ripper/<extsuffix:ripper>",
                 "src/main/c/syslog/<extsuffix:syslog>",
                 "src/main/c/zlib/<extsuffix:zlib>",
-                "lib/gems/gems/debug-1.7.1/lib/debug/<extsuffix:debug>",
-                "lib/gems/gems/rbs-2.8.2/lib/<extsuffix:rbs_extension>",
+                "src/main/c/debug/<extsuffix:debug>",
+                "src/main/c/rbs/<extsuffix:rbs_extension>",
             ],
             "license": [
                 "EPL-2.0",          # JRuby (we're choosing EPL out of EPL,GPL,LGPL)
                 "BSD-simplified",   # MRI
             ],
+        },
+
+        "org.graalvm.shadowed.org.joni": {
+            # Shadowed JONI library (org.jruby.joni:joni)
+            "dir": "src/shadowed/joni",
+            "sourceDirs": ["java"],
+            "javaCompliance": "17+",
+            "spotbugsIgnoresGenerated": True,
+            "dependencies": [
+                "truffle:TRUFFLE_JCODINGS",
+            ],
+            "shadedDependencies": [
+                "truffleruby:JONI",
+            ],
+            "class": "ShadedLibraryProject",
+            "shade": {
+                "packages": {
+                    "org.joni": "org.graalvm.shadowed.org.joni",
+                    "org.jcodings": "org.graalvm.shadowed.org.jcodings",
+                },
+                "exclude": [
+                    "META-INF/MANIFEST.MF",
+                    "META-INF/maven/org.jruby.joni/joni/*", # pom.xml, pom.properties
+                    "module-info.java",
+                    "org/joni/bench/*.java",
+                ],
+            },
+            "description": "JOni library shadowed for TruffleRuby.",
+            # We need to force javac because the generated sources in this project produce warnings in JDT.
+            "forceJavac": "true",
+            "javac.lint.overrides": "none",
+            "jacoco": "exclude",
         },
     },
 
@@ -469,6 +504,7 @@ suite = {
             ],
             "distDependencies": [
                 "truffleruby:TRUFFLERUBY-ANNOTATIONS",
+                "sdk:NATIVEIMAGE",
                 "sdk:POLYGLOT",
             ],
             "description": "TruffleRuby Shared constants and predicates",
@@ -511,13 +547,15 @@ suite = {
                 "sulong:SULONG_API",
                 "sulong:SULONG_NFI",
                 "sdk:JLINE3",
+                "sdk:COLLECTIONS",
+                "sdk:NATIVEIMAGE",
+                "sdk:POLYGLOT",
+                # Library distributions, keep in sync with truffle_jars in mx_truffleruby.py
+                "truffle:TRUFFLE_JCODINGS",
+                "truffleruby:TRUFFLERUBY_JONI",
                 # runtime-only dependencies
                 "truffle:TRUFFLE_NFI_LIBFFI",
                 "sulong:SULONG_NATIVE",
-            ],
-            "exclude": [ # Keep in sync with org.truffleruby dependencies and truffle_jars in mx_truffleruby.py
-                "truffleruby:JCODINGS",
-                "truffleruby:JONI",
             ],
             "description": "Core module of Ruby on Truffle",
             "license": [
@@ -543,7 +581,6 @@ suite = {
             ],
             "description": "TruffleRuby (GraalVM Ruby)",
             "maven": {
-                "groupId": "org.graalvm.polyglot",
                 "artifactId": "ruby-community",
                 "tag": ["default", "public"],
             },
@@ -582,6 +619,7 @@ suite = {
                 "sdk:POLYGLOT",
                 "sdk:LAUNCHER_COMMON",
                 "sdk:MAVEN_DOWNLOADER",
+                "sdk:NATIVEIMAGE",
             ],
             "description": "TruffleRuby Launcher",
             "license": ["EPL-2.0"],
@@ -649,19 +687,39 @@ suite = {
             "maven": False,
         },
 
+        "TRUFFLERUBY_BOOTSTRAP_HOME": {
+            "description": "TruffleRuby bootstrap home used by a minimal TruffleRuby to run extconf.rb of default & bundled gems C extensions",
+            "native": True,
+            "platformDependent": True,
+            "layout": {
+                "lib/": [
+                    "file:lib/json",
+                    "file:lib/mri",
+                    "file:lib/patches",
+                    "file:lib/truffle",
+                    "dependency:org.truffleruby.yarp.bindings",
+                ],
+                "lib/cext/": [
+                    "file:lib/cext/*.rb",
+                    # libtruffleposix is handled specially in posix.rb to avoid a cyclic dependency between org.truffleruby.cext and TRUFFLERUBY-BOOTSTRAP-LAUNCHER
+                    "dependency:org.truffleruby.librubysignal",
+                ],
+                "lib/cext/include/": [
+                    "file:lib/cext/include/*",
+                ],
+            },
+            "maven": False,
+        },
+
         "TRUFFLERUBY_GRAALVM_SUPPORT_PLATFORM_AGNOSTIC": {
             "description": "Platform-agnostic TruffleRuby home files",
             "fileListPurpose": 'native-image-resources',
             "native": True,
             "platformDependent": False,
-            # The project org.truffleruby.cext touches lib/gems/gems/debug-1.7.1/ext
-            # and lib/gems/extensions/$ARCH-$OS/$ABI/rbs-2.8.2/gem.build_complete.
-            # This causes this layout distribution to be rebuilt even though nothing changes in the result.
-            # To avoid that we force org.truffleruby.cext to complete first.
-            "dependencies": ["org.truffleruby.cext"],
             "layout": {
                 "lib/": [
                     "file:lib/json",
+                    "file:lib/gems",
                     "file:lib/mri",
                     "file:lib/patches",
                     "file:lib/truffle",
@@ -672,22 +730,8 @@ suite = {
                 "lib/cext/include/": [
                     "file:lib/cext/include/*",
                 ],
-                "lib/gems/": [
-                    {
-                        "source_type": "file",
-                        "path": "lib/gems/*",
-                        "exclude": [
-                            # The debug and rbs gems have native extensions.
-                            # Do not ship ext/ as it includes an unnecessary copy of the .so and intermediate files.
-                            # The .so in lib/ are copied in the platform-specific distribution.
-                            # <extsuffix:...> does not work in exclude, so use .* here (.{so,bundle} does not work either).
-                            "lib/gems/extensions",
-                            "lib/gems/gems/debug-1.7.1/ext",
-                            "lib/gems/gems/debug-1.7.1/lib/debug/debug.*",
-                            "lib/gems/gems/rbs-2.8.2/ext",
-                            "lib/gems/gems/rbs-2.8.2/lib/rbs_extension.*",
-                        ],
-                    },
+                "lib/prism/": [
+                    "file:src/main/c/prism-gem/include",
                 ],
             },
             "license": [
@@ -708,16 +752,25 @@ suite = {
                 "lib/": [
                     "dependency:org.truffleruby.yarp.bindings",
                 ],
+                "lib/prism/": [
+                    "dependency:org.prism.libprism.for.gem/build/<lib:prism>",
+                ],
                 "lib/cext/": [
                     "dependency:org.truffleruby.cext/src/main/c/truffleposix/<lib:truffleposix>",
                     "dependency:org.truffleruby.cext/src/main/c/cext/<lib:truffleruby>",
                     "dependency:org.truffleruby.cext/src/main/c/cext-trampoline/<lib:trufflerubytrampoline>",
                     "dependency:org.truffleruby.librubysignal",
                 ],
-                # The platform-specific files from debug and rbs, see comment above
-                "lib/gems/": "file:lib/gems/extensions",
-                "lib/gems/gems/debug-1.7.1/lib/debug/": "dependency:org.truffleruby.cext/lib/gems/gems/debug-1.7.1/lib/debug/<extsuffix:debug>",
-                "lib/gems/gems/rbs-2.8.2/lib/": "dependency:org.truffleruby.cext/lib/gems/gems/rbs-2.8.2/lib/<extsuffix:rbs_extension>",
+                # Create the complete files to let RubyGems know the gems are fully built and can be activated
+                "lib/gems/extensions/<cruby_arch>-<os>/<truffleruby_abi_version>/debug-1.9.1/gem.build_complete": "string:",
+                "lib/gems/extensions/<cruby_arch>-<os>/<truffleruby_abi_version>/racc-1.7.3/gem.build_complete": "string:", # actually we do not build the C extension because the pure-Ruby fallback is enough
+                "lib/gems/extensions/<cruby_arch>-<os>/<truffleruby_abi_version>/rbs-3.4.0/gem.build_complete": "string:",
+                "lib/gems/gems/debug-1.9.1/lib/debug/": [
+                    "dependency:org.truffleruby.cext/src/main/c/debug/<extsuffix:debug>",
+                ],
+                "lib/gems/gems/rbs-3.4.0/lib/": [
+                    "dependency:org.truffleruby.cext/src/main/c/rbs/<extsuffix:rbs_extension>",
+                ],
                 "lib/mri/": [
                     "dependency:org.truffleruby.cext/src/main/c/bigdecimal/<extsuffix:bigdecimal>",
                     "dependency:org.truffleruby.cext/src/main/c/date/<extsuffix:date_core>",
@@ -746,9 +799,9 @@ suite = {
         },
 
         "TRUFFLERUBY_GRAALVM_SUPPORT_NO_NI_RESOURCES": {
+            "description": "TruffleRuby support distribution for the GraalVM, the contents is not included as native image resources.",
             "native": True,
             "platformDependent": True,
-            "description": "TruffleRuby support distribution for the GraalVM, the contents is not included as native image resources.",
             "layout": {
                 "./": [
                     "file:CHANGELOG.md",
@@ -810,7 +863,7 @@ suite = {
                 "mx:HAMCREST",
                 "mx:JUNIT",
             ],
-            "unittestConfig": "none",
+            "unittestConfig": "truffleruby",
             "javaProperties": {
                 "polyglot.engine.WarnInterpreterOnly": "false",
             },
@@ -834,7 +887,7 @@ suite = {
                 "mx:JUNIT",
                 "truffleruby:NETBEANS-LIB-PROFILER",
             ],
-            "unittestConfig": "none",
+            "unittestConfig": "truffleruby",
             "javaProperties": {
                 "polyglot.engine.WarnInterpreterOnly": "false",
                 "polyglotimpl.DisableClassPathIsolation": "true",
@@ -858,6 +911,37 @@ suite = {
                 "tag": ["default", "public"],
             },
             "noMavenJavadoc": True,
+        },
+
+        "TRUFFLERUBY_JONI": {
+            # JONI library shadowed for TruffleRuby.
+            "moduleInfo": {
+                "name": "org.graalvm.shadowed.joni",
+                "requires": [
+                    "org.graalvm.shadowed.jcodings",
+                ],
+                "exports": [
+                    "org.graalvm.shadowed.org.joni to org.graalvm.ruby",
+                    "org.graalvm.shadowed.org.joni.constants to org.graalvm.ruby",
+                    "org.graalvm.shadowed.org.joni.exception to org.graalvm.ruby",
+                ],
+            },
+            "javaCompliance": "17+",
+            "dependencies": [
+                "org.graalvm.shadowed.org.joni",
+            ],
+            "distDependencies": [
+                "truffle:TRUFFLE_JCODINGS",
+            ],
+            "description": "JOni module shadowed for TruffleRuby.",
+            "license": ["MIT"],
+            "maven": {
+                "groupId": "org.graalvm.shadowed",
+                "artifactId": "joni",
+                "tag": ["default", "public"],
+            },
+            "allowsJavadocWarnings": True,
+            "compress": True,
         },
     },
 }

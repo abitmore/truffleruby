@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2020, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -74,12 +74,6 @@ VALUE rb_gv_set(const char *name, VALUE value) {
 
 VALUE rb_gv_get(const char *name) {
   return RUBY_CEXT_INVOKE("rb_gv_get", rb_str_new_cstr(name));
-}
-
-// $SAFE
-
-void rb_check_trusted(VALUE obj) {
-  rb_warning("rb_check_trusted is deprecated and will be removed in Ruby 3.2.");
 }
 
 // $VERBOSE

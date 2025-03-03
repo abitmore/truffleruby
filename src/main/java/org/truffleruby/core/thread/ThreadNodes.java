@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2013, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -82,8 +82,8 @@ import org.truffleruby.core.numeric.RubyBignum;
 import org.truffleruby.core.proc.ProcOperations;
 import org.truffleruby.core.proc.RubyProc;
 import org.truffleruby.core.string.RubyString;
-import org.truffleruby.core.string.StringUtils;
 import org.truffleruby.core.support.RubyPRNGRandomizer;
+import org.truffleruby.core.symbol.CoreSymbols;
 import org.truffleruby.core.symbol.RubySymbol;
 import org.truffleruby.core.thread.ThreadManager.BlockingCallInterruptible;
 import org.truffleruby.interop.ForeignToRubyNode;
@@ -427,7 +427,7 @@ public abstract class ThreadNodes {
         @TruffleBoundary
         private Object init(RubyThread thread, RubyProc block, ArgumentsDescriptor descriptor, Object[] args) {
             final SourceSection sourceSection = block.getSharedMethodInfo().getSourceSection();
-            final String info = getContext().fileLine(sourceSection);
+            final String info = getLanguage().fileLine(sourceSection);
             final String sharingReason = "creating Ruby Thread " + info;
 
             if (getLanguage().options.SHARED_OBJECTS_ENABLED) {
@@ -580,9 +580,35 @@ public abstract class ThreadNodes {
                     return false;
                 }
             }
-            return createString(fromJavaStringNode, StringUtils.toLowerCase(status.name()), Encodings.US_ASCII); // CR_7BIT
+
+            RubySymbol nameSymbol = threadStatusToRubySymbol(status, coreSymbols());
+            return createString(nameSymbol.tstring, nameSymbol.encoding);
         }
 
+    }
+
+    @Primitive(name = "thread_set_status")
+    public abstract static class ThreadSetStatusPrimitiveNode extends PrimitiveArrayArgumentsNode {
+
+        @Specialization
+        Object threadSetStatus(RubyThread thread, RubySymbol status) {
+            ThreadStatus previous = thread.status;
+
+            if (status == coreSymbols().RUN) {
+                thread.status = ThreadStatus.RUN;
+            } else if (status == coreSymbols().SLEEP) {
+                thread.status = ThreadStatus.SLEEP;
+            } else if (status == coreSymbols().ABORTING) {
+                thread.status = ThreadStatus.ABORTING;
+            } else if (status == coreSymbols().DEAD) {
+                thread.status = ThreadStatus.DEAD;
+            } else {
+                CompilerDirectives.transferToInterpreterAndInvalidate();
+                throw CompilerDirectives.shouldNotReachHere("Unknown thread status: " + status.getString());
+            }
+
+            return threadStatusToRubySymbol(previous, coreSymbols());
+        }
     }
 
     @CoreMethod(names = "native_thread_id")
@@ -660,7 +686,7 @@ public abstract class ThreadNodes {
                 RubyThread thread, Object wrapper, Object function, Object arg, long unblocker, long unblockerArg,
                 @CachedLibrary("wrapper") InteropLibrary receivers,
                 @Cached TranslateInteropExceptionNode translateInteropExceptionNode,
-                @Bind("this") Node node,
+                @Bind Node node,
                 @Cached("new(node, receivers, translateInteropExceptionNode)") BlockingCallInterruptible blockingCallInterruptible) {
             var context = getContext(node);
             final ThreadManager threadManager = context.getThreadManager();
@@ -923,40 +949,12 @@ public abstract class ThreadNodes {
         }
     }
 
-    @Primitive(name = "thread_get_exception")
-    public abstract static class ThreadGetExceptionNode extends PrimitiveArrayArgumentsNode {
-
-        @Specialization
-        Object getException() {
-            return getLastException(getLanguage().getCurrentThread());
-        }
-
-        private static Object getLastException(RubyThread currentThread) {
-            return currentThread.threadLocalGlobals.getLastException();
-        }
-
-        public static Object getLastException(RubyLanguage language) {
-            return getLastException(language.getCurrentThread());
-        }
-
-    }
-
     @Primitive(name = "thread_get_return_code")
     public abstract static class ThreadGetReturnCodeNode extends PrimitiveArrayArgumentsNode {
 
         @Specialization
         Object getExitCode() {
-            return getLanguage().getCurrentThread().threadLocalGlobals.processStatus;
-        }
-    }
-
-    @Primitive(name = "thread_set_exception")
-    public abstract static class SetThreadLocalExceptionNode extends PrimitiveArrayArgumentsNode {
-
-        @Specialization
-        Object setException(Object exception) {
-            getLanguage().getCurrentThread().threadLocalGlobals.setLastException(exception);
-            return exception;
+            return getLanguage().getCurrentThread().processStatus;
         }
     }
 
@@ -965,7 +963,7 @@ public abstract class ThreadNodes {
 
         @Specialization
         Object getException(Object processStatus) {
-            return getLanguage().getCurrentThread().threadLocalGlobals.processStatus = processStatus;
+            return getLanguage().getCurrentThread().processStatus = processStatus;
         }
     }
 
@@ -990,7 +988,7 @@ public abstract class ThreadNodes {
                 @Cached ArrayToObjectArrayNode arrayToObjectArrayNode,
                 @CachedLibrary(limit = "1") InteropLibrary receivers,
                 @Cached TranslateInteropExceptionNode translateInteropExceptionNode,
-                @Cached("new(this, receivers, translateInteropExceptionNode)") BlockingCallInterruptible blockingCallInterruptible,
+                @Cached("new($node, receivers, translateInteropExceptionNode)") BlockingCallInterruptible blockingCallInterruptible,
                 @Cached ForeignToRubyNode foreignToRubyNode) {
             final Object[] args = arrayToObjectArrayNode.executeToObjectArray(argsArray);
             final RubyThread thread = getLanguage().getCurrentThread();
@@ -1056,4 +1054,24 @@ public abstract class ThreadNodes {
             throw new RaiseException(getContext(), coreExceptions().localJumpError("no block given", this));
         }
     }
+
+    private static RubySymbol threadStatusToRubySymbol(ThreadStatus status, CoreSymbols coreSymbols) {
+        final RubySymbol symbol;
+
+        if (status == ThreadStatus.RUN) {
+            symbol = coreSymbols.RUN;
+        } else if (status == ThreadStatus.SLEEP) {
+            symbol = coreSymbols.SLEEP;
+        } else if (status == ThreadStatus.ABORTING) {
+            symbol = coreSymbols.ABORTING;
+        } else if (status == ThreadStatus.DEAD) {
+            symbol = coreSymbols.DEAD;
+        } else {
+            CompilerDirectives.transferToInterpreterAndInvalidate();
+            throw CompilerDirectives.shouldNotReachHere("Unknown thread status: " + status);
+        }
+
+        return symbol;
+    }
+
 }

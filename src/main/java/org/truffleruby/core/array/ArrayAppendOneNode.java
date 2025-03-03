@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2015, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -21,6 +21,7 @@ import org.truffleruby.language.RubyNode;
 
 import com.oracle.truffle.api.dsl.Bind;
 import com.oracle.truffle.api.dsl.Cached;
+import com.oracle.truffle.api.dsl.Cached.Exclusive;
 import com.oracle.truffle.api.dsl.ImportStatic;
 import com.oracle.truffle.api.dsl.NodeChild;
 import com.oracle.truffle.api.dsl.Specialization;
@@ -29,7 +30,7 @@ import com.oracle.truffle.api.library.CachedLibrary;
 @NodeChild(value = "arrayNode", type = RubyNode.class)
 @NodeChild(value = "valueNode", type = RubyNode.class)
 @ImportStatic(ArrayGuards.class)
-@ReportPolymorphism
+@ReportPolymorphism // for ArrayStoreLibrary
 public abstract class ArrayAppendOneNode extends RubyContextSourceNode {
 
     @NeverDefault
@@ -46,7 +47,7 @@ public abstract class ArrayAppendOneNode extends RubyContextSourceNode {
     // Append of the correct type
 
     @Specialization(
-            guards = { "stores.acceptsValue(store, value)" },
+            guards = "stores.acceptsValue(store, value)",
             limit = "storageStrategyLimit()")
     RubyArray appendOneSameType(RubyArray array, Object value,
             @Bind("array.getStore()") Object store,
@@ -68,15 +69,34 @@ public abstract class ArrayAppendOneNode extends RubyContextSourceNode {
         return array;
     }
 
+    // Append to an empty array
+
+    @ReportPolymorphism.Exclude
+    @Specialization(
+            guards = "isZeroLengthArrayStore(array.getStore())",
+            limit = "storageStrategyLimit()")
+    RubyArray appendOneToEmptyArray(RubyArray array, Object value,
+            @Bind("array.getStore()") Object currentStore,
+            @CachedLibrary("currentStore") ArrayStoreLibrary currentStores,
+            @CachedLibrary(limit = "storageStrategyLimit()") @Exclusive ArrayStoreLibrary newStores) {
+        final int newCapacity = ArrayUtils.capacityForOneMore(getLanguage(), 0);
+        final Object newStore = currentStores.allocateForNewValue(currentStore, value, newCapacity);
+        newStores.write(newStore, 0, value);
+        setStoreAndSize(array, newStore, 1);
+        return array;
+    }
+
     // Append forcing a generalization
 
     @Specialization(
-            guards = "!currentStores.acceptsValue(array.getStore(), value)",
+            guards = {
+                    "!isZeroLengthArrayStore(array.getStore())",
+                    "!currentStores.acceptsValue(array.getStore(), value)" },
             limit = "storageStrategyLimit()")
     RubyArray appendOneGeneralizeNonMutable(RubyArray array, Object value,
             @Bind("array.getStore()") Object currentStore,
             @CachedLibrary("currentStore") ArrayStoreLibrary currentStores,
-            @CachedLibrary(limit = "storageStrategyLimit()") ArrayStoreLibrary newStores) {
+            @CachedLibrary(limit = "storageStrategyLimit()") @Exclusive ArrayStoreLibrary newStores) {
         final int oldSize = array.size;
         final int newSize = oldSize + 1;
         final int oldCapacity = currentStores.capacity(currentStore);

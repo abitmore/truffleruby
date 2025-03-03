@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Copyright (c) 2019, 2024 Oracle and/or its affiliates. All rights reserved. This
+# Copyright (c) 2019, 2025 Oracle and/or its affiliates. All rights reserved. This
 # code is released under a tri EPL/GPL/LGPL license. You can use it,
 # redistribute it and/or modify it under the terms of the:
 #
@@ -11,7 +11,6 @@
 # rubocop:disable TruffleRuby/*
 
 require_relative 'patches/json_patches'
-require_relative 'patches/nokogiri_patches'
 require_relative 'patches/oci8_patches'
 require_relative 'patches/pg_patches'
 require_relative 'patches/tk_patches'
@@ -42,7 +41,6 @@ module Truffle
       end
 
       add_gem_patches(PATCHED_FILES, ::JsonPatches::PATCHES)
-      add_gem_patches(PATCHED_FILES, ::NokogiriPatches::PATCHES)
       add_gem_patches(PATCHED_FILES, ::OCI8Patches::PATCHES)
       add_gem_patches(PATCHED_FILES, ::PgPatches::PATCHES)
       add_gem_patches(PATCHED_FILES, ::TkPatches::PATCHES)

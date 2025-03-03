@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2014, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -38,11 +38,11 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import org.jcodings.transcode.TranscoderDB;
-import org.jcodings.unicode.UnicodeCodeRange;
-import org.jcodings.unicode.UnicodeEncoding;
-import org.jcodings.util.CaseInsensitiveBytesHash;
-import org.jcodings.util.Hash;
+import org.graalvm.shadowed.org.jcodings.transcode.TranscoderDB;
+import org.graalvm.shadowed.org.jcodings.unicode.UnicodeCodeRange;
+import org.graalvm.shadowed.org.jcodings.unicode.UnicodeEncoding;
+import org.graalvm.shadowed.org.jcodings.util.CaseInsensitiveBytesHash;
+import org.graalvm.shadowed.org.jcodings.util.Hash;
 
 import com.oracle.truffle.api.TruffleOptions;
 import org.truffleruby.core.string.StringUtils;

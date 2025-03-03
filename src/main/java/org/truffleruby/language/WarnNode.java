@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2016, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -11,9 +11,10 @@ package org.truffleruby.language;
 
 import com.oracle.truffle.api.dsl.NeverDefault;
 import com.oracle.truffle.api.nodes.DenyReplace;
-import com.oracle.truffle.api.nodes.NodeCost;
 import com.oracle.truffle.api.strings.TruffleString;
+import com.oracle.truffle.api.strings.TruffleString.FromJavaStringNode;
 import org.truffleruby.RubyContext;
+import org.truffleruby.RubyLanguage;
 import org.truffleruby.core.encoding.Encodings;
 import org.truffleruby.core.string.RubyString;
 import org.truffleruby.language.dispatch.DispatchNode;
@@ -39,8 +40,8 @@ public class WarnNode extends RubyBaseNode {
     }
 
     public boolean shouldWarn() {
-        final Object verbosity = readVerboseNode.execute();
-        return verbosity != nil;
+        final Object verbose = readVerboseNode.execute();
+        return verbose != nil;
     }
 
     public final boolean shouldWarnForDeprecation() {
@@ -61,20 +62,21 @@ public class WarnNode extends RubyBaseNode {
             callWarnNode = insert(DispatchNode.create());
         }
 
-        callWarn(getContext(), sourceSection, message, this, fromJavaStringNode, callWarnNode);
+        callWarn(getLanguage(), getContext(), sourceSection, message, this, fromJavaStringNode, callWarnNode);
     }
 
-    static void callWarn(RubyContext context, SourceSection sourceSection, String message, RubyBaseNode node,
-            TruffleString.FromJavaStringNode fromJavaStringNode, DispatchNode callWarnNode) {
-        final String warningMessage = buildWarningMessage(context, sourceSection, message);
+    static void callWarn(RubyLanguage language, RubyContext context, SourceSection sourceSection, String message,
+            RubyBaseNode node,
+            FromJavaStringNode fromJavaStringNode, DispatchNode callWarnNode) {
+        final String warningMessage = buildWarningMessage(language, sourceSection, message);
         final RubyString warningString = node.createString(fromJavaStringNode, warningMessage, Encodings.UTF_8);
 
         callWarnNode.call(context.getCoreLibrary().kernelModule, "warn", warningString);
     }
 
     @TruffleBoundary
-    private static String buildWarningMessage(RubyContext context, SourceSection sourceSection, String message) {
-        final String sourceLocation = sourceSection != null ? context.fileLine(sourceSection) + ": " : "";
+    private static String buildWarningMessage(RubyLanguage language, SourceSection sourceSection, String message) {
+        final String sourceLocation = sourceSection != null ? language.fileLine(sourceSection) + ": " : "";
         return sourceLocation + "warning: " + message;
     }
 
@@ -85,14 +87,9 @@ public class WarnNode extends RubyBaseNode {
         public void warningMessage(SourceSection sourceSection, String message) {
             assert shouldWarn();
             WarnNode.callWarn(
-                    getContext(), sourceSection, message, this,
+                    getLanguage(), getContext(), sourceSection, message, this,
                     TruffleString.FromJavaStringNode.getUncached(),
                     DispatchNode.getUncached());
-        }
-
-        @Override
-        public NodeCost getCost() {
-            return NodeCost.MEGAMORPHIC;
         }
 
         @Override

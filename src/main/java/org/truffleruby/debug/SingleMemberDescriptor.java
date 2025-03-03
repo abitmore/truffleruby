@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2020, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -48,7 +48,7 @@ public final class SingleMemberDescriptor implements TruffleObject {
     @ExportMessage
     protected Object readMember(String member,
             @Cached InlinedBranchProfile errorProfile,
-            @Bind("$node") Node node) throws UnknownIdentifierException {
+            @Bind Node node) throws UnknownIdentifierException {
         if (isMemberReadable(member)) {
             return value;
         } else {

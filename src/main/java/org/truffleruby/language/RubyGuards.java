@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2013, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -10,11 +10,11 @@
 package org.truffleruby.language;
 
 import com.oracle.truffle.api.CompilerAsserts;
-import com.oracle.truffle.api.CompilerDirectives;
 import com.oracle.truffle.api.dsl.Cached;
 import com.oracle.truffle.api.dsl.Idempotent;
 import com.oracle.truffle.api.dsl.NeverDefault;
 import com.oracle.truffle.api.strings.TruffleString;
+import org.truffleruby.RubyContext;
 import org.truffleruby.core.CoreLibrary;
 import org.truffleruby.core.array.RubyArray;
 import org.truffleruby.core.encoding.RubyEncoding;
@@ -37,6 +37,7 @@ import org.truffleruby.core.support.RubyIO;
 import org.truffleruby.core.symbol.RubySymbol;
 import org.truffleruby.interop.ToJavaStringNode;
 import org.truffleruby.language.arguments.ArgumentsDescriptor;
+import org.truffleruby.language.control.RaiseException;
 
 public abstract class RubyGuards {
 
@@ -260,7 +261,9 @@ public abstract class RubyGuards {
         } else if (rubyString instanceof ImmutableRubyString) {
             return ((ImmutableRubyString) rubyString).asTruffleStringUncached();
         } else {
-            throw CompilerDirectives.shouldNotReachHere(rubyString.getClass().getName());
+            var context = RubyContext.get(null);
+            throw new RaiseException(context,
+                    context.getCoreExceptions().typeErrorNoImplicitConversion(rubyString, "String", null));
         }
     }
 
@@ -274,7 +277,9 @@ public abstract class RubyGuards {
         } else if (rubyString instanceof ImmutableRubyString) {
             return ((ImmutableRubyString) rubyString).getJavaString();
         } else {
-            throw CompilerDirectives.shouldNotReachHere(rubyString.getClass().getName());
+            var context = RubyContext.get(null);
+            throw new RaiseException(context,
+                    context.getCoreExceptions().typeErrorNoImplicitConversion(rubyString, "String", null));
         }
     }
 

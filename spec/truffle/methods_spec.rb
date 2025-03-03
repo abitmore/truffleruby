@@ -1,4 +1,4 @@
-# Copyright (c) 2017, 2024 Oracle and/or its affiliates. All rights reserved. This
+# Copyright (c) 2017, 2025 Oracle and/or its affiliates. All rights reserved. This
 # code is released under a tri EPL/GPL/LGPL license. You can use it,
 # redistribute it and/or modify it under the terms of the:
 #
@@ -21,12 +21,13 @@ require_relative '../ruby/spec_helper'
 # m1=ObjectSpace.each_object(Module).to_a; require "socket"; m2=ObjectSpace.each_object(Module).to_a; p m2-m1
 
 modules = %w[
-  Array BasicObject Binding Class Complex Complex Dir ENV.singleton_class
+  Array BasicObject Binding Class Complex Complex Data Dir ENV.singleton_class
   Encoding Enumerable Enumerator Enumerator::Lazy Exception FalseClass Fiber
   File FileTest Float GC GC.singleton_class Hash IO Integer Kernel Marshal MatchData Math Method
-  Module Mutex NilClass Numeric Object ObjectSpace Proc Process Process.singleton_class Queue Random
+  Module Mutex NilClass Numeric Object ObjectSpace ObjectSpace::WeakKeyMap ObjectSpace::WeakMap
+  Proc Process Process.singleton_class Queue Random
   Random::Formatter Random.singleton_class Range Rational Regexp Signal
-  SizedQueue String Struct Symbol SystemExit Thread TracePoint TrueClass
+  SizedQueue String Struct Symbol SystemExit Thread Time TracePoint TrueClass
   UnboundMethod Warning
 
   Digest Digest.singleton_class

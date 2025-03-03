@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2022, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -12,8 +12,8 @@ package org.truffleruby.parser;
 import com.oracle.truffle.api.CompilerDirectives;
 import com.oracle.truffle.api.nodes.NodeUtil;
 import com.oracle.truffle.api.strings.TruffleString;
-import org.jcodings.specific.EUCJPEncoding;
-import org.jcodings.specific.Windows_31JEncoding;
+import org.graalvm.shadowed.org.jcodings.specific.EUCJPEncoding;
+import org.graalvm.shadowed.org.jcodings.specific.Windows_31JEncoding;
 import org.truffleruby.RubyContext;
 import org.truffleruby.RubyLanguage;
 import org.truffleruby.annotations.Split;
@@ -42,12 +42,11 @@ import org.truffleruby.core.range.RangeNodesFactory;
 import org.truffleruby.core.range.RubyIntRange;
 import org.truffleruby.core.range.RubyLongRange;
 import org.truffleruby.core.regexp.ClassicRegexp;
-import org.truffleruby.core.regexp.InterpolatedRegexpNode;
+import org.truffleruby.core.regexp.InterpolatedRegexpNodeGen;
 import org.truffleruby.core.regexp.MatchDataNodes;
 import org.truffleruby.core.regexp.RegexpOptions;
 import org.truffleruby.core.regexp.RubyRegexp;
 import org.truffleruby.core.rescue.AssignRescueVariableNode;
-import org.truffleruby.core.string.ConvertBytes;
 import org.truffleruby.core.string.FrozenStrings;
 import org.truffleruby.core.string.ImmutableRubyString;
 import org.truffleruby.core.string.InterpolatedStringNode;
@@ -62,7 +61,7 @@ import org.truffleruby.language.RubyNode;
 import org.truffleruby.language.RubyRootNode;
 import org.truffleruby.language.RubyTopLevelRootNode;
 import org.truffleruby.language.arguments.ArgumentsDescriptor;
-import org.truffleruby.language.arguments.KeywordArgumentsDescriptorManager;
+import org.truffleruby.language.arguments.KeywordArgumentsDescriptor;
 import org.truffleruby.language.arguments.NoKeywordArgumentsDescriptor;
 import org.truffleruby.language.arguments.ProfileArgumentNodeGen;
 import org.truffleruby.language.arguments.ReadSelfNode;
@@ -176,6 +175,9 @@ public class YARPTranslator extends YARPBaseTranslator {
     public static final RescueNode[] EMPTY_RESCUE_NODE_ARRAY = new RescueNode[0];
 
     public Deque<Integer> frameOnStackMarkerSlotStack = new ArrayDeque<>();
+
+    protected RubyDeferredWarnings rubyWarnings;
+
     /** whether a while-loop body is translated; needed to check correctness of operators like break/next/etc */
     private boolean translatingWhile = false;
     /** whether a for-loop body is translated; needed to enforce variables in the for-loop body to be declared outside
@@ -199,8 +201,9 @@ public class YARPTranslator extends YARPBaseTranslator {
     /** all the encountered BEGIN {} blocks; they will be added finally at the beginning of the program AST */
     private final ArrayList<RubyNode> beginBlocks = new ArrayList<>();
 
-    public YARPTranslator(TranslatorEnvironment environment) {
+    public YARPTranslator(TranslatorEnvironment environment, RubyDeferredWarnings rubyWarnings) {
         super(environment);
+        this.rubyWarnings = rubyWarnings;
     }
 
     public RubyNode[] getBeginBlocks() {
@@ -401,7 +404,7 @@ public class YARPTranslator extends YARPBaseTranslator {
                     rescueNodes.add(rescueNode);
                 }
 
-                rescueClause = rescueClause.consequent;
+                rescueClause = rescueClause.subsequent;
             }
 
             RubyNode elsePart;
@@ -490,11 +493,12 @@ public class YARPTranslator extends YARPBaseTranslator {
 
             for (int i = 1; i <= maximum; i++) {
                 String name = numberedParameterNames[i];
-                requireds[i - 1] = new Nodes.RequiredParameterNode(NO_FLAGS, name, 0, 0);
+                requireds[i - 1] = new Nodes.RequiredParameterNode(0, 0, NO_FLAGS, name);
             }
 
-            parameters = new Nodes.ParametersNode(requireds, EMPTY_NODE_ARRAY, null, EMPTY_NODE_ARRAY,
-                    EMPTY_NODE_ARRAY, null, null, 0, 0);
+            parameters = new Nodes.ParametersNode(0, 0, requireds, EMPTY_OPTIONAL_PARAMETER_NODE_ARRAY, null,
+                    EMPTY_NODE_ARRAY,
+                    EMPTY_NODE_ARRAY, null, null);
         } else if (parametersNode == null) {
             parameters = ZERO_PARAMETERS_NODE;
         } else {
@@ -537,7 +541,9 @@ public class YARPTranslator extends YARPBaseTranslator {
 
         final YARPBlockNodeTranslator methodCompiler = new YARPBlockNodeTranslator(
                 newEnvironment,
-                arity);
+                arity,
+                parameters.block != null,
+                rubyWarnings);
 
         methodCompiler.frameOnStackMarkerSlotStack = frameOnStackMarkerSlotStack;
 
@@ -674,7 +680,7 @@ public class YARPTranslator extends YARPBaseTranslator {
             if (translatedArguments.length != constructor.getPrimitiveArity()) {
                 throw new Error(
                         "Incorrect number of arguments (expected " + constructor.getPrimitiveArity() + ") at " +
-                                RubyLanguage.getCurrentContext().fileLine(getSourceSection(node)));
+                                language.fileLine(getSourceSection(node)));
             }
 
             final RubyNode invokePrimitiveNode = constructor.createInvokePrimitiveNode(translatedArguments);
@@ -731,12 +737,12 @@ public class YARPTranslator extends YARPBaseTranslator {
 
         if (isForwardArguments) {
             // use depth = 0 as far as it's ignored
-            final var readRest = new Nodes.LocalVariableReadNode(FORWARDED_REST_NAME, 0, 0, 0);
-            final var readKeyRest = new Nodes.LocalVariableReadNode(FORWARDED_KEYWORD_REST_NAME, 0, 0, 0);
+            final var readRest = new Nodes.LocalVariableReadNode(0, 0, FORWARDED_REST_NAME, 0);
+            final var readKeyRest = new Nodes.LocalVariableReadNode(0, 0, FORWARDED_KEYWORD_REST_NAME, 0);
 
-            final var splat = new Nodes.SplatNode(readRest, 0, 0);
-            final var keywordHash = new Nodes.KeywordHashNode((short) 0,
-                    new Nodes.Node[]{ new Nodes.AssocSplatNode(readKeyRest, 0, 0) }, 0, 0);
+            final var splat = new Nodes.SplatNode(0, 0, readRest);
+            final var keywordHash = new Nodes.KeywordHashNode(0, 0, (short) 0,
+                    new Nodes.Node[]{ new Nodes.AssocSplatNode(0, 0, readKeyRest) });
 
             // replace '...' argument with rest and keyrest arguments
             final var forwarding = new Nodes.Node[arguments.length + 1];
@@ -786,7 +792,7 @@ public class YARPTranslator extends YARPBaseTranslator {
         } else if (isForwardArguments) {
             // a(...)
             // use depth = 0 as far as it's ignored
-            final var readBlock = new Nodes.LocalVariableReadNode(FORWARDED_BLOCK_NAME, 0, 0, 0);
+            final var readBlock = new Nodes.LocalVariableReadNode(0, 0, FORWARDED_BLOCK_NAME, 0);
             final var readBlockNode = readBlock.accept(this);
             blockNode = ToProcNodeGen.create(readBlockNode);
             frameOnStackMarkerSlot = NO_FRAME_ON_STACK_MARKER;
@@ -805,16 +811,13 @@ public class YARPTranslator extends YARPBaseTranslator {
             return NoKeywordArgumentsDescriptor.INSTANCE;
         }
 
-        // Fast path.
-        // Keyword arguments definitely present in method call arguments if the last argument is
-        // either a Hash or `...`.
+        // fast path to compute the descriptor without looking at all arguments
         Nodes.Node last = ArrayUtils.getLast(arguments);
-
+        // if `...` then we know there are no literal keyword arguments, only **kwrest
         if (last instanceof Nodes.ForwardingArgumentsNode) {
-            return language.keywordArgumentsDescriptorManager
-                    .getArgumentsDescriptor(StringUtils.EMPTY_STRING_ARRAY);
+            return KeywordArgumentsDescriptor.EMPTY;
         }
-
+        // if there are no keywords the descriptor is NoKeywordArgumentsDescriptor.INSTANCE
         if (!(last instanceof Nodes.KeywordHashNode keywords)) {
             return NoKeywordArgumentsDescriptor.INSTANCE;
         }
@@ -865,7 +868,7 @@ public class YARPTranslator extends YARPBaseTranslator {
         short readFlags = (short) (node.flags & ~Nodes.CallNodeFlags.SAFE_NAVIGATION);
 
         final Nodes.Node read = callNode(node, readFlags, readReceiver, node.read_name, Nodes.Node.EMPTY_ARRAY);
-        final Nodes.Node executeOperator = callNode(node, read, node.operator, node.value);
+        final Nodes.Node executeOperator = callNode(node, read, node.binary_operator, node.value);
         final Nodes.Node write = callNode(node, writeFlags, readReceiver, node.write_name,
                 executeOperator);
         final RubyNode writeNode = write.accept(this);
@@ -937,14 +940,14 @@ public class YARPTranslator extends YARPBaseTranslator {
         assert node.name.endsWith("=");
 
         final Nodes.Node[] arguments = { new Nodes.NilNode(0, 0) };
-        final var argumentsNode = new Nodes.ArgumentsNode(NO_FLAGS, arguments, 0, 0);
+        final var argumentsNode = new Nodes.ArgumentsNode(0, 0, NO_FLAGS, arguments);
 
         // Prism doesn't set ATTRIBUTE_WRITE flag, so we should add it manually
         // but preserve original flags because Prism may set them, e.g. SAFE_NAVIGATION flag
         short flags = (short) (node.flags | Nodes.CallNodeFlags.ATTRIBUTE_WRITE);
 
-        final var callNode = new Nodes.CallNode(flags, node.receiver, node.name, argumentsNode, null,
-                node.startOffset, node.length);
+        final var callNode = new Nodes.CallNode(node.startOffset, node.length, flags, node.receiver, node.name,
+                argumentsNode, null);
         return callNode.accept(this);
     }
 
@@ -966,14 +969,14 @@ public class YARPTranslator extends YARPBaseTranslator {
          * others in its else clause. */
 
         RubyNode elseNode;
-        if (node.consequent == null) {
+        if (node.else_clause == null) {
             elseNode = NoMatchingPatternNodeGen.create(readPredicateNode);
         } else {
-            elseNode = node.consequent.accept(this);
+            elseNode = node.else_clause.accept(this);
         }
 
         for (int n = node.conditions.length - 1; n >= 0; n--) {
-            Nodes.InNode inNode = (Nodes.InNode) node.conditions[n];
+            Nodes.InNode inNode = node.conditions[n];
             Nodes.Node patternNode = inNode.pattern;
 
             final RubyNode conditionNode = translator.translatePatternNode(patternNode, readPredicateNode);
@@ -1011,17 +1014,13 @@ public class YARPTranslator extends YARPBaseTranslator {
 
             // Build an if expression from `when` and `else` branches.
             // Work backwards to make the first if contain all the others in its `else` clause.
-            RubyNode elseNode = translateNodeOrNil(node.consequent);
+            RubyNode elseNode = translateNodeOrNil(node.else_clause);
 
-            final Nodes.Node[] conditions = node.conditions;
+            final Nodes.WhenNode[] whenNodes = node.conditions;
 
-            for (int n = conditions.length - 1; n >= 0; n--) {
-                // condition is either WhenNode or InNode
-                // don't handle InNode for now
-                assert conditions[n] instanceof Nodes.WhenNode;
-
-                final Nodes.WhenNode when = (Nodes.WhenNode) conditions[n];
-                final Nodes.Node[] whenConditions = when.conditions;
+            for (int n = whenNodes.length - 1; n >= 0; n--) {
+                final Nodes.WhenNode whenNode = whenNodes[n];
+                final Nodes.Node[] whenConditions = whenNode.conditions;
                 boolean containSplatOperator = containYARPSplatNode(whenConditions);
 
                 if (containSplatOperator) {
@@ -1033,7 +1032,7 @@ public class YARPTranslator extends YARPBaseTranslator {
                     final RubyNode predicateNode = createCallNode(receiver, "when_splat", arguments);
 
                     // create `if` node
-                    final RubyNode thenNode = translateNodeOrNil(when.statements);
+                    final RubyNode thenNode = translateNodeOrNil(whenNode.statements);
                     final IfElseNode ifNode = IfElseNodeGen.create(predicateNode, thenNode, elseNode);
 
                     // this `if` becomes `else` branch of the outer `if`
@@ -1060,7 +1059,7 @@ public class YARPTranslator extends YARPBaseTranslator {
                     }
 
                     // create `if` node
-                    final RubyNode thenNode = translateNodeOrNil(when.statements);
+                    final RubyNode thenNode = translateNodeOrNil(whenNode.statements);
                     final IfElseNode ifNode = IfElseNodeGen.create(predicateNode, thenNode, elseNode);
 
                     // this `if` becomes `else` branch of the outer `if`
@@ -1078,17 +1077,13 @@ public class YARPTranslator extends YARPBaseTranslator {
             // Build an if expression from `when` and `else` branches.
             // Work backwards to make the first if contain all the others in its `else` clause.
 
-            RubyNode elseNode = translateNodeOrNil(node.consequent);
+            RubyNode elseNode = translateNodeOrNil(node.else_clause);
 
-            final Nodes.Node[] conditions = node.conditions;
+            final Nodes.WhenNode[] whenNodes = node.conditions;
 
             for (int n = node.conditions.length - 1; n >= 0; n--) {
-                // condition is either WhenNode or InNode
-                // don't handle InNode for now
-                assert conditions[n] instanceof Nodes.WhenNode;
-
-                final Nodes.WhenNode when = (Nodes.WhenNode) conditions[n];
-                final Nodes.Node[] whenConditions = when.conditions;
+                final Nodes.WhenNode whenNode = whenNodes[n];
+                final Nodes.Node[] whenConditions = whenNode.conditions;
                 boolean containSplatOperator = containYARPSplatNode(whenConditions);
 
                 if (!containSplatOperator) {
@@ -1111,7 +1106,7 @@ public class YARPTranslator extends YARPBaseTranslator {
                     }
 
                     // create `if` node
-                    final RubyNode thenNode = translateNodeOrNil(when.statements);
+                    final RubyNode thenNode = translateNodeOrNil(whenNode.statements);
                     final IfElseNode ifNode = IfElseNodeGen.create(predicateNode, thenNode, elseNode);
 
                     // this `if` becomes `else` branch of the outer `if`
@@ -1125,7 +1120,7 @@ public class YARPTranslator extends YARPBaseTranslator {
                     final RubyNode predicateNode = createCallNode(receiver, "any?", RubyNode.EMPTY_ARRAY);
 
                     // create `if` node
-                    final RubyNode thenNode = translateNodeOrNil(when.statements);
+                    final RubyNode thenNode = translateNodeOrNil(whenNode.statements);
                     final IfElseNode ifNode = IfElseNodeGen.create(predicateNode, thenNode, elseNode);
 
                     // this `if` becomes `else` branch of the outer `if`
@@ -1173,8 +1168,8 @@ public class YARPTranslator extends YARPBaseTranslator {
         int startOffset = node.startOffset;
         int length = node.length;
 
-        var writeNode = new Nodes.ClassVariableWriteNode(node.name, node.value, startOffset, length).accept(this);
-        var readNode = new Nodes.ClassVariableReadNode(node.name, startOffset, length).accept(this);
+        var writeNode = new Nodes.ClassVariableWriteNode(startOffset, length, node.name, node.value).accept(this);
+        var readNode = new Nodes.ClassVariableReadNode(startOffset, length, node.name).accept(this);
         var andNode = AndNodeGen.create(readNode, writeNode);
 
         // defined?(@@a &&= b) should return 'assignment'
@@ -1190,9 +1185,9 @@ public class YARPTranslator extends YARPBaseTranslator {
         int startOffset = node.startOffset;
         int length = node.length;
 
-        var readNode = new Nodes.ClassVariableReadNode(node.name, startOffset, length);
-        var desugared = new Nodes.ClassVariableWriteNode(node.name,
-                callNode(node, readNode, node.operator, node.value), startOffset, length);
+        var readNode = new Nodes.ClassVariableReadNode(startOffset, length, node.name);
+        var desugared = new Nodes.ClassVariableWriteNode(startOffset, length, node.name,
+                callNode(node, readNode, node.binary_operator, node.value));
         return desugared.accept(this);
     }
 
@@ -1204,8 +1199,8 @@ public class YARPTranslator extends YARPBaseTranslator {
         int startOffset = node.startOffset;
         int length = node.length;
 
-        var writeNode = new Nodes.ClassVariableWriteNode(node.name, node.value, startOffset, length).accept(this);
-        var readNode = new Nodes.ClassVariableReadNode(node.name, startOffset, length).accept(this);
+        var writeNode = new Nodes.ClassVariableWriteNode(startOffset, length, node.name, node.value).accept(this);
+        var readNode = new Nodes.ClassVariableReadNode(startOffset, length, node.name).accept(this);
         var andNode = AndNodeGen.create(new DefinedNode(readNode), readNode);
 
         final RubyNode rubyNode = OrLazyValueDefinedNodeGen.create(andNode, writeNode);
@@ -1250,8 +1245,8 @@ public class YARPTranslator extends YARPBaseTranslator {
         int startOffset = node.startOffset;
         int length = node.length;
 
-        var readNode = new Nodes.ConstantReadNode(node.name, startOffset, length).accept(this);
-        var writeNode = new Nodes.ConstantWriteNode(node.name, node.value, startOffset, length).accept(this);
+        var readNode = new Nodes.ConstantReadNode(startOffset, length, node.name).accept(this);
+        var writeNode = new Nodes.ConstantWriteNode(startOffset, length, node.name, node.value).accept(this);
         final RubyNode andNode = AndNodeGen.create(readNode, writeNode);
 
         // defined?(A &&= value) should return 'assignment'
@@ -1268,9 +1263,9 @@ public class YARPTranslator extends YARPBaseTranslator {
         int length = node.length;
 
         // Use Nodes.CallNode and translate it to produce inlined operator nodes
-        final var readNode = new Nodes.ConstantReadNode(node.name, startOffset, length);
-        final var operatorNode = callNode(node, readNode, node.operator, node.value);
-        final var writeNode = new Nodes.ConstantWriteNode(node.name, operatorNode, startOffset, length);
+        final var readNode = new Nodes.ConstantReadNode(startOffset, length, node.name);
+        final var operatorNode = callNode(node, readNode, node.binary_operator, node.value);
+        final var writeNode = new Nodes.ConstantWriteNode(startOffset, length, node.name, operatorNode);
 
         return writeNode.accept(this);
     }
@@ -1283,8 +1278,8 @@ public class YARPTranslator extends YARPBaseTranslator {
         int startOffset = node.startOffset;
         int length = node.length;
 
-        var writeNode = new Nodes.ConstantWriteNode(node.name, node.value, startOffset, length).accept(this);
-        var readNode = new Nodes.ConstantReadNode(node.name, startOffset, length).accept(this);
+        var writeNode = new Nodes.ConstantWriteNode(startOffset, length, node.name, node.value).accept(this);
+        var readNode = new Nodes.ConstantReadNode(startOffset, length, node.name).accept(this);
         var andNode = AndNodeGen.create(new DefinedNode(readNode), readNode);
 
         final RubyNode rubyNode = OrLazyValueDefinedNodeGen.create(andNode, writeNode);
@@ -1304,8 +1299,8 @@ public class YARPTranslator extends YARPBaseTranslator {
             // A::B &&= 1
             var parentExpression = new YARPExecutedOnceExpression("value", node.target.parent, this);
             Nodes.Node readParent = parentExpression.getReadYARPNode();
-            target = new Nodes.ConstantPathNode(readParent, node.target.child, node.target.startOffset,
-                    node.target.length);
+            target = new Nodes.ConstantPathNode(node.target.startOffset,
+                    node.target.length, readParent, node.target.name);
 
             writeParentNode = parentExpression.getWriteNode();
         } else {
@@ -1335,12 +1330,6 @@ public class YARPTranslator extends YARPBaseTranslator {
 
     @Override
     public RubyNode visitConstantPathNode(Nodes.ConstantPathNode node) {
-        // The child field should always be ConstantReadNode if there are no syntax errors.
-        // MissingNode could be assigned as well as an error recovery means,
-        // but we don't handle this case as far as it means there is a syntax error and translation is skipped at all.
-        assert node.child instanceof Nodes.ConstantReadNode;
-
-        final String name = ((Nodes.ConstantReadNode) node.child).name;
         final RubyNode moduleNode;
 
         if (node.parent != null) {
@@ -1351,7 +1340,7 @@ public class YARPTranslator extends YARPBaseTranslator {
             moduleNode = new ObjectClassLiteralNode();
         }
 
-        final RubyNode rubyNode = new ReadConstantNode(moduleNode, name);
+        final RubyNode rubyNode = new ReadConstantNode(moduleNode, node.name);
 
         return assignPositionAndFlags(node, rubyNode);
     }
@@ -1369,8 +1358,8 @@ public class YARPTranslator extends YARPBaseTranslator {
             // A::B += 1
             var parentExpression = new YARPExecutedOnceExpression("value", node.target.parent, this);
             Nodes.Node readParent = parentExpression.getReadYARPNode();
-            target = new Nodes.ConstantPathNode(readParent, node.target.child, node.target.startOffset,
-                    node.target.length);
+            target = new Nodes.ConstantPathNode(node.target.startOffset,
+                    node.target.length, readParent, node.target.name);
 
             writeParentNode = parentExpression.getWriteNode();
         } else {
@@ -1383,8 +1372,8 @@ public class YARPTranslator extends YARPBaseTranslator {
         int length = node.length;
 
         // Use Nodes.CallNode and translate it to produce inlined operator nodes
-        final var operatorNode = callNode(node, target, node.operator, node.value);
-        final var writeNode = new Nodes.ConstantPathWriteNode(target, operatorNode, startOffset, length);
+        final var operatorNode = callNode(node, target, node.binary_operator, node.value);
+        final var writeNode = new Nodes.ConstantPathWriteNode(startOffset, length, target, operatorNode);
 
         final RubyNode rubyNode;
 
@@ -1414,8 +1403,8 @@ public class YARPTranslator extends YARPBaseTranslator {
             // A::B ||= 1
             var parentExpression = new YARPExecutedOnceExpression("value", node.target.parent, this);
             Nodes.Node readParent = parentExpression.getReadYARPNode();
-            target = new Nodes.ConstantPathNode(readParent, node.target.child, node.target.startOffset,
-                    node.target.length);
+            target = new Nodes.ConstantPathNode(node.target.startOffset,
+                    node.target.length, readParent, node.target.name);
 
             writeParentNode = parentExpression.getWriteNode();
         } else {
@@ -1457,9 +1446,8 @@ public class YARPTranslator extends YARPBaseTranslator {
             moduleNode = new ObjectClassLiteralNode();
         }
 
-        final String name = ((Nodes.ConstantReadNode) constantPathNode.child).name;
         final RubyNode value = node.value.accept(this);
-        final RubyNode rubyNode = new WriteConstantNode(name, moduleNode, value);
+        final RubyNode rubyNode = new WriteConstantNode(constantPathNode.name, moduleNode, value);
 
         return assignPositionAndFlags(node, rubyNode);
     }
@@ -1475,9 +1463,7 @@ public class YARPTranslator extends YARPBaseTranslator {
             moduleNode = new ObjectClassLiteralNode();
         }
 
-        final String name = ((Nodes.ConstantReadNode) node.child).name;
-        final RubyNode rubyNode = new WriteConstantNode(name, moduleNode, null);
-
+        final RubyNode rubyNode = new WriteConstantNode(node.name, moduleNode, null);
         return assignPositionAndFlags(node, rubyNode);
     }
 
@@ -1487,8 +1473,8 @@ public class YARPTranslator extends YARPBaseTranslator {
 
         if (environment.isDynamicConstantLookup()) {
             if (language.options.LOG_DYNAMIC_CONSTANT_LOOKUP) {
-                RubyLanguage.LOGGER.info(() -> "dynamic constant lookup at " +
-                        RubyLanguage.getCurrentContext().fileLine(getSourceSection(node)));
+                RubyLanguage.LOGGER
+                        .info(() -> "dynamic constant lookup at " + language.fileLine(getSourceSection(node)));
             }
 
             rubyNode = new ReadConstantWithDynamicScopeNode(node.name);
@@ -1568,7 +1554,8 @@ public class YARPTranslator extends YARPBaseTranslator {
 
         final var defNodeTranslator = new YARPDefNodeTranslator(
                 language,
-                newEnvironment);
+                newEnvironment,
+                rubyWarnings);
         var callTargetSupplier = defNodeTranslator.buildMethodNodeCompiler(node, parameters, arity);
 
         final boolean isDefSingleton = singletonClassNode != null;
@@ -1715,36 +1702,38 @@ public class YARPTranslator extends YARPBaseTranslator {
     public RubyNode visitForNode(Nodes.ForNode node) {
         final String parameterName = environment.allocateLocalTemp("for");
 
-        final var requireds = new Nodes.Node[]{ new Nodes.RequiredParameterNode(NO_FLAGS, parameterName, 0, 0) };
-        final var parameters = new Nodes.ParametersNode(requireds, Nodes.Node.EMPTY_ARRAY, null, Nodes.Node.EMPTY_ARRAY,
-                Nodes.Node.EMPTY_ARRAY, null, null, 0, 0);
-        final var blockParameters = new Nodes.BlockParametersNode(parameters, Nodes.Node.EMPTY_ARRAY, 0, 0);
+        final var requireds = new Nodes.Node[]{ new Nodes.RequiredParameterNode(0, 0, NO_FLAGS, parameterName) };
+        final var parameters = new Nodes.ParametersNode(0, 0, requireds, EMPTY_OPTIONAL_PARAMETER_NODE_ARRAY, null,
+                Nodes.Node.EMPTY_ARRAY,
+                Nodes.Node.EMPTY_ARRAY, null, null);
+        final var blockParameters = new Nodes.BlockParametersNode(0, 0, parameters,
+                EMPTY_BLOCK_LOCAL_VARIABLE_NODE_ARRAY);
 
-        final var readParameter = new Nodes.LocalVariableReadNode(parameterName, 0, 0, 0);
+        final var readParameter = new Nodes.LocalVariableReadNode(0, 0, parameterName, 0);
         final Nodes.Node writeIndex;
 
         // replace -Target node with a -Write one
         if (node.index instanceof Nodes.LocalVariableTargetNode target) {
-            writeIndex = new Nodes.LocalVariableWriteNode(target.name, target.depth, readParameter, 0, 0);
+            writeIndex = new Nodes.LocalVariableWriteNode(0, 0, target.name, target.depth, readParameter);
         } else if (node.index instanceof Nodes.InstanceVariableTargetNode target) {
-            writeIndex = new Nodes.InstanceVariableWriteNode(target.name, readParameter, 0, 0);
+            writeIndex = new Nodes.InstanceVariableWriteNode(0, 0, target.name, readParameter);
         } else if (node.index instanceof Nodes.ClassVariableTargetNode target) {
-            writeIndex = new Nodes.ClassVariableWriteNode(target.name, readParameter, 0, 0);
+            writeIndex = new Nodes.ClassVariableWriteNode(0, 0, target.name, readParameter);
         } else if (node.index instanceof Nodes.GlobalVariableTargetNode target) {
-            writeIndex = new Nodes.GlobalVariableWriteNode(target.name, readParameter, 0, 0);
+            writeIndex = new Nodes.GlobalVariableWriteNode(0, 0, target.name, readParameter);
         } else if (node.index instanceof Nodes.ConstantTargetNode target) {
-            writeIndex = new Nodes.ConstantWriteNode(target.name, readParameter, 0, 0);
+            writeIndex = new Nodes.ConstantWriteNode(0, 0, target.name, readParameter);
         } else if (node.index instanceof Nodes.ConstantPathTargetNode target) {
-            final var constantPath = new Nodes.ConstantPathNode(target.parent, target.child, 0, 0);
-            writeIndex = new Nodes.ConstantPathWriteNode(constantPath, readParameter, 0, 0);
+            final var constantPath = new Nodes.ConstantPathNode(0, 0, target.parent, target.name);
+            writeIndex = new Nodes.ConstantPathWriteNode(0, 0, constantPath, readParameter);
         } else if (node.index instanceof Nodes.CallTargetNode target) {
-            final var arguments = new Nodes.ArgumentsNode(NO_FLAGS, new Nodes.Node[]{ readParameter }, 0, 0);
+            final var arguments = new Nodes.ArgumentsNode(0, 0, NO_FLAGS, new Nodes.Node[]{ readParameter });
 
             // Prism doesn't set ATTRIBUTE_WRITE flag, so we should add it manually
             // but preserve original flags because Prism may set them, e.g. SAFE_NAVIGATION flag
             short flags = (short) (target.flags | Nodes.CallNodeFlags.ATTRIBUTE_WRITE);
 
-            writeIndex = new Nodes.CallNode(flags, target.receiver, target.name, arguments, null, 0, 0);
+            writeIndex = new Nodes.CallNode(0, 0, flags, target.receiver, target.name, arguments, null);
         } else if (node.index instanceof Nodes.IndexTargetNode target) {
             final Nodes.ArgumentsNode arguments;
             final Nodes.Node[] statements;
@@ -1757,11 +1746,11 @@ public class YARPTranslator extends YARPBaseTranslator {
             }
 
             statements[statements.length - 1] = readParameter;
-            arguments = new Nodes.ArgumentsNode(NO_FLAGS, statements, 0, 0);
+            arguments = new Nodes.ArgumentsNode(0, 0, NO_FLAGS, statements);
 
-            writeIndex = new Nodes.CallNode(target.flags, target.receiver, "[]=", arguments, target.block, 0, 0);
+            writeIndex = new Nodes.CallNode(0, 0, target.flags, target.receiver, "[]=", arguments, target.block);
         } else if (node.index instanceof Nodes.MultiTargetNode target) {
-            writeIndex = new Nodes.MultiWriteNode(target.lefts, target.rest, target.rights, readParameter, 0, 0);
+            writeIndex = new Nodes.MultiWriteNode(0, 0, target.lefts, target.rest, target.rights, readParameter);
         } else {
             throw CompilerDirectives.shouldNotReachHere("Unexpected node class for for-loop index");
         }
@@ -1775,19 +1764,19 @@ public class YARPTranslator extends YARPBaseTranslator {
             statements[0] = writeIndex;
             System.arraycopy(node.statements.body, 0, statements, 1, node.statements.body.length);
 
-            body = new Nodes.StatementsNode(statements, bodyStartOffset, bodyLength);
+            body = new Nodes.StatementsNode(bodyStartOffset, bodyLength, statements);
         } else {
             // for loop with empty body
             var statements = new Nodes.Node[]{ writeIndex };
-            body = new Nodes.StatementsNode(statements, bodyStartOffset, bodyLength);
+            body = new Nodes.StatementsNode(bodyStartOffset, bodyLength, statements);
         }
 
         // in the block environment declare local variable only for parameter
         // and skip declaration all the local variables defined in the block
         String[] locals = new String[]{ parameterName };
-        final var block = new Nodes.BlockNode(locals, blockParameters, body, bodyStartOffset, bodyLength);
-        final var eachCall = new Nodes.CallNode(NO_FLAGS, node.collection, "each", null, block, node.startOffset,
-                node.length);
+        final var block = new Nodes.BlockNode(bodyStartOffset, bodyLength, locals, blockParameters, body);
+        final var eachCall = new Nodes.CallNode(node.startOffset,
+                node.length, NO_FLAGS, node.collection, "each", null, block);
 
         final RubyNode rubyNode;
         final boolean translatingForStatement = this.translatingForStatement;
@@ -1844,7 +1833,7 @@ public class YARPTranslator extends YARPBaseTranslator {
         final RubyNode[] reloadSequence = reloadTranslator.reload(parametersNode);
 
         var descriptor = (parametersNode.keywords.length > 0 || parametersNode.keyword_rest != null)
-                ? KeywordArgumentsDescriptorManager.EMPTY
+                ? KeywordArgumentsDescriptor.EMPTY
                 : NoKeywordArgumentsDescriptor.INSTANCE;
         final int restParamIndex = reloadTranslator.getRestParameterIndex();
         final RubyNode arguments = new ReadZSuperArgumentsNode(restParamIndex, reloadSequence);
@@ -1865,8 +1854,8 @@ public class YARPTranslator extends YARPBaseTranslator {
         int startOffset = node.startOffset;
         int length = node.length;
 
-        var writeNode = new Nodes.GlobalVariableWriteNode(node.name, node.value, startOffset, length).accept(this);
-        var readNode = new Nodes.GlobalVariableReadNode(node.name, startOffset, length).accept(this);
+        var writeNode = new Nodes.GlobalVariableWriteNode(startOffset, length, node.name, node.value).accept(this);
+        var readNode = new Nodes.GlobalVariableReadNode(startOffset, length, node.name).accept(this);
         var andNode = AndNodeGen.create(readNode, writeNode);
 
         // defined?($a ||= value) should return 'assignment'
@@ -1882,9 +1871,9 @@ public class YARPTranslator extends YARPBaseTranslator {
         int startOffset = node.startOffset;
         int length = node.length;
 
-        var readNode = new Nodes.GlobalVariableReadNode(node.name, startOffset, length);
-        var desugared = new Nodes.GlobalVariableWriteNode(node.name,
-                callNode(node, readNode, node.operator, node.value), startOffset, length);
+        var readNode = new Nodes.GlobalVariableReadNode(startOffset, length, node.name);
+        var desugared = new Nodes.GlobalVariableWriteNode(startOffset, length, node.name,
+                callNode(node, readNode, node.binary_operator, node.value));
         return desugared.accept(this);
     }
 
@@ -1896,8 +1885,8 @@ public class YARPTranslator extends YARPBaseTranslator {
         int startOffset = node.startOffset;
         int length = node.length;
 
-        var writeNode = new Nodes.GlobalVariableWriteNode(node.name, node.value, startOffset, length).accept(this);
-        var readNode = new Nodes.GlobalVariableReadNode(node.name, startOffset, length).accept(this);
+        var writeNode = new Nodes.GlobalVariableWriteNode(startOffset, length, node.name, node.value).accept(this);
+        var readNode = new Nodes.GlobalVariableReadNode(startOffset, length, node.name).accept(this);
         var definedCheck = AndNodeGen.create(new DefinedNode(readNode), readNode);
 
         final RubyNode rubyNode = OrLazyValueDefinedNodeGen.create(definedCheck, writeNode);
@@ -1970,20 +1959,22 @@ public class YARPTranslator extends YARPBaseTranslator {
 
                 keyValues.add(keyNode);
 
+                // when value is omitted, e.g. `a = 1; {a: }`
                 if (assocNode.value instanceof Nodes.ImplicitNode implicit) {
                     if (implicit.value instanceof Nodes.CallNode call) {
+                        // a special case for a method call because
                         // Prism doesn't set VARIABLE_CALL flag
                         int flags = call.flags | Nodes.CallNodeFlags.VARIABLE_CALL;
-                        final var copy = new Nodes.CallNode((short) flags, call.receiver, call.name, call.arguments,
-                                call.block, call.startOffset, call.length);
+                        final var copy = new Nodes.CallNode(call.startOffset, call.length, (short) flags, call.receiver,
+                                call.name, call.arguments,
+                                call.block);
 
                         final RubyNode valueNode = copy.accept(this);
                         keyValues.add(valueNode);
-                    } else if (implicit.value instanceof Nodes.LocalVariableReadNode localVariableRead) {
-                        final RubyNode valueNode = localVariableRead.accept(this);
-                        keyValues.add(valueNode);
                     } else {
-                        throw CompilerDirectives.shouldNotReachHere();
+                        // expect here Nodes.LocalVariableReadNode or Nodes.ConstantReadNode
+                        final RubyNode valueNode = implicit.value.accept(this);
+                        keyValues.add(valueNode);
                     }
                 } else {
                     keyValues.add(assocNode.value.accept(this));
@@ -2016,7 +2007,7 @@ public class YARPTranslator extends YARPBaseTranslator {
     public RubyNode visitIfNode(Nodes.IfNode node) {
         final RubyNode conditionNode = node.predicate.accept(this);
         final RubyNode thenNode = node.statements == null ? null : node.statements.accept(this);
-        final RubyNode elseNode = node.consequent == null ? null : node.consequent.accept(this);
+        final RubyNode elseNode = node.subsequent == null ? null : node.subsequent.accept(this);
         final RubyNode rubyNode;
 
         if (thenNode != null && elseNode != null) {
@@ -2029,7 +2020,7 @@ public class YARPTranslator extends YARPBaseTranslator {
             rubyNode = UnlessNodeGen.create(conditionNode, elseNode);
             return assignPositionAndFlags(node, rubyNode);
         } else {
-            // empty then and else branches:
+            // when "then" and "else" branches are empty, e.g.
             //   if (condition)
             //   end
             return sequence(node, conditionNode, new NilLiteralNode());
@@ -2113,7 +2104,7 @@ public class YARPTranslator extends YARPBaseTranslator {
             writeBlockNode = expression.getWriteNode();
             Nodes.Node readBlock = expression.getReadYARPNode();
             // imitate Nodes.CallNode structure with &block argument
-            blockArgument = new Nodes.BlockArgumentNode(readBlock, 0, 0);
+            blockArgument = new Nodes.BlockArgumentNode(0, 0, readBlock);
         } else {
             writeBlockNode = null;
             blockArgument = null;
@@ -2127,17 +2118,17 @@ public class YARPTranslator extends YARPBaseTranslator {
             readArguments[i] = expression.getReadYARPNode();
         }
 
-        final Nodes.Node read = new Nodes.CallNode(node.flags, readReceiver, "[]",
-                new Nodes.ArgumentsNode(NO_FLAGS, readArguments, 0, 0), blockArgument, 0, 0);
-        final Nodes.Node executeOperator = callNode(node, read, node.operator, node.value);
+        final Nodes.Node read = new Nodes.CallNode(0, 0, node.flags, readReceiver, "[]",
+                new Nodes.ArgumentsNode(0, 0, NO_FLAGS, readArguments), blockArgument);
+        final Nodes.Node executeOperator = callNode(node, read, node.binary_operator, node.value);
 
         final Nodes.Node[] readArgumentsAndResult = new Nodes.Node[argumentsCount + 1];
         System.arraycopy(readArguments, 0, readArgumentsAndResult, 0, argumentsCount);
         readArgumentsAndResult[argumentsCount] = executeOperator;
 
         short writeFlags = (short) (node.flags | Nodes.CallNodeFlags.ATTRIBUTE_WRITE);
-        final Nodes.Node write = new Nodes.CallNode(writeFlags, readReceiver, "[]=",
-                new Nodes.ArgumentsNode(NO_FLAGS, readArgumentsAndResult, 0, 0), blockArgument, 0, 0);
+        final Nodes.Node write = new Nodes.CallNode(0, 0, writeFlags, readReceiver, "[]=",
+                new Nodes.ArgumentsNode(0, 0, NO_FLAGS, readArgumentsAndResult), blockArgument);
         final RubyNode writeNode = write.accept(this);
         final RubyNode writeArgumentsNode = sequence(writeArgumentsNodes);
         final RubyNode sequence;
@@ -2192,18 +2183,17 @@ public class YARPTranslator extends YARPBaseTranslator {
 
         // arguments
         if (node.arguments == null) {
-            argumentsNode = new Nodes.ArgumentsNode(NO_FLAGS, arguments, 0, 0);
+            argumentsNode = new Nodes.ArgumentsNode(0, 0, NO_FLAGS, arguments);
         } else {
-            argumentsNode = new Nodes.ArgumentsNode(node.arguments.flags, arguments, node.arguments.startOffset,
-                    node.arguments.length);
+            argumentsNode = new Nodes.ArgumentsNode(node.arguments.startOffset,
+                    node.arguments.length, node.arguments.flags, arguments);
         }
 
         // Prism doesn't set ATTRIBUTE_WRITE flag, so we should add it manually
         // but preserve original flags because Prism may set them, e.g. IGNORE_VISIBILITY flag
         short writeFlags = (short) (node.flags | Nodes.CallNodeFlags.ATTRIBUTE_WRITE);
-        final var callNode = new Nodes.CallNode(writeFlags, node.receiver, "[]=", argumentsNode, node.block,
-                node.startOffset,
-                node.length);
+        final var callNode = new Nodes.CallNode(node.startOffset,
+                node.length, writeFlags, node.receiver, "[]=", argumentsNode, node.block);
         return callNode.accept(this);
     }
 
@@ -2241,14 +2231,14 @@ public class YARPTranslator extends YARPBaseTranslator {
             writeBlockNode = expression.getWriteNode();
             Nodes.Node readBlock = expression.getReadYARPNode();
             // imitate Nodes.CallNode structure with &block argument
-            blockArgument = new Nodes.BlockArgumentNode(readBlock, 0, 0);
+            blockArgument = new Nodes.BlockArgumentNode(0, 0, readBlock);
         } else {
             writeBlockNode = null;
             blockArgument = null;
         }
 
-        final Nodes.Node read = new Nodes.CallNode(flags, readReceiver, "[]",
-                new Nodes.ArgumentsNode(NO_FLAGS, readArguments, 0, 0), blockArgument, 0, 0);
+        final Nodes.Node read = new Nodes.CallNode(0, 0, flags, readReceiver, "[]",
+                new Nodes.ArgumentsNode(0, 0, NO_FLAGS, readArguments), blockArgument);
         final RubyNode readNode = read.accept(this);
 
         final Nodes.Node[] readArgumentsAndValue = new Nodes.Node[arguments.length + 1];
@@ -2256,8 +2246,8 @@ public class YARPTranslator extends YARPBaseTranslator {
         readArgumentsAndValue[arguments.length] = value;
 
         short writeFlags = (short) (flags | Nodes.CallNodeFlags.ATTRIBUTE_WRITE);
-        final Nodes.Node write = new Nodes.CallNode(writeFlags, readReceiver, "[]=",
-                new Nodes.ArgumentsNode(NO_FLAGS, readArgumentsAndValue, 0, 0), blockArgument, 0, 0);
+        final Nodes.Node write = new Nodes.CallNode(0, 0, writeFlags, readReceiver, "[]=",
+                new Nodes.ArgumentsNode(0, 0, NO_FLAGS, readArgumentsAndValue), blockArgument);
         final RubyNode writeNode = write.accept(this);
 
         final RubyNode operatorNode;
@@ -2291,8 +2281,8 @@ public class YARPTranslator extends YARPBaseTranslator {
         int startOffset = node.startOffset;
         int length = node.length;
 
-        var writeNode = new Nodes.InstanceVariableWriteNode(node.name, node.value, startOffset, length).accept(this);
-        var readNode = new Nodes.InstanceVariableReadNode(node.name, startOffset, length).accept(this);
+        var writeNode = new Nodes.InstanceVariableWriteNode(startOffset, length, node.name, node.value).accept(this);
+        var readNode = new Nodes.InstanceVariableReadNode(startOffset, length, node.name).accept(this);
         var andNode = AndNodeGen.create(readNode, writeNode);
 
         // defined?(@a &&= b) should return 'assignment'
@@ -2308,9 +2298,9 @@ public class YARPTranslator extends YARPBaseTranslator {
         int startOffset = node.startOffset;
         int length = node.length;
 
-        var readNode = new Nodes.InstanceVariableReadNode(node.name, startOffset, length);
-        var desugared = new Nodes.InstanceVariableWriteNode(node.name,
-                callNode(node, readNode, node.operator, node.value), startOffset, length);
+        var readNode = new Nodes.InstanceVariableReadNode(startOffset, length, node.name);
+        var desugared = new Nodes.InstanceVariableWriteNode(startOffset, length, node.name,
+                callNode(node, readNode, node.binary_operator, node.value));
         return desugared.accept(this);
     }
 
@@ -2324,8 +2314,8 @@ public class YARPTranslator extends YARPBaseTranslator {
         int startOffset = node.startOffset;
         int length = node.length;
 
-        var writeNode = new Nodes.InstanceVariableWriteNode(node.name, node.value, startOffset, length).accept(this);
-        var readNode = new Nodes.InstanceVariableReadNode(node.name, startOffset, length).accept(this);
+        var writeNode = new Nodes.InstanceVariableWriteNode(startOffset, length, node.name, node.value).accept(this);
+        var readNode = new Nodes.InstanceVariableReadNode(startOffset, length, node.name).accept(this);
 
         final RubyNode rubyNode = OrLazyValueDefinedNodeGen.create(readNode, writeNode);
         return assignPositionAndFlags(node, rubyNode);
@@ -2352,27 +2342,28 @@ public class YARPTranslator extends YARPBaseTranslator {
 
     @Override
     public RubyNode visitIntegerNode(Nodes.IntegerNode node) {
-        Object value = node.value;
-        final RubyNode rubyNode;
+        final RubyNode rubyNode = translateNumericValue(node.value);
+        return assignPositionAndFlags(node, rubyNode);
+    }
+
+    private RubyNode translateNumericValue(Object value) {
         if (value instanceof Integer i) {
-            rubyNode = new IntegerFixnumLiteralNode(i);
+            return new IntegerFixnumLiteralNode(i);
         } else if (value instanceof Long l) {
-            rubyNode = new LongFixnumLiteralNode(l);
+            return new LongFixnumLiteralNode(l);
         } else if (value instanceof BigInteger bigInteger) {
-            rubyNode = new ObjectLiteralNode(new RubyBignum(bigInteger));
+            return new ObjectLiteralNode(new RubyBignum(bigInteger));
         } else {
             throw CompilerDirectives.shouldNotReachHere(value.getClass().getName());
         }
-
-        return assignPositionAndFlags(node, rubyNode);
     }
 
     @Override
     public RubyNode visitInterpolatedMatchLastLineNode(Nodes.InterpolatedMatchLastLineNode node) {
         // replace regexp with /.../ =~ $_
 
-        final var regexp = new Nodes.InterpolatedRegularExpressionNode(node.flags, node.parts, node.startOffset,
-                node.length);
+        final var regexp = new Nodes.InterpolatedRegularExpressionNode(node.startOffset,
+                node.length, node.flags, node.parts);
         final var regexpNode = regexp.accept(this);
         final var lastLineNode = ReadGlobalVariableNodeGen.create("$_");
 
@@ -2384,21 +2375,34 @@ public class YARPTranslator extends YARPBaseTranslator {
     public RubyNode visitInterpolatedRegularExpressionNode(Nodes.InterpolatedRegularExpressionNode node) {
         var encodingAndOptions = getRegexpEncodingAndOptions(new Nodes.RegularExpressionFlags(node.flags));
         var options = encodingAndOptions.options;
-        final ToSNode[] children = translateInterpolatedParts(node.parts);
+        final ToSNode[] children = translateInterpolatedPartsIgnoreForceEncodingFlags(node.parts);
 
         final RubyEncoding encoding;
         if (!options.isKcodeDefault()) { // explicit encoding
             encoding = encodingAndOptions.encoding;
         } else {
-            // use BINARY explicitly probably because forcing encoding isn't implemented yet in Prism
-            // see https://github.com/ruby/prism/issues/1997
+            // Use BINARY explicitly probably because forcing encoding isn't implemented yet in Prism
+            // Needed until https://github.com/ruby/prism/issues/2620 is fixed
             // The logic comes from ParserSupport#createMaster
             encoding = Encodings.BINARY;
         }
 
         for (ToSNode child : children) {
-            if (child.getValueNode() instanceof StringLiteralNode stringLiteralNode) {
-                var fragment = new TStringWithEncoding(stringLiteralNode.getTString(), stringLiteralNode.getEncoding());
+            // Expect that String fragments are represented either with FrozenStringLiteralNode or StringLiteralNode.
+            // StringLiteralNode is possible in the following case: /a #{ "b" } c/
+            if (child.getValueNode() instanceof FrozenStringLiteralNode ||
+                    child.getValueNode() instanceof StringLiteralNode) {
+                final TStringWithEncoding fragment;
+
+                if (child.getValueNode() instanceof FrozenStringLiteralNode frozenStringLiteralNode) {
+                    ImmutableRubyString frozenString = frozenStringLiteralNode.getFrozenString();
+                    fragment = new TStringWithEncoding(frozenString.tstring, frozenString.encoding);
+                } else if (child.getValueNode() instanceof StringLiteralNode stringLiteralNode) {
+                    fragment = new TStringWithEncoding(stringLiteralNode.getTString(), stringLiteralNode.getEncoding());
+                } else {
+                    throw CompilerDirectives.shouldNotReachHere();
+                }
+
                 try {
                     // MRI: reg_fragment_check
                     var strEnc = ClassicRegexp.setRegexpEncoding(fragment, options, sourceEncoding, currentNode);
@@ -2409,7 +2413,7 @@ public class YARPTranslator extends YARPBaseTranslator {
             }
         }
 
-        RubyNode rubyNode = new InterpolatedRegexpNode(children, encoding, options);
+        RubyNode rubyNode = InterpolatedRegexpNodeGen.create(encoding, options, children);
 
         if (node.isOnce()) {
             rubyNode = new OnceNode(rubyNode);
@@ -2444,7 +2448,7 @@ public class YARPTranslator extends YARPBaseTranslator {
     public RubyNode visitInterpolatedXStringNode(Nodes.InterpolatedXStringNode node) {
         // replace `` literal with a Kernel#` method call
 
-        var stringNode = new Nodes.InterpolatedStringNode(node.parts, node.startOffset, node.length);
+        var stringNode = new Nodes.InterpolatedStringNode(node.startOffset, node.length, NO_FLAGS, node.parts);
         final RubyNode string = stringNode.accept(this);
 
         final RubyNode rubyNode = createCallNode(new SelfNode(), "`", string);
@@ -2494,7 +2498,19 @@ public class YARPTranslator extends YARPBaseTranslator {
         int start = parts[0].startOffset;
         var last = ArrayUtils.getLast(parts);
         int length = last.endOffset() - start;
-        return new Nodes.StringNode(NO_FLAGS, concatenated, start, length);
+        short flags = node.isFrozen() ? Nodes.StringFlags.FROZEN : NO_FLAGS;
+
+        // Prism may assign a new-line flag to one of the nested parts instead of the outer String node
+        boolean isNewLineFlag = node.hasNewLineFlag();
+        for (var part : parts) {
+            if (part.hasNewLineFlag()) {
+                isNewLineFlag = true;
+            }
+        }
+
+        var stringNode = new Nodes.StringNode(start, length, flags, concatenated);
+        stringNode.setNewLineFlag(isNewLineFlag);
+        return stringNode;
     }
 
     /** Translate parts of interpolated String, Symbol or Regexp */
@@ -2505,7 +2521,38 @@ public class YARPTranslator extends YARPBaseTranslator {
             RubyNode expression = parts[i].accept(this);
             children[i] = ToSNodeGen.create(expression);
         }
+
         return children;
+    }
+
+    /** Regexp encoding negotiation does not work correctly if such flags are kept, e.g. for /#{ }\xc2\xa1/e in
+     * test_m17n.rb. Not clear what is a good solution yet. */
+    private ToSNode[] translateInterpolatedPartsIgnoreForceEncodingFlags(Nodes.Node[] parts) {
+        final ToSNode[] children = new ToSNode[parts.length];
+
+        for (int i = 0; i < parts.length; i++) {
+            RubyNode expression;
+            if (parts[i] instanceof Nodes.StringNode stringNode) {
+                short flags = stringNode.isFrozen() ? Nodes.StringFlags.FROZEN : NO_FLAGS;
+                Nodes.StringNode stringNodeNoForceEncoding = new Nodes.StringNode(stringNode.startOffset,
+                        stringNode.length, flags, stringNode.unescaped);
+
+                // Prism might assign new line flag not to the outer regexp node but to its first part instead
+                copyNewLineFlag(stringNode, stringNodeNoForceEncoding);
+
+                expression = stringNodeNoForceEncoding.accept(this);
+            } else {
+                expression = parts[i].accept(this);
+            }
+            children[i] = ToSNodeGen.create(expression);
+        }
+
+        return children;
+    }
+
+    @Override
+    public RubyNode visitItLocalVariableReadNode(Nodes.ItLocalVariableReadNode node) {
+        throw CompilerDirectives.shouldNotReachHere("ItLocalVariableReadNode is only from Ruby 3.4");
     }
 
     @Override
@@ -2516,7 +2563,7 @@ public class YARPTranslator extends YARPBaseTranslator {
     @Override
     public RubyNode visitKeywordHashNode(Nodes.KeywordHashNode node) {
         // translate it like a HashNode, whether it is keywords or not is checked in getKeywordArgumentsDescriptor()
-        final var hash = new Nodes.HashNode(node.elements, node.startOffset, node.length);
+        final var hash = new Nodes.HashNode(node.startOffset, node.length, node.elements);
         return hash.accept(this);
     }
 
@@ -2548,9 +2595,9 @@ public class YARPTranslator extends YARPBaseTranslator {
         int startOffset = node.startOffset;
         int length = node.length;
 
-        var writeNode = new Nodes.LocalVariableWriteNode(node.name, node.depth, node.value, startOffset, length)
+        var writeNode = new Nodes.LocalVariableWriteNode(startOffset, length, node.name, node.depth, node.value)
                 .accept(this);
-        var readNode = new Nodes.LocalVariableReadNode(node.name, node.depth, startOffset, length).accept(this);
+        var readNode = new Nodes.LocalVariableReadNode(startOffset, length, node.name, node.depth).accept(this);
         var andNode = AndNodeGen.create(readNode, writeNode);
 
         // defined?(a &&= b) should return 'assignment'
@@ -2565,9 +2612,9 @@ public class YARPTranslator extends YARPBaseTranslator {
 
         int startOffset = node.startOffset;
         int length = node.length;
-        var readNode = new Nodes.LocalVariableReadNode(node.name, node.depth, startOffset, length);
-        var desugared = new Nodes.LocalVariableWriteNode(node.name, node.depth,
-                callNode(node, readNode, node.operator, node.value), startOffset, length);
+        var readNode = new Nodes.LocalVariableReadNode(startOffset, length, node.name, node.depth);
+        var desugared = new Nodes.LocalVariableWriteNode(startOffset, length, node.name, node.depth,
+                callNode(node, readNode, node.binary_operator, node.value));
         return desugared.accept(this);
     }
 
@@ -2580,9 +2627,9 @@ public class YARPTranslator extends YARPBaseTranslator {
         int startOffset = node.startOffset;
         int length = node.length;
 
-        var writeNode = new Nodes.LocalVariableWriteNode(node.name, node.depth, node.value, startOffset, length)
+        var writeNode = new Nodes.LocalVariableWriteNode(startOffset, length, node.name, node.depth, node.value)
                 .accept(this);
-        var readNode = new Nodes.LocalVariableReadNode(node.name, node.depth, startOffset, length).accept(this);
+        var readNode = new Nodes.LocalVariableReadNode(startOffset, length, node.name, node.depth).accept(this);
 
         final RubyNode rubyNode = OrLazyValueDefinedNodeGen.create(readNode, writeNode);
         return assignPositionAndFlags(node, rubyNode);
@@ -2603,8 +2650,7 @@ public class YARPTranslator extends YARPBaseTranslator {
     public WriteLocalNode visitLocalVariableTargetNode(Nodes.LocalVariableTargetNode node) {
         final String name = node.name;
         final ReadLocalNode lhs = environment.findLocalVarNode(name);
-        final RubyNode rhs = new DeadNode("YARPTranslator#visitLocalVariableTargetNode");
-        final WriteLocalNode rubyNode = lhs.makeWriteNode(rhs);
+        final WriteLocalNode rubyNode = lhs.makeWriteNode(null);
 
         assignPositionAndFlags(node, rubyNode);
         return rubyNode;
@@ -2614,7 +2660,7 @@ public class YARPTranslator extends YARPBaseTranslator {
     public RubyNode visitMatchLastLineNode(Nodes.MatchLastLineNode node) {
         // replace regexp with /.../ =~ $_
 
-        final var regexp = new Nodes.RegularExpressionNode(node.flags, node.unescaped, node.startOffset, node.length);
+        final var regexp = new Nodes.RegularExpressionNode(node.startOffset, node.length, node.flags, node.unescaped);
         final var regexpNode = regexp.accept(this);
         final var lastLineNode = ReadGlobalVariableNodeGen.create("$_");
 
@@ -2669,8 +2715,7 @@ public class YARPTranslator extends YARPBaseTranslator {
         String[] names = new String[numberOfNames];
 
         for (int i = 0; i < numberOfNames; i++) {
-            // Nodes.LocalVariableTargetNode is the only expected node here
-            names[i] = ((Nodes.LocalVariableTargetNode) node.targets[i]).name;
+            names[i] = node.targets[i].name;
         }
 
         final RubyNode[] setters = new RubyNode[numberOfNames];
@@ -2787,6 +2832,12 @@ public class YARPTranslator extends YARPBaseTranslator {
 
     @Override
     public RubyNode visitNumberedReferenceReadNode(Nodes.NumberedReferenceReadNode node) {
+        // numbered references that are too large, e.g. $4294967296, are always `nil`
+        if (node.number == 0) {
+            final RubyNode rubyNode = new NilLiteralNode();
+            return assignPositionAndFlags(node, rubyNode);
+        }
+
         final RubyNode lastMatchNode = ReadGlobalVariableNodeGen.create("$~");
         final RubyNode rubyNode = new ReadMatchReferenceNodes.ReadNthMatchNode(lastMatchNode, node.number);
 
@@ -2843,12 +2894,12 @@ public class YARPTranslator extends YARPBaseTranslator {
 
         // Create Prism CallNode to avoid duplication block literal related logic
         final var receiver = new Nodes.ConstantPathNode(
-                new Nodes.ConstantReadNode("Truffle", 0, 0),
-                new Nodes.ConstantReadNode("KernelOperations", 0, 0), 0, 0);
-        final var arguments = new Nodes.ArgumentsNode(NO_FLAGS, new Nodes.Node[]{ new Nodes.FalseNode(0, 0) }, 0, 0);
-        final var block = new Nodes.BlockNode(StringUtils.EMPTY_STRING_ARRAY, null, node.statements, 0, 0);
+                0, 0, new Nodes.ConstantReadNode(0, 0, "Truffle"),
+                "KernelOperations");
+        final var arguments = new Nodes.ArgumentsNode(0, 0, NO_FLAGS, new Nodes.Node[]{ new Nodes.FalseNode(0, 0) });
+        final var block = new Nodes.BlockNode(0, 0, StringUtils.EMPTY_STRING_ARRAY, null, node.statements);
 
-        final var callNode = new Nodes.CallNode(NO_FLAGS, receiver, "at_exit", arguments, block, 0, 0).accept(this);
+        final var callNode = new Nodes.CallNode(0, 0, NO_FLAGS, receiver, "at_exit", arguments, block).accept(this);
         final RubyNode rubyNode = new OnceNode(callNode);
         return assignPositionAndFlags(node, rubyNode);
     }
@@ -2899,63 +2950,12 @@ public class YARPTranslator extends YARPBaseTranslator {
 
         final RubyNode objectClassNode = new ObjectClassLiteralNode();
         final ReadConstantNode rationalModuleNode = new ReadConstantNode(objectClassNode, "Rational");
-        final RubyNode numeratorNode;
-        final RubyNode denominatorNode;
-
-        // Handle rational float literals differently and avoid Java float/double types to not lose precision.
-        // So normalize numerator and denominator, e.g 3.14r literal is translated into Rational(314, 100).
-        // The other option is to represent rational float literals as a String and rely on parsing String literals in
-        // the Kernel#Rational() method. The downside is worse performance due to repeated runtime calls vs once at
-        // translation time.
-        if (node.numeric instanceof Nodes.FloatNode floatNode) {
-            // Translate as Rational.convert(numerator, denominator).
-
-            // Assume float literal is in the ddd.ddd format and
-            // scientific format (e.g. 1.23e10) is not valid in Rational literals.
-            // Also assume a Float literal could be only decimal (so 0x1.2r literal is invalid).
-            String string = toString(floatNode).replaceAll("_", ""); // remove '_' characters
-            int pointIndex = string.indexOf('.');
-            assert pointIndex != -1; // float literal in Ruby must contain '.'
-
-            int fractionLength = string.length() - pointIndex - 1;
-            assert fractionLength > 0;
-
-            String numerator = string.replace(".", ""); // remove float point
-            numeratorNode = translateIntegerLiteralString(numerator); // string literal may have leading "0" (e.g. for 0.1r) so specify base explicitly
-
-            String denominator = "1" + "0".repeat(fractionLength);
-            denominatorNode = translateIntegerLiteralString(denominator);
-        } else {
-            // Translate as Rational.convert(n, 1)
-            numeratorNode = node.numeric.accept(this);
-            denominatorNode = new IntegerFixnumLiteralNode(1);
-        }
+        final RubyNode numeratorNode = translateNumericValue(node.numerator);
+        final RubyNode denominatorNode = translateNumericValue(node.denominator);
 
         RubyNode[] arguments = new RubyNode[]{ numeratorNode, denominatorNode };
-
         RubyNode rubyNode = createCallNode(rationalModuleNode, "convert", arguments);
         return assignPositionAndFlags(node, rubyNode);
-    }
-
-    /** Parse Integer literal ourselves. */
-    private RubyNode translateIntegerLiteralString(String string) {
-        final RubyNode rubyNode;
-        TruffleString tstring = toTString(string);
-
-        Object numeratorInteger = ConvertBytes.bytesToInum(RubyLanguage.getCurrentContext(), null, tstring,
-                sourceEncoding, 10, true);
-
-        if (numeratorInteger instanceof Integer i) {
-            rubyNode = new IntegerFixnumLiteralNode(i);
-        } else if (numeratorInteger instanceof Long l) {
-            rubyNode = new LongFixnumLiteralNode(l);
-        } else if (numeratorInteger instanceof RubyBignum bignum) {
-            rubyNode = new ObjectLiteralNode(bignum);
-        } else {
-            throw CompilerDirectives.shouldNotReachHere(numeratorInteger.getClass().getName());
-        }
-
-        return rubyNode;
     }
 
     @Override
@@ -2986,7 +2986,7 @@ public class YARPTranslator extends YARPBaseTranslator {
 
         final RubyRegexp regexp;
         try {
-            // Needed until https://github.com/ruby/prism/issues/1997 is fixed
+            // Needed until https://github.com/ruby/prism/issues/2620 is fixed
             sourceWithEnc = ClassicRegexp.setRegexpEncoding(sourceWithEnc, options, sourceEncoding, currentNode);
 
             regexp = RubyRegexp.create(language, sourceWithEnc.tstring, sourceWithEnc.encoding,
@@ -3036,15 +3036,16 @@ public class YARPTranslator extends YARPBaseTranslator {
             explicitEncoding = false;
         }
 
-        if (!explicitEncoding) {
-            if (flags.isForcedBinaryEncoding()) {
-                regexpEncoding = Encodings.BINARY;
-            } else if (flags.isForcedUsAsciiEncoding()) {
-                regexpEncoding = Encodings.US_ASCII;
-            } else if (flags.isForcedUtf8Encoding()) {
-                regexpEncoding = Encodings.UTF_8;
-            }
-        }
+        // Don't check forced encoding flags until https://github.com/ruby/prism/issues/2620 is fixed
+        // if (!explicitEncoding) {
+        //     if (flags.isForcedBinaryEncoding()) {
+        //         regexpEncoding = Encodings.BINARY;
+        //     } else if (flags.isForcedUsAsciiEncoding()) {
+        //         regexpEncoding = Encodings.US_ASCII;
+        //     } else if (flags.isForcedUtf8Encoding()) {
+        //         regexpEncoding = Encodings.UTF_8;
+        //     }
+        // }
 
         final RegexpOptions options = new RegexpOptions(kcode, fixed, flags.isOnce(), flags.isExtended(),
                 flags.isMultiLine(), flags.isIgnoreCase(), flags.isAscii8bit(), !explicitEncoding, true);
@@ -3161,8 +3162,7 @@ public class YARPTranslator extends YARPBaseTranslator {
                 dynamicConstantLookup = true;
                 if (language.options.LOG_DYNAMIC_CONSTANT_LOOKUP) {
                     RubyLanguage.LOGGER.info(
-                            () -> "start dynamic constant lookup at " +
-                                    RubyLanguage.getCurrentContext().fileLine(getSourceSection(node)));
+                            () -> "start dynamic constant lookup at " + language.fileLine(getSourceSection(node)));
                 }
             }
         }
@@ -3226,6 +3226,12 @@ public class YARPTranslator extends YARPBaseTranslator {
     public RubyNode visitStatementsNode(Nodes.StatementsNode node) {
         RubyNode[] rubyNodes = translate(node.body);
         return sequence(node, rubyNodes);
+    }
+
+    @Override
+    public RubyNode visitShareableConstantNode(Nodes.ShareableConstantNode node) {
+        // the shareable constants logic isn't supported yet, so treat shareable constants as regular
+        return node.write.accept(this);
     }
 
     @Override
@@ -3321,7 +3327,7 @@ public class YARPTranslator extends YARPBaseTranslator {
     public RubyNode visitUnlessNode(Nodes.UnlessNode node) {
         final RubyNode conditionNode = node.predicate.accept(this);
         final RubyNode thenNode = node.statements == null ? null : node.statements.accept(this);
-        final RubyNode elseNode = node.consequent == null ? null : node.consequent.accept(this);
+        final RubyNode elseNode = node.else_clause == null ? null : node.else_clause.accept(this);
         final RubyNode rubyNode;
 
         if (thenNode != null && elseNode != null) {
@@ -3375,7 +3381,7 @@ public class YARPTranslator extends YARPBaseTranslator {
             flags |= Nodes.StringFlags.FORCED_UTF8_ENCODING;
         }
 
-        var stringNode = new Nodes.StringNode((short) flags, node.unescaped, node.startOffset, node.length);
+        var stringNode = new Nodes.StringNode(node.startOffset, node.length, (short) flags, node.unescaped);
         final RubyNode string = stringNode.accept(this);
 
         final RubyNode rubyNode = createCallNode(new SelfNode(), "`", string);
@@ -3508,8 +3514,7 @@ public class YARPTranslator extends YARPBaseTranslator {
     private RubyNode getLexicalScopeNode(String kind, Nodes.Node yarpNode) {
         if (environment.isDynamicConstantLookup()) {
             if (language.options.LOG_DYNAMIC_CONSTANT_LOOKUP) {
-                RubyLanguage.LOGGER.info(() -> kind + " at " +
-                        RubyLanguage.getCurrentContext().fileLine(getSourceSection(yarpNode)));
+                RubyLanguage.LOGGER.info(() -> kind + " at " + language.fileLine(getSourceSection(yarpNode)));
             }
             return new GetDynamicLexicalScopeNode();
         } else {
@@ -3562,7 +3567,7 @@ public class YARPTranslator extends YARPBaseTranslator {
             newEnvironment.declareVar(name);
         }
 
-        final YARPTranslator moduleTranslator = new YARPTranslator(newEnvironment);
+        final YARPTranslator moduleTranslator = new YARPTranslator(newEnvironment, rubyWarnings);
         final ModuleBodyDefinition definition = moduleTranslator.compileClassNode(moduleNode, bodyNode);
         return new RunModuleDefinitionNode(definition, defineOrGetNode);
     }
@@ -3627,8 +3632,7 @@ public class YARPTranslator extends YARPBaseTranslator {
     private RubyNode getLexicalScopeModuleNode(String kind, Nodes.Node node) {
         if (environment.isDynamicConstantLookup()) {
             if (language.options.LOG_DYNAMIC_CONSTANT_LOOKUP) {
-                RubyLanguage.LOGGER.info(() -> kind + " at " +
-                        RubyLanguage.getCurrentContext().fileLine(getSourceSection(node)));
+                RubyLanguage.LOGGER.info(() -> kind + " at " + language.fileLine(getSourceSection(node)));
             }
             return new DynamicLexicalScopeNode();
         } else {
@@ -3677,8 +3681,8 @@ public class YARPTranslator extends YARPBaseTranslator {
         } else {
             // Switch to dynamic constant lookup
             if (language.options.LOG_DYNAMIC_CONSTANT_LOOKUP) {
-                RubyLanguage.LOGGER.info(() -> "start dynamic constant lookup at " +
-                        RubyLanguage.getCurrentContext().fileLine(getSourceSection(node)));
+                RubyLanguage.LOGGER
+                        .info(() -> "start dynamic constant lookup at " + language.fileLine(getSourceSection(node)));
             }
             return true;
         }
@@ -3801,8 +3805,7 @@ public class YARPTranslator extends YARPBaseTranslator {
         }
 
         for (var node : parametersNode.optionals) {
-            String name = ((Nodes.OptionalParameterNode) node).name;
-            var descriptor = new ArgumentDescriptor(ArgumentType.opt, name);
+            var descriptor = new ArgumentDescriptor(ArgumentType.opt, node.name);
             descriptors.add(descriptor);
         }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2020, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -72,7 +72,7 @@ public final class RubyMethod extends RubyDynamicObject implements ObjectGraphNo
     public Object execute(Object[] arguments,
             @Cached ForeignToRubyArgumentsNode foreignToRubyArgumentsNode,
             @Cached CallInternalMethodNode callInternalMethodNode,
-            @Bind("$node") Node node) {
+            @Bind Node node) {
         final Object[] convertedArguments = foreignToRubyArgumentsNode.executeConvert(node, arguments);
         final Object[] frameArgs = RubyArguments.pack(null, null, method, null, receiver, nil,
                 NoKeywordArgumentsDescriptor.INSTANCE, convertedArguments);

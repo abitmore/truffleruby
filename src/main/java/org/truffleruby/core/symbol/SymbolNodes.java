@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2013, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -94,9 +94,9 @@ public abstract class SymbolNodes {
                 guards = { "isSingleContext()", "symbol == cachedSymbol", "!preInitializing" },
                 limit = "1")
         static long hashCached(Node node, RubySymbol symbol,
-                @Cached(value = "isPreInitializing(getContext())") boolean preInitializing,
-                @Cached(value = "symbol") RubySymbol cachedSymbol,
-                @Cached(value = "hash(node, cachedSymbol)") long cachedHash) {
+                @Cached("isPreInitializing(getContext())") boolean preInitializing,
+                @Cached("symbol") RubySymbol cachedSymbol,
+                @Cached("hash(node, cachedSymbol)") long cachedHash) {
             return cachedHash;
         }
 

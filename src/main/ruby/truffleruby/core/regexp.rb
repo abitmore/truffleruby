@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Copyright (c) 2014, 2024 Oracle and/or its affiliates. All rights reserved. This
+# Copyright (c) 2014, 2025 Oracle and/or its affiliates. All rights reserved. This
 # code is released under a tri EPL/GPL/LGPL license. You can use it,
 # redistribute it and/or modify it under the terms of the:
 #
@@ -98,6 +98,22 @@ class Regexp
     end
   end
 
+  def self.linear_time?(regexp, options = undefined)
+    if Primitive.is_a?(regexp, Regexp)
+      unless Primitive.undefined?(options)
+        warn('flags ignored', uplevel: 1)
+      end
+    else
+      if Primitive.undefined?(options)
+        options = 0
+      end
+
+      regexp = Regexp.new(regexp, options) # expect String source to be passed
+    end
+
+    Truffle::RegexpOperations.linear_time?(regexp)
+  end
+
   def self.union(*patterns)
     case patterns.size
     when 0
@@ -110,7 +126,7 @@ class Regexp
       else
         converted = Truffle::Type.rb_check_convert_type(pattern, Regexp, :to_regexp)
         if Primitive.nil? converted
-          Regexp.new(Regexp.quote(pattern))
+          Primitive.regexp_compile(Regexp.quote(pattern), 0)
         else
           converted
         end
@@ -182,6 +198,7 @@ class Regexp
 
     Primitive.regexp_compile pattern, opts # may be overridden by subclasses
   end
+  Truffle::Graal.always_split(method(:new))
 
   class << self
     alias_method :compile, :new

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2023, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -49,15 +49,10 @@ import org.truffleruby.RubyContext;
 import org.truffleruby.RubyLanguage;
 import org.truffleruby.annotations.Split;
 import org.truffleruby.core.CoreLibrary;
-import org.truffleruby.core.DummyNode;
 import org.truffleruby.core.binding.BindingNodes;
 import org.truffleruby.core.binding.SetBindingFrameForEvalNode;
 import org.truffleruby.core.encoding.Encodings;
 import org.truffleruby.core.encoding.TStringUtils;
-import org.truffleruby.core.kernel.AutoSplitNode;
-import org.truffleruby.core.kernel.ChompLoopNode;
-import org.truffleruby.core.kernel.KernelGetsNode;
-import org.truffleruby.core.kernel.KernelPrintLastLineNode;
 import org.truffleruby.core.string.StringOperations;
 import org.truffleruby.language.DataNode;
 import org.truffleruby.language.EmitWarningsNode;
@@ -71,12 +66,11 @@ import org.truffleruby.language.arguments.MissingArgumentBehavior;
 import org.truffleruby.language.arguments.ReadPreArgumentNode;
 import org.truffleruby.language.arguments.RubyArguments;
 import org.truffleruby.language.control.RaiseException;
-import org.truffleruby.language.control.WhileNode;
-import org.truffleruby.language.control.WhileNodeFactory;
 import org.truffleruby.language.locals.FrameDescriptorNamesIterator;
 import org.truffleruby.language.locals.WriteLocalVariableNode;
 import org.truffleruby.language.methods.Arity;
 import org.truffleruby.language.methods.SharedMethodInfo;
+import org.truffleruby.options.Options;
 import org.truffleruby.shared.Metrics;
 import org.prism.Nodes;
 import org.prism.ParseResult;
@@ -84,6 +78,7 @@ import org.prism.Parser;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.List;
 
 public final class YARPTranslatorDriver {
@@ -159,6 +154,13 @@ public final class YARPTranslatorDriver {
         // Parse to the YARP AST
         final RubyDeferredWarnings rubyWarnings = new RubyDeferredWarnings();
         final String sourcePath = rubySource.getSourcePath(language).intern();
+        final Options options;
+
+        if (parserContext == ParserContext.TOP_LEVEL_FIRST) {
+            options = context.getOptions();
+        } else {
+            options = null;
+        }
 
         if (parseResult == null) {
             printParseTranslateExecuteMetric("before-parsing", context, source);
@@ -166,13 +168,14 @@ public final class YARPTranslatorDriver {
                     "parsing",
                     source.getName(),
                     () -> parseToYARPAST(rubySource, sourcePath, sourceBytes, localsInScopes,
-                            language.options.FROZEN_STRING_LITERALS));
+                            language.options.FROZEN_STRING_LITERALS, options, parserContext));
             printParseTranslateExecuteMetric("after-parsing", context, source);
         }
 
         parseEnvironment.yarpSource = parseResult.source;
 
-        handleWarningsErrorsPrimitives(context, parseResult, rubySource, sourcePath, parseEnvironment, rubyWarnings);
+        handleWarningsErrorsPrimitives(language, context, parseResult, rubySource, sourcePath, parseEnvironment,
+                rubyWarnings);
 
         var node = parseResult.value;
 
@@ -219,7 +222,7 @@ public final class YARPTranslatorDriver {
         // Translate to Ruby Truffle nodes
 
         // use source encoding detected by manually, before source file is fully parsed
-        final YARPTranslator translator = new YARPTranslator(environment);
+        final YARPTranslator translator = new YARPTranslator(environment, rubyWarnings);
 
         RubyNode truffleNode;
         printParseTranslateExecuteMetric("before-translate", context, source);
@@ -254,21 +257,6 @@ public final class YARPTranslatorDriver {
 
         if (environment.getFlipFlopStates().size() > 0) {
             truffleNode = YARPTranslator.sequence(YARPTranslator.initFlipFlopStates(environment), truffleNode);
-        }
-
-        if (parserContext == ParserContext.TOP_LEVEL_FIRST && context.getOptions().GETS_LOOP) {
-            if (context.getOptions().PRINT_LOOP) {
-                truffleNode = YARPTranslator.sequence(truffleNode, new KernelPrintLastLineNode());
-            }
-            if (context.getOptions().SPLIT_LOOP) {
-                truffleNode = YARPTranslator.sequence(new AutoSplitNode(), truffleNode);
-            }
-
-            if (context.getOptions().CHOMP_LOOP) {
-                truffleNode = YARPTranslator.sequence(new ChompLoopNode(), truffleNode);
-            }
-            truffleNode = new WhileNode(
-                    WhileNodeFactory.WhileRepeatingNodeGen.create(new KernelGetsNode(), truffleNode));
         }
 
         RubyNode[] beginBlocks = translator.getBeginBlocks();
@@ -353,13 +341,45 @@ public final class YARPTranslatorDriver {
     }
 
     public static ParseResult parseToYARPAST(RubySource rubySource, String sourcePath, byte[] sourceBytes,
-            List<List<String>> localsInScopes, boolean frozenStringLiteral) {
-        TruffleSafepoint.poll(DummyNode.INSTANCE);
+            List<List<String>> localsInScopes, boolean frozenStringLiteral, Options cliOptions,
+            ParserContext parserContext) {
+        TruffleSafepoint.poll(null);
 
         final byte[] filepath = sourcePath.getBytes(Encodings.FILESYSTEM_CHARSET);
         int line = rubySource.getLineOffset() + 1;
         byte[] encoding = StringOperations.encodeAsciiBytes(rubySource.getEncoding().toString()); // encoding name is supposed to contain only ASCII characters
-        var version = ParsingOptions.SyntaxVersion.V3_3_0;
+        var version = ParsingOptions.SyntaxVersion.V3_3;
+        // Allow Prism to handle encoding magic comments.
+        // Magic comments are already detected and rubySource's encoding takes them into account,
+        // but encodingLocked is intended for a niche use-case and is supposed to be false in all other cases.
+        final boolean encodingLocked = false;
+        final boolean mainScript = parserContext == ParserContext.TOP_LEVEL_FIRST;
+        final boolean partialScript = false;
+
+        // Prism handles command line options (-n, -l, -a, -p) on its own
+        final EnumSet<ParsingOptions.CommandLine> commandline;
+
+        if (cliOptions != null && cliOptions.GETS_LOOP) {
+            List<ParsingOptions.CommandLine> yarpCliOptions = new ArrayList<>();
+            yarpCliOptions.add(ParsingOptions.CommandLine.N);
+
+            if (cliOptions.PRINT_LOOP) {
+                yarpCliOptions.add(ParsingOptions.CommandLine.P);
+            }
+
+            if (cliOptions.SPLIT_LOOP) {
+                yarpCliOptions.add(ParsingOptions.CommandLine.A);
+            }
+
+            if (cliOptions.CHOMP_LOOP) {
+                yarpCliOptions.add(ParsingOptions.CommandLine.L);
+            }
+
+            commandline = EnumSet.copyOf(yarpCliOptions);
+        } else {
+            // EnumSet.copyOf method requires a collection to be non-empty
+            commandline = EnumSet.noneOf(ParsingOptions.CommandLine.class);
+        }
 
         byte[][][] scopes;
 
@@ -388,15 +408,15 @@ public final class YARPTranslatorDriver {
             scopes = new byte[0][][];
         }
 
-        byte[] parsingOptions = ParsingOptions.serialize(filepath, line, encoding, frozenStringLiteral, version,
-                scopes);
+        byte[] parsingOptions = ParsingOptions.serialize(filepath, line, encoding, frozenStringLiteral, commandline,
+                version, encodingLocked, mainScript, partialScript, scopes);
         byte[] serializedBytes = Parser.parseAndSerialize(sourceBytes, parsingOptions);
 
         return YARPLoader.load(serializedBytes, sourceBytes, rubySource);
     }
 
-    public static void handleWarningsErrorsPrimitives(RubyContext context, ParseResult parseResult,
-            RubySource rubySource, String sourcePath, ParseEnvironment parseEnvironment,
+    public static void handleWarningsErrorsPrimitives(RubyLanguage language, RubyContext context,
+            ParseResult parseResult, RubySource rubySource, String sourcePath, ParseEnvironment parseEnvironment,
             RubyDeferredWarnings rubyWarnings) {
 
         final ParseResult.Error[] errors = parseResult.errors;
@@ -429,7 +449,7 @@ public final class YARPTranslatorDriver {
             Nodes.Location location = error.location;
             SourceSection section = rubySource.getSource().createSection(location.startOffset, location.length);
 
-            String message = context.fileLine(section) + ": " + error.message;
+            String message = language.fileLine(section) + ": " + error.message;
             throw new RaiseException(
                     context,
                     context.getCoreExceptions().syntaxErrorAlreadyWithFileLine(message, null, section));

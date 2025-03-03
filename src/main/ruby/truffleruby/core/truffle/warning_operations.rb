@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Copyright (c) 2021, 2024 Oracle and/or its affiliates. All rights reserved. This
+# Copyright (c) 2021, 2025 Oracle and/or its affiliates. All rights reserved. This
 # code is released under a tri EPL/GPL/LGPL license. You can use it,
 # redistribute it and/or modify it under the terms of the:
 #
@@ -14,6 +14,10 @@ module Truffle
       return if category == :deprecated || category == :experimental || category == :performance
 
       raise ArgumentError, "unknown category: #{category}"
+    end
+
+    def self.performance_warning(message)
+      ::Warning.warn(message, category: :performance)
     end
   end
 end

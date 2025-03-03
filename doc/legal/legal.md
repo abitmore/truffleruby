@@ -5,7 +5,7 @@ which are the only supported ways to use TruffleRuby.
 
 ## TruffleRuby
 
-TruffleRuby is copyright (c) 2013-2024 Oracle and/or its
+TruffleRuby is copyright (c) 2013-2025 Oracle and/or its
 affiliates, and is made available to you under the terms of any one of the
 following three licenses:
 
@@ -18,7 +18,7 @@ See `epl-2.0.txt`, `gpl-2.txt`, `lgpl-2.1.txt`.
 ## MRI
 
 The standard implementation of Ruby is MRI. TruffleRuby contains code from MRI
-version 3.2.2, including:
+version 3.3.5, including:
 
 * the standard library in `lib/mri`, 
 * Ruby C extension API in `lib/cext/include` and `src/main/c/cext`, 
@@ -124,6 +124,10 @@ power_assert is copyright Kazuki Tsujimoto and is available under the same licen
 
 prime is under the same copyright and licence as MRI (see `ruby-bsdl.txt`).
 
+#### racc
+
+racc is under the same copyright and licence as MRI (see `ruby-bsdl.txt`).
+
 #### rake
 
 Rake is copyright Jim Weirich and is available under an MIT licence (see `mit.txt`).
@@ -179,16 +183,15 @@ copyright Shopify Inc. and is available under an MIT licence (see `src/main/c/ya
 TruffleRuby has Java dependencies on these modules, which are then included in
 the distribution:
 
-#### JONI
+#### JOni
 
-TruffleRuby uses JONI (version as described in `mx.truffleruby/suite.py`). JONI
-is copyright its authors and is released under an MIT licence (see `mit.txt`).
+TruffleRuby uses JOni, version as described in [mx.truffleruby/suite.py](../../mx.truffleruby/suite.py).
+JOni is copyright its authors and is released under an MIT licence (see `mit.txt`).
 
 #### JCodings
 
-TruffleRuby uses JCodings (version as described in `mx.truffleruby/suite.py`).
-JCodings is copyright its authors and is released under an MIT licence (see
-`mit.txt`).
+TruffleRuby uses JCodings, version as described in [Truffle's suite.py](https://github.com/oracle/graal/blob/master/truffle/mx.truffle/suite.py) (select the correct branch/tag for finding the version used in a release).
+JCodings is copyright its authors and is released under an MIT licence (see `mit.txt`).
 
 ## Patches
 

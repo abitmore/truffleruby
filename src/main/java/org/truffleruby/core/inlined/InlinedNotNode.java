@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2017, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -36,7 +36,7 @@ public abstract class InlinedNotNode extends UnaryInlinedOperationNode {
     static boolean not(VirtualFrame frame, Object self,
             @Cached LookupMethodOnSelfNode lookupNode,
             @Cached BooleanCastNode booleanCastNode,
-            @Bind("this") Node node) {
+            @Bind Node node) {
         return !booleanCastNode.execute(node, self);
     }
 

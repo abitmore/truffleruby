@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2014, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -13,14 +13,17 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.math.RoundingMode;
 
+import com.oracle.truffle.api.RootCallTarget;
 import com.oracle.truffle.api.dsl.Bind;
 import com.oracle.truffle.api.dsl.Cached.Shared;
 import com.oracle.truffle.api.dsl.Cached.Exclusive;
 import com.oracle.truffle.api.dsl.Fallback;
 import com.oracle.truffle.api.dsl.GenerateCached;
 import com.oracle.truffle.api.dsl.GenerateInline;
+import com.oracle.truffle.api.dsl.GenerateUncached;
 import com.oracle.truffle.api.dsl.Idempotent;
 import com.oracle.truffle.api.dsl.NeverDefault;
+import com.oracle.truffle.api.dsl.ReportPolymorphism;
 import com.oracle.truffle.api.nodes.Node;
 import com.oracle.truffle.api.profiles.InlinedBranchProfile;
 import com.oracle.truffle.api.profiles.InlinedConditionProfile;
@@ -28,6 +31,7 @@ import com.oracle.truffle.api.profiles.InlinedLoopConditionProfile;
 import com.oracle.truffle.api.profiles.LoopConditionProfile;
 import com.oracle.truffle.api.strings.TruffleString;
 import org.truffleruby.annotations.CoreMethod;
+import org.truffleruby.annotations.Split;
 import org.truffleruby.builtins.CoreMethodArrayArgumentsNode;
 import org.truffleruby.annotations.CoreModule;
 import org.truffleruby.annotations.Primitive;
@@ -39,11 +43,7 @@ import org.truffleruby.core.cast.BooleanCastNode;
 import org.truffleruby.core.cast.FloatToIntegerNode;
 import org.truffleruby.core.cast.ToRubyIntegerNode;
 import org.truffleruby.core.encoding.Encodings;
-import org.truffleruby.core.numeric.IntegerNodesFactory.DivNodeFactory;
-import org.truffleruby.core.numeric.IntegerNodesFactory.LeftShiftNodeFactory;
-import org.truffleruby.core.numeric.IntegerNodesFactory.MulNodeFactory;
-import org.truffleruby.core.numeric.IntegerNodesFactory.PowNodeFactory;
-import org.truffleruby.core.numeric.IntegerNodesFactory.RightShiftNodeFactory;
+import org.truffleruby.core.inlined.AlwaysInlinedMethodNode;
 import org.truffleruby.core.proc.RubyProc;
 import org.truffleruby.core.string.RubyString;
 import org.truffleruby.language.NoImplicitCastsToLong;
@@ -51,6 +51,7 @@ import org.truffleruby.language.NotProvided;
 import org.truffleruby.language.RubyBaseNode;
 import org.truffleruby.language.RubyGuards;
 import org.truffleruby.language.WarnNode;
+import org.truffleruby.language.arguments.RubyArguments;
 import org.truffleruby.language.control.RaiseException;
 import org.truffleruby.language.dispatch.DispatchNode;
 
@@ -59,7 +60,6 @@ import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
 import com.oracle.truffle.api.dsl.Cached;
 import com.oracle.truffle.api.dsl.Specialization;
 import com.oracle.truffle.api.dsl.TypeSystemReference;
-import com.oracle.truffle.api.frame.VirtualFrame;
 import com.oracle.truffle.api.nodes.ExplodeLoop;
 import com.oracle.truffle.api.nodes.ExplodeLoop.LoopExplosionKind;
 import com.oracle.truffle.api.profiles.BranchProfile;
@@ -231,7 +231,7 @@ public abstract class IntegerNodes {
 
         @NeverDefault
         public static MulNode create() {
-            return MulNodeFactory.create(null);
+            return IntegerNodesFactory.MulNodeFactory.create(null);
         }
 
         public abstract Object executeMul(Object a, Object b);
@@ -427,14 +427,9 @@ public abstract class IntegerNodes {
             return a / b;
         }
 
-        @Specialization(guards = { "!isLongMinValue(a)" })
-        int divBignum(long a, RubyBignum b) {
-            return 0;
-        }
-
-        @Specialization(guards = { "isLongMinValue(a)" })
-        int divBignumEdgeCase(long a, RubyBignum b) {
-            return -b.value.signum();
+        @Specialization
+        Object divBignum(long a, RubyBignum b) {
+            return (a == 0 || Long.signum(a) == b.value.signum()) ? 0 : -1;
         }
 
         // Bignum
@@ -481,17 +476,13 @@ public abstract class IntegerNodes {
             return redoCoerced.call(a, "redo_coerced", coreSymbols().DIVIDE, b);
         }
 
-        protected static boolean isLongMinValue(long a) {
-            return a == Long.MIN_VALUE;
-        }
-
     }
 
     // Defined in Java as we need to statically call #/
     @CoreMethod(names = "div", required = 1)
     public abstract static class IDivNode extends CoreMethodArrayArgumentsNode {
 
-        @Child private DivNode divNode = DivNodeFactory.create(null);
+        @Child private DivNode divNode = IntegerNodesFactory.DivNodeFactory.create(null);
 
         @Specialization
         Object idiv(Object a, Object b,
@@ -513,7 +504,8 @@ public abstract class IntegerNodes {
 
     }
 
-    @CoreMethod(names = { "%", "modulo" }, required = 1)
+    // Splitting: inline cache
+    @CoreMethod(names = { "%", "modulo" }, required = 1, split = Split.ALWAYS)
     public abstract static class ModNode extends CoreMethodArrayArgumentsNode {
 
         private final BranchProfile adjustProfile = BranchProfile.create();
@@ -791,8 +783,26 @@ public abstract class IntegerNodes {
 
     }
 
-    @CoreMethod(names = { "==", "===" }, required = 1)
-    public abstract static class EqualNode extends CoreMethodArrayArgumentsNode {
+    @GenerateUncached
+    @CoreMethod(names = { "==", "===" }, required = 1, alwaysInlined = true)
+    public abstract static class EqualNode extends AlwaysInlinedMethodNode {
+
+        @Specialization
+        static Object equal(Object self, Object[] rubyArgs, RootCallTarget target,
+                @Cached EqualInternalNode equalInternalNode,
+                @Bind Node node) {
+            Object other = RubyArguments.getArgument(rubyArgs, 0);
+            return equalInternalNode.execute(node, self, other);
+        }
+
+    }
+
+    @GenerateInline
+    @GenerateCached(false)
+    @GenerateUncached
+    public abstract static class EqualInternalNode extends RubyBaseNode {
+
+        public abstract Object execute(Node node, Object a, Object b);
 
         @Specialization
         boolean equal(int a, int b) {
@@ -835,10 +845,9 @@ public abstract class IntegerNodes {
         }
 
         @Specialization(guards = "!isRubyNumber(b)")
-        static Object equal(VirtualFrame frame, Object a, Object b,
-                @Cached DispatchNode reverseCallNode,
-                @Cached BooleanCastNode booleanCastNode,
-                @Bind("this") Node node) {
+        static Object equal(Node node, Object a, Object b,
+                @Cached(inline = false) DispatchNode reverseCallNode,
+                @Cached BooleanCastNode booleanCastNode) {
             final Object reversedResult = reverseCallNode.call(b, "==", a);
             return booleanCastNode.execute(node, reversedResult);
         }
@@ -1194,7 +1203,7 @@ public abstract class IntegerNodes {
         static final long MAX_INT = Integer.MAX_VALUE;
 
         public static LeftShiftNode create() {
-            return LeftShiftNodeFactory.create(null);
+            return IntegerNodesFactory.LeftShiftNodeFactory.create(null);
         }
 
         public abstract Object executeLeftShift(Object a, Object b);
@@ -1291,14 +1300,14 @@ public abstract class IntegerNodes {
         static Object leftShiftCoerced(Object a, Object b,
                 @Cached ToRubyIntegerNode toRubyIntNode,
                 @Cached LeftShiftNode leftShiftNode,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             return leftShiftNode.executeLeftShift(a, toRubyIntNode.execute(node, b));
         }
 
         private Object negateAndRightShift(Object a, Object b) {
             if (rightShiftNode == null) {
                 CompilerDirectives.transferToInterpreterAndInvalidate();
-                rightShiftNode = insert(RightShiftNodeFactory.create(null));
+                rightShiftNode = insert(IntegerNodesFactory.RightShiftNodeFactory.create(null));
             }
 
             if (negNode == null) {
@@ -1336,7 +1345,7 @@ public abstract class IntegerNodes {
         static final long MAX_INT = Integer.MAX_VALUE;
 
         public static RightShiftNode create() {
-            return RightShiftNodeFactory.create(null);
+            return IntegerNodesFactory.RightShiftNodeFactory.create(null);
         }
 
         public abstract Object executeRightShift(Object a, Object b);
@@ -1412,14 +1421,14 @@ public abstract class IntegerNodes {
         static Object rightShiftCoerced(Object a, Object b,
                 @Cached ToRubyIntegerNode toRubyIntNode,
                 @Cached RightShiftNode rightShiftNode,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             return rightShiftNode.executeRightShift(a, toRubyIntNode.execute(node, b));
         }
 
         private Object negateAndLeftShift(Object a, Object b) {
             if (leftShiftNode == null) {
                 CompilerDirectives.transferToInterpreterAndInvalidate();
-                leftShiftNode = insert(LeftShiftNodeFactory.create(null));
+                leftShiftNode = insert(IntegerNodesFactory.LeftShiftNodeFactory.create(null));
             }
 
             if (negNode == null) {
@@ -1614,7 +1623,7 @@ public abstract class IntegerNodes {
         }
     }
 
-    @Primitive(name = "integer_fits_into_int")
+    @Primitive(name = "integer_fits_into_int?")
     public abstract static class FixnumFitsIntoIntNode extends PrimitiveArrayArgumentsNode {
 
         @Specialization
@@ -1634,7 +1643,7 @@ public abstract class IntegerNodes {
 
     }
 
-    @Primitive(name = "integer_fits_into_uint")
+    @Primitive(name = "integer_fits_into_uint?")
     public abstract static class IntegerFitsIntoUIntNode extends PrimitiveArrayArgumentsNode {
 
         @Specialization
@@ -1654,7 +1663,7 @@ public abstract class IntegerNodes {
 
     }
 
-    @Primitive(name = "integer_fits_into_long")
+    @Primitive(name = "integer_fits_into_long?")
     public abstract static class IntegerFitsIntoLongNode extends PrimitiveArrayArgumentsNode {
 
         @Specialization
@@ -1674,7 +1683,7 @@ public abstract class IntegerNodes {
 
     }
 
-    @Primitive(name = "integer_fits_into_ulong")
+    @Primitive(name = "integer_fits_into_ulong?")
     public abstract static class IntegerFitsIntoULongNode extends PrimitiveArrayArgumentsNode {
 
         @Specialization
@@ -1746,6 +1755,7 @@ public abstract class IntegerNodes {
     }
 
     @Primitive(name = "integer_pow", lowerFixnum = { 0, 1 })
+    @ReportPolymorphism // inline cache
     public abstract static class PowNode extends PrimitiveArrayArgumentsNode {
 
         @Child private PowNode recursivePowNode;
@@ -1758,7 +1768,7 @@ public abstract class IntegerNodes {
         protected Object recursivePow(Object a, Object b) {
             if (recursivePowNode == null) {
                 CompilerDirectives.transferToInterpreterAndInvalidate();
-                recursivePowNode = insert(PowNodeFactory.create(null));
+                recursivePowNode = insert(IntegerNodesFactory.PowNodeFactory.create(null));
             }
 
             return recursivePowNode.executePow(a, b);

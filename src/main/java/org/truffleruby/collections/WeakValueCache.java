@@ -106,8 +106,8 @@ public class WeakValueCache<Key, Value> implements ReHashable {
 
     @TruffleBoundary
     public int size() {
-        int size = 0;
         removeStaleEntries();
+        int size = 0;
 
         // Filter out null entries.
         for (KeyedReference<Key, Value> ref : map.values()) {
@@ -121,11 +121,18 @@ public class WeakValueCache<Key, Value> implements ReHashable {
     }
 
     @TruffleBoundary
+    public Value remove(Key key) {
+        removeStaleEntries();
+        final KeyedReference<Key, Value> reference = map.remove(key);
+        return reference == null ? null : reference.get();
+    }
+
+    @TruffleBoundary
     public Collection<Key> keys() {
         removeStaleEntries();
         final Collection<Key> keys = new ArrayList<>(map.size());
 
-        // Filter out keys for null values.
+        // Filter out null entries.
         for (Entry<Key, KeyedReference<Key, Value>> e : map.entrySet()) {
             final Value value = e.getValue().get();
             if (value != null) {
@@ -141,7 +148,7 @@ public class WeakValueCache<Key, Value> implements ReHashable {
         removeStaleEntries();
         final Collection<Value> values = new ArrayList<>(map.size());
 
-        // Filter out null values.
+        // Filter out null entries.
         for (WeakReference<Value> reference : map.values()) {
             final Value value = reference.get();
             if (value != null) {
@@ -157,7 +164,7 @@ public class WeakValueCache<Key, Value> implements ReHashable {
         removeStaleEntries();
         final Collection<SimpleEntry<Key, Value>> entries = new ArrayList<>(map.size());
 
-        // Filter out null values.
+        // Filter out null entries.
         for (Entry<Key, KeyedReference<Key, Value>> e : map.entrySet()) {
             final Value value = e.getValue().get();
             if (value != null) {

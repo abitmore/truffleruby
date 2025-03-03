@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2020, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -49,6 +49,10 @@ VALUE rb_class_of(VALUE object) {
 
 VALUE rb_singleton_class(VALUE object) {
   return RUBY_CEXT_INVOKE("rb_singleton_class", object);
+}
+
+VALUE rb_class_get_superclass(VALUE klass) {
+  return RUBY_CEXT_INVOKE("rb_class_get_superclass", klass);
 }
 
 VALUE rb_obj_alloc(VALUE ruby_class) {

@@ -1,7 +1,7 @@
 # frozen-string-literal: false
 # truffleruby_primitives: true
 
-# Copyright (c) 2014, 2024 Oracle and/or its affiliates. All rights reserved. This
+# Copyright (c) 2014, 2025 Oracle and/or its affiliates. All rights reserved. This
 # code is released under a tri EPL/GPL/LGPL license. You can use it,
 # redistribute it and/or modify it under the terms of the:
 #
@@ -61,6 +61,7 @@ module RbConfig
 
   prefix = ruby_home
   rubyhdrdir = "#{prefix}/lib/cext/include"
+  includedir = "#{prefix}/lib/cext" # the parent dir of rubyhdrdir
   cflags_pre = ''
 
   if sulong
@@ -107,7 +108,7 @@ module RbConfig
   defs = ''
   cppflags = ''
   ldflags = ''
-  dldflags = Truffle::Platform.darwin? ? '-Wl,-undefined,dynamic_lookup' : ''
+  dldflags = Truffle::Platform.darwin? ? '-Wl,-undefined,dynamic_lookup' : '-Wl,-z,lazy'
 
   cext_dir = "#{prefix}/lib/cext"
   soext = Truffle::Platform::SOEXT
@@ -135,14 +136,18 @@ module RbConfig
 
   # Set extra flags needed for --building-core-cexts
   if Truffle::Boot.get_option 'building-core-cexts'
-    libtruffleruby = "#{ruby_home}/src/main/c/cext/libtruffleruby.#{soext}"
-    libtrufflerubytrampoline = "#{ruby_home}/src/main/c/cext-trampoline/libtrufflerubytrampoline.#{soext}"
+    repo = Truffle::System.get_java_property 'truffleruby.repository'
+    libtruffleruby = "#{repo}/src/main/c/cext/libtruffleruby.#{soext}"
+    libtrufflerubytrampoline = "#{repo}/src/main/c/cext-trampoline/libtrufflerubytrampoline.#{soext}"
 
-    relative_debug_paths = " -fdebug-prefix-map=#{ruby_home}=."
+    relative_debug_paths = " -fdebug-prefix-map=#{repo}=."
     cppflags << relative_debug_paths
 
     warnflags << '-Wundef' # Warn for undefined preprocessor macros for core C extensions
     warnflags << '-Werror' # Make sure there are no warnings in core C extensions
+    # If there are deprecations in core C extensions, do not error for them.
+    # This would be problematic for extconf.rb checks as they would think such deprecated functions do not exist.
+    warnflags << '-Wno-error=deprecated-declarations'
   else
     libtruffleruby = "#{cext_dir}/libtruffleruby.#{soext}"
     libtrufflerubytrampoline = "#{cext_dir}/libtrufflerubytrampoline.#{soext}"
@@ -152,6 +157,8 @@ module RbConfig
   librubyarg = ''
 
   warnflags = warnflags.join(' ')
+
+  major, minor, teeny = RUBY_VERSION.split('.')
 
   # Sorted alphabetically using sort(1)
   CONFIG = {
@@ -182,7 +189,7 @@ module RbConfig
     'host_cpu'          => host_cpu,
     'host'              => host,
     'host_os'           => host_os_full,
-    'includedir'        => "#{prefix}/lib/cext", # the parent dir of rubyhdrdir
+    'includedir'        => includedir,
     'INSTALL'           => '/usr/bin/install -c',
     'LDFLAGS'           => ldflags,
     'libdirname'        => 'libdir',
@@ -199,11 +206,14 @@ module RbConfig
     'libtruffleruby'    => libtruffleruby,
     'libtrufflerubytrampoline' => libtrufflerubytrampoline,
     'MAKEDIRS'          => 'mkdir -p',
+    'MAJOR'             => major,
     'MKDIR_P'           => 'mkdir -p',
+    'MINOR'             => minor,
     'NULLCMD'           => ':',
     'OBJEXT'            => 'o',
     'optflags'          => optflags,
     'OUTFLAG'           => '-o ',
+    'PATCHLEVEL'        => "#{RUBY_PATCHLEVEL}",
     'PATH_SEPARATOR'    => File::PATH_SEPARATOR.dup,
     'PKG_CONFIG'        => 'pkg-config',
     'prefix'            => prefix,
@@ -213,9 +223,11 @@ module RbConfig
     'RMDIR'             => rmdir,
     'RMDIRS'            => "#{rmdir} -p",
     'RPATHFLAG'         => ' -Wl,-rpath,%1$-s',
+    'RUBY_API_VERSION'  => ruby_abi_version.dup,
     'RUBY_BASE_NAME'    => ruby_base_name,
     'ruby_install_name' => ruby_install_name,
     'RUBY_INSTALL_NAME' => ruby_install_name,
+    'RUBY_PROGRAM_VERSION' => RUBY_VERSION.dup,
     'RUBYW_INSTALL_NAME'=> '',
     'ruby_version'      => ruby_abi_version.dup,
     'rubyarchhdrdir'    => rubyhdrdir.dup,
@@ -225,6 +237,7 @@ module RbConfig
     'sysconfdir'        => "#{prefix}/etc", # doesn't exist, as in MRI
     'target_cpu'        => host_cpu,
     'target_os'         => host_os,
+    'TEENY'             => teeny,
     'UNICODE_VERSION'   => Primitive.encoding_unicode_version,
     'UNICODE_EMOJI_VERSION' => Primitive.encoding_unicode_emoji_version,
     'warnflags'         => warnflags,
@@ -260,6 +273,8 @@ module RbConfig
   archdir = \
   expanded['archdir'] = rubyarchdir
   mkconfig['archdir'] = '$(rubyarchdir)'
+  expanded['archincludedir'] = "#{includedir}/#{arch}"
+  mkconfig['archincludedir'] = '$(includedir)/$(arch)'
   sitearch = \
   expanded['sitearch'] = arch
   mkconfig['sitearch'] = '$(arch)'

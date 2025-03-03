@@ -28,7 +28,6 @@ LANGUAGE_OPTIONS:
 - METHOD_LOOKUP_CACHE
 - DISPATCH_CACHE
 - YIELD_CACHE
-- METHOD_TO_PROC_CACHE
 - IS_A_CACHE
 - BIND_CACHE
 - CONSTANT_CACHE
@@ -38,7 +37,6 @@ LANGUAGE_OPTIONS:
 - PACK_CACHE
 - UNPACK_CACHE
 - EVAL_CACHE
-- ENCODING_COMPATIBLE_QUERY_CACHE
 - ENCODING_LOADED_CLASSES_CACHE
 - INTEROP_CONVERT_CACHE
 - TIME_FORMAT_CACHE
@@ -48,6 +46,7 @@ LANGUAGE_OPTIONS:
 - CLASS_CACHE
 - ARRAY_DUP_CACHE
 - ARRAY_STRATEGY_CACHE
+# Other
 - EXPERIMENTAL_ENGINE_CACHING
 - RUN_TWICE
 - CHECK_CLONE_UNINITIALIZED_CORRECTNESS
@@ -85,6 +84,8 @@ EXPERT:
     LAZY_RUBYGEMS: [lazy-rubygems, boolean, ['RUBYGEMS && ', DEFAULT_LAZY], Load RubyGems lazily on first failing require]
 
     # Embedding options
+    # It would be tempting to make these language options, but that does not work because the pre-initialized context is created with (isNativeAccessAllowed=false, embedded=true)
+    # and it must be compatible (to be reused) with the runtime context created from the truffleruby launcher, which is (isNativeAccessAllowed=true, embedded=false).
     EMBEDDED: [embedded, boolean, true, 'Set default options for an embedded use of TruffleRuby, rather than top-level use']
     NATIVE_PLATFORM: [platform-native, boolean, ['env.isNativeAccessAllowed() && ', true], Enables native calls via Truffle NFI for internal functionality]
     NATIVE_INTERRUPT: [platform-native-interrupt, boolean, NATIVE_PLATFORM, Use the SIGVTALRM signal to interrupt native blocking calls]
@@ -103,7 +104,7 @@ EXPERT:
     LAZY_TRANSLATION_USER: [lazy-translation-user, boolean, LAZY_CALLTARGETS, 'Lazily translation of stdlib, gem and user source files']
     PATCHING: [patching, boolean, true, Use patching]
     HASHING_DETERMINISTIC: [hashing-deterministic, boolean, false, Produce deterministic hash values]
-    VIRTUAL_THREAD_FIBERS: [virtual-thread-fibers, boolean, false, 'Use JDK 19+ VirtualThread for Fibers, also requires --vm.-enable-preview']
+    VIRTUAL_THREAD_FIBERS: [virtual-thread-fibers, boolean, false, 'Use VirtualThread for Fibers']
     LOG_SUBPROCESS: [log-subprocess, boolean, false, 'Log whenever a subprocess is created'] # Also see --log-process-args
     WARN_LOCALE: [warn-locale, boolean, true, 'Warn when the system locale is not set properly']
 
@@ -131,6 +132,7 @@ EXPERT:
     # C extension options
     CEXTS: [cexts, boolean, true, Enable use of C extensions]
     CEXT_LOCK: [cexts-lock, boolean, true, Use a Global Lock when running C extensions]
+    CEXTS_PANAMA: [cexts-panama, boolean, true, 'Use Panama for native to Ruby calls in C extensions. Only available in --jvm mode on JDK 22+.']
 
     # Debugging the values of options
     OPTIONS_LOG: [options-log, boolean, false, Log the final value of all options]
@@ -153,6 +155,8 @@ EXPERT:
     WARN_TRUFFLE_REGEX_MATCH_FALLBACK: [warn-truffle-regex-match-fallback, boolean, false, 'Warn every time Truffle Regex cannot be used for a Regexp match (and instead Joni is used)']
     TRUFFLE_REGEX_IGNORE_ATOMIC_GROUPS: [truffle-regex-ignore-atomic-groups, boolean, false, 'Treat atomic groups (?>...) as ordinary groups (?:...) with Truffle Regex.']
 
+    REUSE_PRECOMPILED_GEMS: [reuse-precompiled-gems, string-array, '<gem>,<gem>,...', 'A list of gems we want to install precompiled (using the local platform) on TruffleRuby. Can only be used for gem extensions which do not depend on the Ruby C API.']
+
 INTERNAL: # Options for debugging the TruffleRuby implementation
   EXPERIMENTAL:
     # Options corresponding to MRI options, which are only meaningful when using the TruffleRuby launcher
@@ -167,7 +171,7 @@ INTERNAL: # Options for debugging the TruffleRuby implementation
     # Used internally for the launcher to communicate with the RubyContext
     ARGV_GLOBAL_VALUES: [argv-global-values, string-array, '<key>,<value>,...', Parsed options from script argv with a value]
     ARGV_GLOBAL_FLAGS: [argv-global-flags, string-array, '<flag>,<flag>,...', Parsed options from script argv acting as flags (no value)]
-    BUILDING_CORE_CEXTS: [building-core-cexts, boolean, false, 'Used while building TruffleRuby to build core C extensions']
+    BUILDING_CORE_CEXTS: [building-core-cexts, boolean, false, 'Used while building TruffleRuby to build default & bundled gems C extensions']
 
     # Low-level logging of implementation details
     LAZY_TRANSLATION_LOG: [lazy-translation-log, boolean, false, Log lazy translations from the parser AST to the Truffle AST]
@@ -198,7 +202,6 @@ INTERNAL: # Options for debugging the TruffleRuby implementation
     METHOD_LOOKUP_CACHE: [method-lookup-cache, integer, DEFAULT_CACHE, Method lookup cache size]
     DISPATCH_CACHE: [dispatch-cache, integer, DEFAULT_CACHE, Dispatch (various forms of method call) cache size]
     YIELD_CACHE: [yield-cache, integer, DEFAULT_CACHE, Yield cache size]
-    METHOD_TO_PROC_CACHE: [to-proc-cache, integer, DEFAULT_CACHE, Method#to_proc cache size]
     IS_A_CACHE: [is-a-cache, integer, DEFAULT_CACHE, 'Kernel#is_a? and #kind_of? cache size']
     BIND_CACHE: [bind-cache, integer, DEFAULT_CACHE, Cache size of test for being able to bind a method to a module]
     CONSTANT_CACHE: [constant-cache, integer, DEFAULT_CACHE, Constant cache size]
@@ -208,7 +211,6 @@ INTERNAL: # Options for debugging the TruffleRuby implementation
     PACK_CACHE: [pack-cache, integer, DEFAULT_CACHE, Array#pack cache size]
     UNPACK_CACHE: [unpack-cache, integer, DEFAULT_CACHE, String#unpack cache size]
     EVAL_CACHE: [eval-cache, integer, DEFAULT_CACHE, eval cache size]
-    ENCODING_COMPATIBLE_QUERY_CACHE: [encoding-compatible-query-cache, integer, DEFAULT_CACHE, 'Encoding.compatible? cache size']
     ENCODING_LOADED_CLASSES_CACHE: [encoding-loaded-classes-cache, integer, DEFAULT_CACHE, Cache size of encoding operations based on anticipated number of total active encodings]
     INTEROP_CONVERT_CACHE: [interop-convert-cache, integer, DEFAULT_CACHE, Cache size for converting values for interop]
     TIME_FORMAT_CACHE: [time-format-cache, integer, DEFAULT_CACHE, Cache size for parsed time format specifiers]

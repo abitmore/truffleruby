@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2021, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -13,9 +13,12 @@ import com.oracle.truffle.api.object.DynamicObject;
 import com.oracle.truffle.api.object.DynamicObjectLibrary;
 import org.truffleruby.RubyLanguage;
 
+import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 
 public final class ClassVariableStorage extends DynamicObject {
+
+    public static final MethodHandles.Lookup LOOKUP = MethodHandles.lookup();
 
     // Same number of inline fields as DynamicObjectBasic
     @DynamicField private long primitive1;

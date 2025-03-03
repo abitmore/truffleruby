@@ -1,4 +1,4 @@
-# Copyright (c) 2022, 2024 Oracle and/or its affiliates. All rights reserved. This
+# Copyright (c) 2022, 2025 Oracle and/or its affiliates. All rights reserved. This
 # code is released under a tri EPL/GPL/LGPL license. You can use it,
 # redistribute it and/or modify it under the terms of the:
 #
@@ -10,6 +10,7 @@ require_relative '../../ruby/optional/capi/spec_helper'
 
 load_extension("error")
 
+# C functions defined in CRuby internal headers, so they don't belong to the public API.
 describe "C-API error functions" do
   before :each do
     @e = CApiErrorSpecs.new

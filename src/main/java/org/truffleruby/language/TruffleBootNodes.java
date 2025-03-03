@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2013, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -20,7 +20,7 @@ import com.oracle.truffle.api.nodes.NodeUtil;
 import com.oracle.truffle.api.strings.TruffleString;
 import org.graalvm.options.OptionDescriptor;
 import org.truffleruby.RubyContext;
-import org.truffleruby.RubyLanguage;
+import org.truffleruby.RubyLanguage.RubySourceOptions;
 import org.truffleruby.annotations.CoreMethod;
 import org.truffleruby.builtins.CoreMethodArrayArgumentsNode;
 import org.truffleruby.builtins.CoreMethodNode;
@@ -187,7 +187,7 @@ public abstract class TruffleBootNodes {
             } catch (IOException e) {
                 throw new RaiseException(getContext(), coreExceptions().ioError(e, this));
             }
-            assert RubyLanguage.MIME_TYPE_MAIN_SCRIPT.equals(rubySource.getSource().getMimeType());
+            assert rubySource.getSource().getOptions(getLanguage()).get(RubySourceOptions.MainScript);
 
             getContext().initializeMainScriptName(mainScriptName);
 
@@ -297,7 +297,7 @@ public abstract class TruffleBootNodes {
         @Child private TruffleString.FromJavaStringNode fromJavaStringNode = TruffleString.FromJavaStringNode.create();
 
         @TruffleBoundary
-        @Specialization(guards = "libOptionName.isRubyString(optionName)", limit = "1")
+        @Specialization(guards = "libOptionName.isRubyString(this, optionName)", limit = "1")
         Object getOption(Object optionName,
                 @Cached RubyStringLibrary libOptionName) {
             final String optionNameString = RubyGuards.getJavaString(optionName);

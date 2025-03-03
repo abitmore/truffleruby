@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Copyright (c) 2017, 2024 Oracle and/or its affiliates. All rights reserved. This
+# Copyright (c) 2017, 2025 Oracle and/or its affiliates. All rights reserved. This
 # code is released under a tri EPL/GPL/LGPL license. You can use it,
 # redistribute it and/or modify it under the terms of the:
 #
@@ -41,7 +41,8 @@ module Truffle::POSIX
   LIBTRUFFLEPOSIX = LazyLibrary.new do
     home = Truffle::Boot.ruby_home
     if Truffle::Boot.get_option 'building-core-cexts'
-      libtruffleposix = "#{home}/src/main/c/truffleposix/libtruffleposix.#{Truffle::Platform::SOEXT}"
+      repo = Truffle::System.get_java_property 'truffleruby.repository'
+      libtruffleposix = "#{repo}/src/main/c/truffleposix/libtruffleposix.#{Truffle::Platform::SOEXT}"
     else
       libtruffleposix = "#{home}/lib/cext/libtruffleposix.#{Truffle::Platform::SOEXT}"
     end
@@ -127,7 +128,7 @@ module Truffle::POSIX
       parsed_sig = Primitive.interop_eval_nfi "(#{nfi_args_types.join(',')}):#{nfi_return_type}"
       bound_func = parsed_sig.bind(func)
 
-      on.define_singleton_method method_name, -> *args do
+      method_body = Truffle::Graal.copy_captured_locals -> *args do
         string_args.each do |i|
           str = args.fetch(i)
           # TODO CS 14-Nov-17 this involves copying to a Java byte[], and then NFI will copy it again!
@@ -139,7 +140,7 @@ module Truffle::POSIX
             result = Primitive.thread_run_blocking_nfi_system_call(bound_func, args)
           end while Primitive.is_a?(result, Integer) and result == -1 and Errno.errno == EINTR
         else
-          result = bound_func.call(*args)
+          result = Primitive.interop_execute(bound_func, args)
         end
 
         if return_type == :string
@@ -163,6 +164,7 @@ module Truffle::POSIX
 
         result
       end
+      on.define_singleton_method method_name, method_body
     else
       on.define_singleton_method method_name, -> * do
         raise NotImplementedError, "#{native_name} is not available"
@@ -183,9 +185,11 @@ module Truffle::POSIX
   attach_function :dirfd, [:pointer], :int
   attach_function :dup, [:int], :int
   attach_function :dup2, [:int, :int], :int
+  attach_function :fchdir, [:int], :int
   attach_function :fchmod, [:int, :mode_t], :int
   attach_function :fchown, [:int, :uid_t, :gid_t], :int
   attach_function :fcntl, [:int, :int, varargs(:int)], :int
+  attach_function :fdopendir, [:int], :pointer
   attach_function :flock, [:int, :int], :int, LIBC, true
   attach_function :truffleposix_fstat, [:int, :pointer], :int, LIBTRUFFLEPOSIX
   attach_function :truffleposix_fstat_mode, [:int], :mode_t, LIBTRUFFLEPOSIX
@@ -216,6 +220,7 @@ module Truffle::POSIX
   attach_function :truffleposix_poll_single_fd, [:int, :int, :int], :int, LIBTRUFFLEPOSIX
   attach_function :poll, [:pointer, :nfds_t, :int], :int
   attach_function :read, [:int, :pointer, :size_t], :ssize_t, LIBC, true
+  attach_function :pread, [:int, :pointer, :size_t, :off_t], :ssize_t, LIBC, true
   attach_function :readlink, [:string, :pointer, :size_t], :ssize_t
   attach_function :realpath, [:string, :pointer], :pointer
   attach_function :truffleposix_readdir_multiple, [:pointer, :int, :int, :int, :pointer], :int, LIBTRUFFLEPOSIX
@@ -234,12 +239,16 @@ module Truffle::POSIX
   attach_function :unlink, [:string], :int
   attach_function :truffleposix_utimes, [:string, :long, :int, :long, :int], :int, LIBTRUFFLEPOSIX
   attach_function :write, [:int, :pointer, :size_t], :ssize_t, LIBC, true
+  attach_function :pwrite, [:int, :pointer, :size_t, :off_t], :ssize_t, LIBC, true
 
   Truffle::Boot.delay do
     if NATIVE
       # We should capture the non-lazy method
       attach_function_eagerly :poll, [:pointer, :nfds_t, :int], :int, LIBC, false, :poll, self
       POLL = method(:poll)
+
+      attach_function_eagerly :truffleposix_poll_single_fd, [:int, :int, :int], :int, LIBTRUFFLEPOSIX, false, :truffleposix_poll_single_fd, self
+      POLL_SINGLE_FD = method(:truffleposix_poll_single_fd)
     end
   end
 
@@ -480,6 +489,25 @@ module Truffle::POSIX
     end
   end
 
+  def self.pread_string(io, length, offset)
+    fd = io.fileno
+    buffer = Primitive.io_thread_buffer_allocate(length)
+
+    begin
+      bytes_read = Truffle::POSIX.pread(fd, buffer, length, offset)
+
+      if bytes_read < 0 # error
+        [nil, Errno.errno]
+      elsif bytes_read == 0 # EOF
+        [nil, 0]
+      else
+        [buffer.read_string(bytes_read), 0]
+      end
+    ensure
+      Primitive.io_thread_buffer_free(buffer)
+    end
+  end
+
   # #write_string (either #write_string_native or #write_string_polyglot) is
   # called by IO#syswrite, IO#write, and IO::InternalBuffer#empty_to
 
@@ -569,6 +597,23 @@ module Truffle::POSIX
       Primitive.io_write_polyglot fd, string
     else
       write_string_nonblock_native(io, string)
+    end
+  end
+
+  def self.pwrite_string(io, string, offset)
+    fd = io.fileno
+    length = string.bytesize
+    buffer = Primitive.io_thread_buffer_allocate(length)
+
+    begin
+      buffer.write_bytes string
+
+      written = Truffle::POSIX.pwrite(fd, buffer, length, offset)
+      Errno.handle_errno(Errno.errno) if written < 0
+
+      written
+    ensure
+      Primitive.io_thread_buffer_free(buffer)
     end
   end
 

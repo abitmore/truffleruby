@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2018, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -47,11 +47,11 @@ public abstract class IsDefinedGlobalVariableNode extends RubyBaseNode {
 
     @Specialization(guards = { "storage.hasHooks()", "arity == 0" })
     static Object hooks(VirtualFrame frame,
-            @Cached(value = "getLanguage().getGlobalVariableIndex(lookupGlobalVariableStorageNode.name)") int index,
+            @Cached("getLanguage().getGlobalVariableIndex(lookupGlobalVariableStorageNode.name)") int index,
             @Bind("getStorage(frame)") GlobalVariableStorage storage,
-            @Cached(value = "isDefinedArity(storage)") int arity,
+            @Cached("isDefinedArity(storage)") int arity,
             @Cached @Exclusive CallBlockNode yieldNode,
-            @Bind("this") Node node) {
+            @Bind Node node) {
         return yieldNode.yield(node, storage.getIsDefined());
     }
 
@@ -61,7 +61,7 @@ public abstract class IsDefinedGlobalVariableNode extends RubyBaseNode {
             @Cached("isDefinedArity(storage)") int arity,
             @Cached @Exclusive CallBlockNode yieldNode,
             @Cached GetSpecialVariableStorage readStorage,
-            @Bind("this") Node node) {
+            @Bind Node node) {
         return yieldNode.yield(node, storage.getIsDefined(), readStorage.execute(frame, node));
     }
 

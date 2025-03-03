@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2017, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -10,19 +10,12 @@
 package org.truffleruby.core.inlined;
 
 import com.oracle.truffle.api.Assumption;
-import com.oracle.truffle.api.dsl.Bind;
-import com.oracle.truffle.api.dsl.Cached;
-import com.oracle.truffle.api.nodes.Node;
 import org.truffleruby.RubyLanguage;
-import org.truffleruby.core.encoding.EncodingNodes;
-import org.truffleruby.core.string.StringHelperNodes;
 import org.truffleruby.language.RubyNode;
 import org.truffleruby.language.dispatch.RubyCallNodeParameters;
 
 import com.oracle.truffle.api.dsl.Specialization;
 import com.oracle.truffle.api.frame.VirtualFrame;
-import org.truffleruby.language.library.RubyStringLibrary;
-import org.truffleruby.language.methods.LookupMethodOnSelfNode;
 
 public abstract class InlinedEqualNode extends BinaryInlinedOperationNode {
 
@@ -60,28 +53,6 @@ public abstract class InlinedEqualNode extends BinaryInlinedOperationNode {
     @Specialization(assumptions = { "assumptions", "floatEqualAssumption" })
     boolean doubleLong(double a, long b) {
         return a == b;
-    }
-
-    @Specialization(
-            guards = {
-                    "libA.isRubyString(a)",
-                    "libB.isRubyString(b)",
-                    "lookupNode.lookupProtected(frame, a, METHOD) == coreMethods().STRING_EQUAL"
-            },
-            assumptions = "assumptions", limit = "1")
-    static boolean stringEqual(VirtualFrame frame, Object a, Object b,
-            @Cached RubyStringLibrary libA,
-            @Cached RubyStringLibrary libB,
-            @Cached LookupMethodOnSelfNode lookupNode,
-            @Cached EncodingNodes.NegotiateCompatibleStringEncodingNode negotiateCompatibleStringEncodingNode,
-            @Cached StringHelperNodes.StringEqualInternalNode stringEqualInternalNode,
-            @Bind("this") Node node) {
-        var tstringA = libA.getTString(a);
-        var encA = libA.getEncoding(a);
-        var tstringB = libB.getTString(b);
-        var encB = libB.getEncoding(b);
-        var compatibleEncoding = negotiateCompatibleStringEncodingNode.execute(node, tstringA, encA, tstringB, encB);
-        return stringEqualInternalNode.executeInternal(node, tstringA, tstringB, compatibleEncoding);
     }
 
     @Specialization

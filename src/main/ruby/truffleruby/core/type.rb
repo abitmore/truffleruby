@@ -64,7 +64,7 @@ module Truffle
   module Type
     def self.object_respond_to_no_built_in?(obj, name, include_private = false)
       meth = Primitive.vm_method_lookup obj, name
-      !Primitive.nil?(meth) && !Primitive.vm_method_is_basic(meth)
+      !Primitive.nil?(meth) && !Primitive.vm_method_is_basic?(meth)
     end
 
     def self.check_funcall_callable(obj, name)
@@ -123,7 +123,7 @@ module Truffle
       raise TypeError, 'no implicit conversion from nil to integer' if Primitive.nil? val
 
       if Primitive.is_a?(val, Integer)
-        if Primitive.integer_fits_into_long(val)
+        if Primitive.integer_fits_into_long?(val)
           val
         else
           rb_big2ulong(val)
@@ -192,21 +192,21 @@ module Truffle
     end
 
     def self.fits_into_int?(val)
-      Primitive.is_a?(val, Integer) && Primitive.integer_fits_into_int(val)
+      Primitive.is_a?(val, Integer) && Primitive.integer_fits_into_int?(val)
     end
 
     def self.fits_into_long?(val)
-      Primitive.is_a?(val, Integer) && Primitive.integer_fits_into_long(val)
+      Primitive.is_a?(val, Integer) && Primitive.integer_fits_into_long?(val)
     end
 
     def self.check_uint(val)
-      unless Primitive.integer_fits_into_uint(val)
+      unless Primitive.integer_fits_into_uint?(val)
         raise RangeError, "integer #{val} too #{val < 0 ? 'small' : 'big'} to convert to `uint'"
       end
     end
 
     def self.check_ulong(val)
-      unless Primitive.integer_fits_into_ulong(val)
+      unless Primitive.integer_fits_into_ulong?(val)
         raise RangeError, "integer #{val} too #{val < 0 ? 'small' : 'big'} to convert to `ulong'"
       end
     end
@@ -407,9 +407,10 @@ module Truffle
       else
         pattern = StringValue(pattern)
         pattern = Regexp.quote(pattern) if quote
-        Regexp.new(pattern)
+        Primitive.regexp_compile pattern, 0
       end
     end
+    Truffle::Graal.always_split(method(:coerce_to_regexp))
 
     def self.coerce_to_encoding(obj)
       case obj
@@ -440,13 +441,18 @@ module Truffle
       path
     end
 
-    def self.coerce_to_symbol(obj)
-      if Primitive.is_a? obj, Symbol
-        obj
-      else
-        obj = obj.to_str if obj.respond_to?(:to_str)
-        coerce_to(obj, Symbol, :to_sym)
+    # Convert an object to Symbol (e.g. a method name).
+    # Non-Symbol values are converted to String with #to_str. If it couldn't be converted - TypeError is raised.
+    # Uses the logic of rb_check_id/rb_check_string_type/rb_check_convert_type_with_id
+    def self.coerce_to_symbol(object)
+      return object if Primitive.is_a?(object, Symbol)
+
+      string = Truffle::Type.rb_check_convert_type(object, String, :to_str)
+      if Primitive.nil?(string)
+        raise TypeError, "#{object.inspect} is not a symbol nor a string"
       end
+
+      string.to_sym
     end
 
     def self.symbol_or_string_to_symbol(obj)
@@ -462,67 +468,19 @@ module Truffle
       end
     end
 
-    # Equivalent of num_exact in MRI's time.c, used by Time methods.
+    # MRI: num_exact() in time.c
     def self.coerce_to_exact_num(obj)
       if Primitive.is_a? obj, Integer
         obj
-      elsif Primitive.is_a? obj, String
-        raise TypeError, "can't convert #{obj} into an exact number"
-      elsif Primitive.nil? obj
-        raise TypeError, "can't convert nil into an exact number"
+      # MRI: test to_int method availability to reject non-Numeric objects such as String,
+      # Time, etc which have to_r method.
+      elsif Primitive.respond_to?(obj, :to_int, false) and rational = rb_check_convert_type(obj, Rational, :to_r)
+        rational
+      elsif integer = rb_check_convert_type(obj, Integer, :to_int)
+        integer
       else
-        rb_check_convert_type(obj, Rational, :to_r) || coerce_to(obj, Integer, :to_int)
+        raise TypeError, "can't convert #{Primitive.class(obj)} into an exact number"
       end
-    end
-
-    def self.coerce_to_utc_offset(offset)
-      offset = String.try_convert(offset) || offset
-
-      if Primitive.is_a? offset, String
-        offset = Truffle::Type.coerce_string_to_utc_offset(offset)
-      else
-        offset = Truffle::Type.coerce_to_exact_num(offset)
-      end
-
-      if Primitive.is_a?(offset, Rational)
-        offset = offset.round
-      end
-
-      if offset <= -86400 || offset >= 86400
-        raise ArgumentError, 'utc_offset out of range'
-      end
-
-      offset
-    end
-
-    def self.coerce_string_to_utc_offset(offset)
-      unless offset.encoding.ascii_compatible?
-        raise ArgumentError, '"+HH:MM", "-HH:MM", "UTC" or "A".."I","K".."Z" expected for utc_offset: ' + offset.inspect
-      end
-
-      if offset == 'UTC'
-        offset = 0
-      elsif offset.size == 1 && ('A'..'Z') === offset && offset != 'J'
-        if offset == 'Z'
-          offset = 0
-        elsif offset < 'J' # skip J
-          offset = (offset.ord - 'A'.ord + 1) * 3600 # ("A".."I") => 1, 2, ...
-        elsif offset > 'J' && offset <= 'M'
-          offset = (offset.ord - 'A'.ord) * 3600 # ("K".."M") => 10, 11, 12
-        else
-          offset = (offset.ord - 'N'.ord + 1) * -3600 # ("N"..Y) => -1, -2, ...
-        end
-      elsif offset.match(/\A(\+|-)(\d\d)(?::(\d\d)(?::(\d\d))?)?\z/) && $1.to_i < 24 && $2.to_i < 60 && $3.to_i < 60 # with ":" separators
-        offset = $2.to_i*60*60 + $3.to_i*60 + $4.to_i
-        offset = -offset if $1.ord == 45
-      elsif offset.match(/\A(\+|-)(\d\d)(?:(\d\d)(?:(\d\d))?)?\z/) && $1.to_i < 24 && $2.to_i < 60 && $3.to_i < 60 # without ":" separators
-        offset = $2.to_i*60*60 + $3.to_i*60 + $4.to_i
-        offset = -offset if $1.ord == 45
-      else
-        raise ArgumentError, '"+HH:MM", "-HH:MM", "UTC" or "A".."I","K".."Z" expected for utc_offset: ' + offset
-      end
-
-      offset
     end
 
     def self.coerce_to_bitwise_operand(obj)

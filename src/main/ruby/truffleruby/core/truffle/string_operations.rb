@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Copyright (c) 2017, 2024 Oracle and/or its affiliates. All rights reserved. This
+# Copyright (c) 2017, 2025 Oracle and/or its affiliates. All rights reserved. This
 # code is released under a tri EPL/GPL/LGPL license. You can use it,
 # redistribute it and/or modify it under the terms of the:
 #
@@ -76,6 +76,7 @@ module Truffle
         gsub_other_matches(global, orig, pattern)
       end
     end
+    Truffle::Graal.always_split(method(:gsub_internal_matches))
 
     def self.gsub_new_offset(orig, match)
       start_pos = Primitive.match_data_byte_begin(match, 0)
@@ -127,6 +128,7 @@ module Truffle
       end
       res
     end
+    Truffle::Graal.always_split(method(:gsub_other_matches))
 
     def self.gsub_internal_yield_matches(orig, matches)
       return nil if matches.empty?
@@ -252,6 +254,30 @@ module Truffle
                      end
         Primitive.string_append(result, additional)
         index += 1
+      end
+    end
+
+    def self.validate_bytesplice_bounds(str, start, len, index_or_range, is_range)
+      bytesize = str.bytesize
+
+      if bytesize < start || start < 0
+        if is_range
+          raise RangeError, "#{index_or_range} out of range"
+        else
+          raise IndexError, "index #{index_or_range} out of string"
+        end
+      end
+
+      encoding = str.encoding
+
+      if start < bytesize && !Primitive.string_is_character_head?(encoding, str, start)
+        raise IndexError, "offset #{start} does not land on character boundary"
+      end
+
+      finish = start + len
+
+      if finish < bytesize && !Primitive.string_is_character_head?(encoding, str, finish)
+        raise IndexError, "offset #{finish} does not land on character boundary"
       end
     end
 

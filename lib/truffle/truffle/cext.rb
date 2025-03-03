@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 # truffleruby_primitives: true
 
-# Copyright (c) 2015, 2024 Oracle and/or its affiliates. All rights reserved. This
+# Copyright (c) 2015, 2025 Oracle and/or its affiliates. All rights reserved. This
 # code is released under a tri EPL/GPL/LGPL license. You can use it,
 # redistribute it and/or modify it under the terms of the:
 #
@@ -190,7 +190,28 @@ module Truffle::CExt
 
     init_functions = libtrampoline[:rb_tr_trampoline_init_functions]
     init_functions = Primitive.interop_eval_nfi('(env,(string):pointer):void').bind(init_functions)
-    init_functions.call(-> name { LIBTRUFFLERUBY[name] })
+
+    panama = Truffle::Boot.get_option('cexts-panama') && Primitive.vm_java_version >= 22 && !TruffleRuby.native?
+    if panama
+      # Check if the Panama backend is available, it might not be when embedding TruffleRuby
+      rb_tr_invoke = LIBTRUFFLERUBY['rb_tr_invoke']
+      begin
+        keep_alive << rb_tr_invoke.createNativeClosure('panama')
+      rescue Polyglot::ForeignException => e
+        warn "warning: the Panama Truffle NFI backend for running C extensions faster is not available (#{e.message}). Add 'org.graalvm.truffle:truffle-nfi-panama' to Maven dependencies to resolve or use '--ruby.cexts-panama=false' to ignore."
+        panama = false
+      end
+    end
+
+    if panama
+      init_functions.call(-> name {
+        closure = LIBTRUFFLERUBY[name].createNativeClosure('panama')
+        keep_alive << closure
+        closure
+      })
+    else
+      init_functions.call(-> name { LIBTRUFFLERUBY[name] })
+    end
 
     init_constants = libtrampoline[:rb_tr_trampoline_init_global_constants]
     init_constants = Primitive.interop_eval_nfi('((string):pointer):void').bind(init_constants)
@@ -214,11 +235,15 @@ module Truffle::CExt
     function_name = "Init_#{name}"
 
     init_function = library[function_name]
-    begin
-      Primitive.call_with_c_mutex_and_frame(VOID_TO_VOID_WRAPPER, [init_function], nil, nil)
-    ensure
-      resolve_registered_addresses
-    end
+
+    Primitive.call_with_c_mutex_and_frame(-> {
+      begin
+        Primitive.interop_execute(VOID_TO_VOID_WRAPPER, [init_function])
+      ensure
+        # Resolve while inside the ExtensionCallStackEntry to ensure the preservedObjects are still all alive
+        resolve_registered_addresses
+      end
+    }, [], nil, nil)
   end
 
   def supported?
@@ -599,6 +624,11 @@ module Truffle::CExt
     ruby_class
   end
 
+  def rb_class_get_superclass(ruby_class)
+    return false unless Primitive.is_a?(ruby_class, Class)
+    ruby_class.superclass || false
+  end
+
   def rb_obj_respond_to(object, name, priv)
     object.respond_to?(name, priv != 0)
   end
@@ -638,9 +668,6 @@ module Truffle::CExt
   def rb_ivar_foreach(object, func, arg)
     keys_and_vals = []
     if Primitive.is_a?(object, Module)
-      keys_and_vals << :__classpath__
-      keys_and_vals << object.name
-
       object.class_variables.each do |key|
         keys_and_vals << key
         keys_and_vals << object.class_variable_get(key)
@@ -704,7 +731,7 @@ module Truffle::CExt
                nil
              end
     if err
-      Primitive.thread_set_exception(err)
+      Primitive.fiber_set_error_info(err)
       nil
     else
       result
@@ -1222,7 +1249,7 @@ module Truffle::CExt
     unless Primitive.nil?(e)
       store_exception(e)
       pos = extract_tag(e)
-      Primitive.thread_set_exception(extract_ruby_exception(e))
+      Primitive.fiber_set_error_info(extract_ruby_exception(e))
     end
 
     Truffle::Interop.execute_without_conversion(write_status, status, pos)
@@ -1235,7 +1262,7 @@ module Truffle::CExt
       e = retrieve_exception
       tag = extract_tag(e)
       raise RuntimeError, 'mismatch between jump tag and captured exception' unless pos == tag
-      Primitive.thread_set_exception(nil)
+      Primitive.fiber_set_error_info(nil)
       raise_exception(e)
     end
   end
@@ -1290,7 +1317,7 @@ module Truffle::CExt
 
   def rb_set_errinfo(error)
     if Primitive.nil?(error) || Primitive.is_a?(error, Exception)
-      Primitive.thread_set_exception(error)
+      Primitive.fiber_set_error_info(error)
     else
       raise TypeError, 'assigning non-exception to ?!'
     end
@@ -1301,7 +1328,7 @@ module Truffle::CExt
   end
 
   def rb_errinfo
-    $!
+    Primitive.fiber_get_error_info
   end
 
   def rb_arity_error_string(arg_count, min, max)
@@ -1402,6 +1429,10 @@ module Truffle::CExt
     sprintf(*args)
   end
 
+  def rb_str_format(args, format)
+    sprintf(format, *args)
+  end
+
   def rb_io_printf(out, args)
     out.printf(*args)
   end
@@ -1477,7 +1508,7 @@ module Truffle::CExt
     begin
       allocate_method = ruby_class.method(:__allocate__).owner
     rescue NameError
-      nil
+      nil # it's fine to call this on a class that doesn't have an allocator
     else
       Primitive.object_hidden_var_get(allocate_method, ALLOCATOR_FUNC)
     end
@@ -1489,6 +1520,14 @@ module Truffle::CExt
     nil # it's fine to call this on a class that doesn't have an allocator
   else
     Primitive.object_hidden_var_set(ruby_class.singleton_class, ALLOCATOR_FUNC, nil)
+  end
+
+  def rb_tr_set_default_alloc_func(ruby_class, alloc_function)
+    Primitive.object_hidden_var_set(ruby_class.singleton_class, ALLOCATOR_FUNC, alloc_function)
+  end
+
+  def rb_tr_default_alloc_func(ruby_class)
+    ruby_class.__send__(:__layout_allocate__)
   end
 
   def rb_alias(mod, new_name, old_name)
@@ -1594,7 +1633,7 @@ module Truffle::CExt
 
   def rb_mutex_synchronize(mutex, func, arg)
     mutex.synchronize do
-      Primitive.cext_unwrap(Primitive.interop_execute(POINTER_TO_POINTER_WRAPPER, [func, arg]))
+      Primitive.interop_execute(POINTER_TO_POINTER_WRAPPER, [func, arg])
     end
   end
   Truffle::Graal.always_split instance_method(:rb_mutex_synchronize)
@@ -1613,8 +1652,12 @@ module Truffle::CExt
 
   GC_ROOTS = []
 
-  def rb_gc_register_mark_object(obj)
-    GC_ROOTS.push obj
+  def rb_gc_register_mark_object(value)
+    # We save the ValueWrapper here and not the actual value/object, this is important for primitives like double and
+    # not-fixnum-long, as we need to preserve the handle by preserving the ValueWrapper of that handle.
+    # For those cases the primitive cannot itself reference its ValueWrapper, unlike RubyDynamicObject and ImmutableRubyObject.
+    wrapper = Primitive.cext_to_wrapper(value)
+    GC_ROOTS.push wrapper
   end
 
   def rb_gc_latest_gc_info(hash_or_key)
@@ -1763,6 +1806,14 @@ module Truffle::CExt
     raise NotImplementedError, "#{function}() function is unimplemented on this machine"
   end
 
+  def rb_bug(message)
+    raise Exception, "rb_bug: #{message}"
+  end
+
+  def rb_fatal(message)
+    raise Exception, "rb_fatal: #{message}"
+  end
+
   def test_kwargs(kwargs, raise_error)
     return false if Primitive.nil?(kwargs)
 
@@ -1800,7 +1851,13 @@ module Truffle::CExt
     begin
       Primitive.interop_execute(POINTER_TO_POINTER_WRAPPER, [b_proc, data1])
     ensure
-      Primitive.interop_execute(POINTER_TO_POINTER_WRAPPER, [e_proc, data2])
+      errinfo = Primitive.fiber_get_error_info
+      Primitive.fiber_set_error_info($!)
+      begin
+        Primitive.interop_execute(POINTER_TO_POINTER_WRAPPER, [e_proc, data2])
+      ensure
+        Primitive.fiber_set_error_info(errinfo)
+      end
     end
   end
   Truffle::Graal.always_split instance_method(:rb_ensure)
@@ -1808,11 +1865,17 @@ module Truffle::CExt
   def rb_rescue(b_proc, data1, r_proc, data2)
     begin
       Primitive.interop_execute(POINTER_TO_POINTER_WRAPPER, [b_proc, data1])
-    rescue StandardError => e
+    rescue StandardError => exc
       if Truffle::Interop.null?(r_proc)
         Primitive.cext_wrap(nil)
       else
-        Primitive.interop_execute(POINTER2_TO_POINTER_WRAPPER, [r_proc, data2, Primitive.cext_wrap(e)])
+        errinfo = Primitive.fiber_get_error_info
+        Primitive.fiber_set_error_info(exc)
+        begin
+          Primitive.interop_execute(POINTER2_TO_POINTER_WRAPPER, [r_proc, data2, Primitive.cext_wrap(exc)])
+        ensure
+          Primitive.fiber_set_error_info(errinfo)
+        end
       end
     end
   end
@@ -1821,8 +1884,14 @@ module Truffle::CExt
   def rb_rescue2(b_proc, data1, r_proc, data2, rescued)
     begin
       Primitive.interop_execute(POINTER_TO_POINTER_WRAPPER, [b_proc, data1])
-    rescue *rescued => e
-      Primitive.interop_execute(POINTER2_TO_POINTER_WRAPPER, [r_proc, data2, Primitive.cext_wrap(e)])
+    rescue *rescued => exc
+      errinfo = Primitive.fiber_get_error_info
+      Primitive.fiber_set_error_info(exc)
+      begin
+        Primitive.interop_execute(POINTER2_TO_POINTER_WRAPPER, [r_proc, data2, Primitive.cext_wrap(exc)])
+      ensure
+        Primitive.fiber_set_error_info(errinfo)
+      end
     end
   end
   Truffle::Graal.always_split instance_method(:rb_rescue2)
@@ -1891,6 +1960,17 @@ module Truffle::CExt
 
   def rb_struct_new_no_splat(klass, args)
     klass.new(*args)
+  end
+
+  def rb_data_define_no_splat(klass, attrs)
+    klass ||= Data
+    Truffle::Type.rb_check_type(klass, Class)
+
+    unless klass <= Data
+      raise TypeError, 'invalid Class for rb_data_define(), expected Data or a subclass of Data'
+    end
+
+    klass.define(*attrs)
   end
 
   def yield_no_block
@@ -2238,15 +2318,19 @@ module Truffle::CExt
     else
       # Read it immediately if outside Init_ function.
       # This assumes the value is already set when this is called and does not change after that.
-      GC_REGISTERED_ADDRESSES[address] = LIBTRUFFLERUBY.rb_tr_read_VALUE_pointer(address)
+      register_address(address)
     end
   end
 
   def resolve_registered_addresses
-    c_global_variables = Primitive.fiber_c_global_variables
-    c_global_variables.each do |address|
-      GC_REGISTERED_ADDRESSES[address] = LIBTRUFFLERUBY.rb_tr_read_VALUE_pointer(address)
-    end
+    Primitive.fiber_c_global_variables.each { |address| register_address(address) }
+  end
+
+  private def register_address(address)
+    # We save the ValueWrapper here and not the actual value/object, this is important for primitives like double and
+    # not-fixnum-long, as we need to preserve the handle by preserving the ValueWrapper of that handle.
+    # For those cases the primitive cannot itself reference its ValueWrapper, unlike RubyDynamicObject and ImmutableRubyObject.
+    GC_REGISTERED_ADDRESSES[address] = Primitive.cext_to_wrapper LIBTRUFFLERUBY.rb_tr_read_VALUE_pointer(address)
   end
 
   def rb_gc_unregister_address(address)
@@ -2263,8 +2347,20 @@ module Truffle::CExt
     end
   end
 
+  def rb_tr_warn(message)
+    location = caller_locations(1, 1)[0]
+    message_with_prefix = "#{location.label}: warning: #{message}"
+    Warning.warn(message_with_prefix)
+  end
+
   def rb_warning_category_enabled_p(category)
     Warning[category]
+  end
+
+  def rb_tr_warn_category(message, category)
+    location = caller_locations(1, 1)[0]
+    message_with_prefix = "#{location.label}: warning: #{message}"
+    Warning.warn(message_with_prefix, category: category)
   end
 
   def rb_tr_flags(object)
@@ -2293,6 +2389,14 @@ module Truffle::CExt
 
   def rb_io_path(io)
     io.instance_variable_get(:@path)
+  end
+
+  def rb_io_open_descriptor(klass, fd, mode, path, timeout, internal_encoding, external_encoding, flags, options)
+    # Translate platform-specific file open flags (`O_`) to corresponding Ruby-specific modes (`FMODE_`).
+    # Ruby interface accepts `FMODE_` flags, but C API functions accept `O_` flags.
+    mode = Truffle::IOOperations.translate_omode_to_fmode(mode)
+
+    klass.new(fd, mode, **options, internal_encoding: internal_encoding, external_encoding: external_encoding, path: path, flags: flags)
   end
 
   def rb_tr_io_pointer(io)

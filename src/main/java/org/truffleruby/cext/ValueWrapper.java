@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2018, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -74,10 +74,10 @@ public final class ValueWrapper implements TruffleObject {
     @Override
     public String toString() {
         if (object != null) {
-            return object.toString();
+            return "ValueWrapper[" + object + "]";
         } else {
             assert ValueWrapperManager.isTaggedLong(handle);
-            return Long.toString(ValueWrapperManager.untagTaggedLong(handle));
+            return "ValueWrapper[" + ValueWrapperManager.untagTaggedLong(handle) + "]";
         }
     }
 
@@ -92,7 +92,7 @@ public final class ValueWrapper implements TruffleObject {
                 throw TranslateInteropExceptionNode.executeUncached(e);
             }
         } else {
-            return "VALUE: " + toString();
+            return "VALUE: " + this;
         }
     }
 
@@ -105,7 +105,7 @@ public final class ValueWrapper implements TruffleObject {
     static void toNative(ValueWrapper wrapper,
             @Cached AllocateHandleNode createNativeHandleNode,
             @Cached @Exclusive InlinedBranchProfile createHandleProfile,
-            @Bind("$node") Node node) {
+            @Bind Node node) {
         if (!wrapper.isPointer()) {
             createHandleProfile.enter(node);
             createNativeHandleNode.execute(node, wrapper);
@@ -116,7 +116,7 @@ public final class ValueWrapper implements TruffleObject {
     static long asPointer(ValueWrapper wrapper,
             @Cached KeepAliveNode keepAliveNode,
             @Cached @Exclusive InlinedBranchProfile taggedObjectProfile,
-            @Bind("$node") Node node) {
+            @Bind Node node) {
         long handle = wrapper.getHandle();
         assert handle != ValueWrapperManager.UNSET_HANDLE;
 
@@ -147,7 +147,7 @@ public final class ValueWrapper implements TruffleObject {
     @ExportMessage
     static Object readMember(ValueWrapper wrapper, String member,
             @Cached @Exclusive InlinedBranchProfile errorProfile,
-            @Bind("$node") Node node) throws UnknownIdentifierException {
+            @Bind Node node) throws UnknownIdentifierException {
         if ("value".equals(member)) {
             if (wrapper.object != null) {
                 return wrapper.object;

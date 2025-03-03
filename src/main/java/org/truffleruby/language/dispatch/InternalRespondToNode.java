@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2020, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -13,7 +13,6 @@ import com.oracle.truffle.api.CompilerAsserts;
 import com.oracle.truffle.api.dsl.NeverDefault;
 import com.oracle.truffle.api.frame.Frame;
 import com.oracle.truffle.api.nodes.DenyReplace;
-import com.oracle.truffle.api.nodes.NodeCost;
 import org.truffleruby.core.kernel.KernelNodes.RespondToNode;
 import org.truffleruby.core.klass.RubyClass;
 import org.truffleruby.language.RubyBaseNode;
@@ -104,11 +103,6 @@ public class InternalRespondToNode extends RubyBaseNode {
                     config,
                     MetaClassNodeGen.getUncached(),
                     LookupMethodNodeGen.getUncached());
-        }
-
-        @Override
-        public NodeCost getCost() {
-            return NodeCost.MEGAMORPHIC;
         }
 
         @Override

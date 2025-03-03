@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2013, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -23,8 +23,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 import com.oracle.truffle.api.RootCallTarget;
-import com.oracle.truffle.api.exception.AbstractTruffleException;
-import org.jcodings.transcode.EConvFlags;
+import com.oracle.truffle.api.nodes.DirectCallNode;
+import org.graalvm.shadowed.org.jcodings.transcode.EConvFlags;
 import org.truffleruby.RubyContext;
 import org.truffleruby.RubyLanguage;
 import org.truffleruby.annotations.CoreMethod;
@@ -202,6 +202,7 @@ public final class CoreLibrary {
     public final RubyModule truffleRegexpOperationsModule;
     public final RubyModule truffleRandomOperationsModule;
     public final RubyModule truffleThreadOperationsModule;
+    public final RubyModule truffleWarningOperationsModule;
     public final RubyClass encodingCompatibilityErrorClass;
     public final RubyClass encodingUndefinedConversionErrorClass;
     public final RubyClass methodClass;
@@ -221,6 +222,7 @@ public final class CoreLibrary {
     public final RubyClass digestClass;
     public final RubyClass structClass;
     public final RubyClass weakMapClass;
+    public final RubyClass weakKeyMapClass;
 
     public final RubyArray argv;
     public final RubyBasicObject mainObject;
@@ -253,6 +255,8 @@ public final class CoreLibrary {
      * using require_relative and the patch location is not enough to find the correct file. */
     private final ConcurrentMap<String, String> originalRequires;
 
+    private DirectCallNode callNodeToCheckSplittingEnabled;
+
     @TruffleBoundary
     private static SourceSection initCoreSourceSection() {
         final Source.SourceBuilder builder = Source.newBuilder(TruffleRuby.LANGUAGE_ID, "", "(core)");
@@ -268,13 +272,16 @@ public final class CoreLibrary {
         return source.createUnavailableSection();
     }
 
-    private enum State {
+    public enum State {
+        CREATED,
+        /** Loading methods defined in Java */
         INITIALIZING,
+        /** Loading methods defined in Ruby */
         LOADING_RUBY_CORE,
         LOADED
     }
 
-    private State state = State.INITIALIZING;
+    public State state = State.CREATED;
 
     private final SingletonClassNode node;
 
@@ -293,11 +300,11 @@ public final class CoreLibrary {
         objectClass = (RubyClass) moduleClass.superclass;
         basicObjectClass = (RubyClass) objectClass.superclass;
 
-        // Set constants in Object and lexical parents
-        classClass.fields.getAdoptedByLexicalParent(context, objectClass, "Class", node);
-        basicObjectClass.fields.getAdoptedByLexicalParent(context, objectClass, "BasicObject", node);
-        objectClass.fields.getAdoptedByLexicalParent(context, objectClass, "Object", node);
-        moduleClass.fields.getAdoptedByLexicalParent(context, objectClass, "Module", node);
+        // Set constants in Object
+        objectClass.fields.setConstant(context, node, "Class", classClass);
+        objectClass.fields.setConstant(context, node, "BasicObject", basicObjectClass);
+        objectClass.fields.setConstant(context, node, "Object", objectClass);
+        objectClass.fields.setConstant(context, node, "Module", moduleClass);
 
         // Create Exception classes
 
@@ -439,6 +446,7 @@ public final class CoreLibrary {
         objectSpaceModule = defineModule("ObjectSpace");
 
         weakMapClass = defineClass(objectSpaceModule, objectClass, "WeakMap");
+        weakKeyMapClass = defineClass(objectSpaceModule, objectClass, "WeakKeyMap");
 
         // The rest
 
@@ -508,6 +516,7 @@ public final class CoreLibrary {
         defineModule(truffleModule, "ReadlineHistory");
         truffleRandomOperationsModule = defineModule(truffleModule, "RandomOperations");
         truffleThreadOperationsModule = defineModule(truffleModule, "ThreadOperations");
+        truffleWarningOperationsModule = defineModule(truffleModule, "WarningOperations");
         defineModule(truffleModule, "WeakRefOperations");
         handleClass = defineClass(truffleModule, objectClass, "Handle");
         warningModule = defineModule("Warning");
@@ -600,6 +609,7 @@ public final class CoreLibrary {
     }
 
     public void loadCoreNodes() {
+        state = State.INITIALIZING;
         final CoreMethodNodeManager coreMethodNodeManager = new CoreMethodNodeManager(context);
         coreMethodNodeManager.loadCoreMethodNodes();
 
@@ -663,7 +673,7 @@ public final class CoreLibrary {
         setConstant(objectClass, "RUBY_REVISION", frozenUSASCIIString(TruffleRuby.LANGUAGE_REVISION));
         setConstant(objectClass, "RUBY_ENGINE", frozenUSASCIIString(TruffleRuby.ENGINE_ID));
         setConstant(objectClass, "RUBY_ENGINE_VERSION", frozenUSASCIIString(TruffleRuby.getEngineVersion()));
-        setConstant(objectClass, "RUBY_PLATFORM", frozenUSASCIIString(RubyLanguage.PLATFORM));
+        setConstant(objectClass, "RUBY_PLATFORM", frozenUSASCIIString(TruffleRuby.RUBY_PLATFORM));
         setConstant(
                 objectClass,
                 "RUBY_RELEASE_DATE",
@@ -774,10 +784,9 @@ public final class CoreLibrary {
             }
         } catch (IOException e) {
             throw CompilerDirectives.shouldNotReachHere(e);
-        } catch (AbstractTruffleException e) {
-            context.getDefaultBacktraceFormatter()
-                    .printRubyExceptionOnEnvStderr("Exception while loading core library:\n", e);
-            throw CompilerDirectives.shouldNotReachHere("couldn't load the core library", e);
+        } catch (Throwable e) {
+            System.err.println("\nException while loading core library:");
+            throw e;
         }
     }
 
@@ -929,6 +938,15 @@ public final class CoreLibrary {
         return info == truffleBootMainInfo;
     }
 
+    public boolean isSplittingEnabled() {
+        if (callNodeToCheckSplittingEnabled == null) {
+            callNodeToCheckSplittingEnabled = DirectCallNode.create(getMethod(arrayClass, "[]").getCallTarget());
+            callNodeToCheckSplittingEnabled.cloneCallTarget();
+        }
+
+        return callNodeToCheckSplittingEnabled.isCallTargetCloned();
+    }
+
     private static final String POST_BOOT_FILE = "/post-boot/post-boot.rb";
 
     public static final String[] CORE_FILES = {
@@ -1033,6 +1051,7 @@ public final class CoreLibrary {
             "/core/unbound_method.rb",
             "/core/truffle/warning_operations.rb",
             "/core/warning.rb",
+            "/core/weakkeymap.rb",
             "/core/weakmap.rb",
             "/core/tracepoint.rb",
             "/core/truffle/interop.rb",

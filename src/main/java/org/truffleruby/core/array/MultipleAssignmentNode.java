@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2021, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -24,6 +24,9 @@ import com.oracle.truffle.api.profiles.ConditionProfile;
 
 public final class MultipleAssignmentNode extends RubyContextSourceAssignableNode {
 
+    /** Nodes that should be executed before assignment */
+    @Children final RubyNode[] prolog;
+
     @Child RubyNode rhsNode;
     @Child SplatCastNode splatCastNode;
 
@@ -37,11 +40,13 @@ public final class MultipleAssignmentNode extends RubyContextSourceAssignableNod
     private final ConditionProfile enoughElementsForAllPost;
 
     public MultipleAssignmentNode(
+            RubyNode[] prolog,
             AssignableNode[] preNodes,
             AssignableNode restNode,
             AssignableNode[] postNodes,
             SplatCastNode splatCastNode,
             RubyNode rhsNode) {
+        this.prolog = prolog;
         this.preNodes = preNodes;
         this.restNode = restNode;
         this.postNodes = postNodes;
@@ -50,8 +55,15 @@ public final class MultipleAssignmentNode extends RubyContextSourceAssignableNod
         this.enoughElementsForAllPost = postNodes.length == 0 ? null : ConditionProfile.create();
     }
 
+    @ExplodeLoop
     @Override
     public Object execute(VirtualFrame frame) {
+        if (prolog != null) {
+            for (var node : prolog) {
+                node.execute(frame);
+            }
+        }
+
         final Object rhs = rhsNode.execute(frame);
         assign(frame, rhs);
         return rhs;
@@ -122,6 +134,7 @@ public final class MultipleAssignmentNode extends RubyContextSourceAssignableNod
     @Override
     public RubyNode cloneUninitialized() {
         var copy = new MultipleAssignmentNode(
+                RubyNode.cloneUninitialized(prolog),
                 cloneUninitializedAssignable(preNodes),
                 cloneUninitializedAssignable(restNode),
                 cloneUninitializedAssignable(postNodes),
@@ -131,6 +144,10 @@ public final class MultipleAssignmentNode extends RubyContextSourceAssignableNod
     }
 
     protected AssignableNode[] cloneUninitializedAssignable(AssignableNode[] nodes) {
+        if (nodes.length == 0) {
+            return AssignableNode.EMPTY_ARRAY;
+        }
+
         AssignableNode[] copies = new AssignableNode[nodes.length];
         for (int i = 0; i < nodes.length; i++) {
             copies[i] = nodes[i].cloneUninitializedAssignable();

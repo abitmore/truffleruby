@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2014, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 
 import com.oracle.truffle.api.dsl.Bind;
+import com.oracle.truffle.api.dsl.Cached.Exclusive;
 import com.oracle.truffle.api.dsl.GenerateCached;
 import com.oracle.truffle.api.dsl.GenerateInline;
 import com.oracle.truffle.api.frame.VirtualFrame;
@@ -26,7 +27,9 @@ import com.oracle.truffle.api.nodes.Node;
 import com.oracle.truffle.api.profiles.InlinedBranchProfile;
 import com.oracle.truffle.api.source.SourceSection;
 import com.oracle.truffle.api.strings.TruffleString;
+import org.truffleruby.RubyContext;
 import org.truffleruby.annotations.CoreMethod;
+import org.truffleruby.annotations.Split;
 import org.truffleruby.builtins.CoreMethodArrayArgumentsNode;
 import org.truffleruby.annotations.CoreModule;
 import org.truffleruby.annotations.Primitive;
@@ -60,7 +63,6 @@ import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
 import com.oracle.truffle.api.TruffleFile;
 import com.oracle.truffle.api.TruffleLanguage;
 import com.oracle.truffle.api.dsl.Cached;
-import com.oracle.truffle.api.dsl.Cached.Shared;
 import com.oracle.truffle.api.dsl.GenerateUncached;
 import com.oracle.truffle.api.dsl.ImportStatic;
 import com.oracle.truffle.api.dsl.ReportPolymorphism;
@@ -74,7 +76,9 @@ import com.oracle.truffle.api.nodes.IndirectCallNode;
 import com.oracle.truffle.api.nodes.LanguageInfo;
 import com.oracle.truffle.api.source.Source;
 
-/** Specs for these methods are in spec/truffle/interop/matrix_spec.rb and in spec/truffle/interop/methods_spec.rb */
+/** Specs for these methods are in spec/truffle/interop/matrix_spec.rb and in spec/truffle/interop/methods_spec.rb.
+ * Splitting: we use {@code split = Split.ALWAYS} for all @CoreMethod using InteropLibrary because
+ * InteropLibrary/Library does not report polymorphism on its own. */
 @CoreModule("Truffle::Interop")
 public abstract class InteropNodes {
 
@@ -151,7 +155,7 @@ public abstract class InteropNodes {
                 @CachedLibrary("receiver") InteropLibrary receivers,
                 @Cached ArrayToObjectArrayNode arrayToObjectArrayNode,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             final Object[] args = arrayToObjectArrayNode.executeToObjectArray(argsArray);
             return InteropNodes.execute(node, receiver, args, receivers, translateInteropException);
         }
@@ -197,7 +201,7 @@ public abstract class InteropNodes {
     public abstract static class MimeTypeSupportedNode extends CoreMethodArrayArgumentsNode {
 
         @TruffleBoundary
-        @Specialization(guards = "strings.isRubyString(mimeType)", limit = "1")
+        @Specialization(guards = "strings.isRubyString(this, mimeType)", limit = "1")
         boolean isMimeTypeSupported(RubyString mimeType,
                 @Cached RubyStringLibrary strings) {
             return getContext().getEnv().isMimeTypeSupported(RubyGuards.getJavaString(mimeType));
@@ -209,7 +213,7 @@ public abstract class InteropNodes {
     public abstract static class ImportFileNode extends CoreMethodArrayArgumentsNode {
 
         @TruffleBoundary
-        @Specialization(guards = "strings.isRubyString(fileName)", limit = "1")
+        @Specialization(guards = "strings.isRubyString(this, fileName)", limit = "1")
         Object importFile(Object fileName,
                 @Cached RubyStringLibrary strings) {
             try {
@@ -228,25 +232,25 @@ public abstract class InteropNodes {
 
     }
 
-    @CoreMethod(names = "eval", onSingleton = true, required = 2)
-    @ReportPolymorphism
+    @CoreMethod(names = "eval", onSingleton = true, required = 2, split = Split.ALWAYS)
+    @ReportPolymorphism // inline cache
     public abstract static class EvalNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization(
                 guards = {
-                        "stringsMimeType.isRubyString(mimeType)",
-                        "stringsSource.isRubyString(source)",
+                        "stringsMimeType.isRubyString(this, mimeType)",
+                        "stringsSource.isRubyString(this, source)",
                         "mimeTypeEqualNode.execute(stringsMimeType, mimeType, cachedMimeType, cachedMimeTypeEnc)",
                         "sourceEqualNode.execute(stringsSource, source, cachedSource, cachedSourceEnc)" },
                 limit = "getEvalCacheLimit()")
-        Object evalCached(Object mimeType, Object source,
-                @Cached @Shared RubyStringLibrary stringsMimeType,
-                @Cached @Shared RubyStringLibrary stringsSource,
+        static Object evalCached(Object mimeType, Object source,
+                @Bind Node node,
+                @Cached @Exclusive RubyStringLibrary stringsMimeType,
+                @Cached @Exclusive RubyStringLibrary stringsSource,
                 @Cached("asTruffleStringUncached(mimeType)") TruffleString cachedMimeType,
-                @Cached("stringsMimeType.getEncoding(mimeType)") RubyEncoding cachedMimeTypeEnc,
+                @Cached("stringsMimeType.getEncoding($node, mimeType)") RubyEncoding cachedMimeTypeEnc,
                 @Cached("asTruffleStringUncached(source)") TruffleString cachedSource,
-                @Cached("stringsSource.getEncoding(source)") RubyEncoding cachedSourceEnc,
-                @Bind("this") Node node,
+                @Cached("stringsSource.getEncoding($node, source)") RubyEncoding cachedSourceEnc,
                 @Cached("create(parse(node, getJavaString(mimeType), getJavaString(source)))") DirectCallNode callNode,
                 @Cached StringHelperNodes.EqualNode mimeTypeEqualNode,
                 @Cached StringHelperNodes.EqualNode sourceEqualNode) {
@@ -254,15 +258,15 @@ public abstract class InteropNodes {
         }
 
         @Specialization(
-                guards = { "stringsMimeType.isRubyString(mimeType)", "stringsSource.isRubyString(source)" },
-                replaces = "evalCached")
+                guards = { "stringsMimeType.isRubyString(this, mimeType)", "stringsSource.isRubyString(this, source)" },
+                replaces = "evalCached", limit = "1")
         static Object evalUncached(Object mimeType, RubyString source,
-                @Cached @Shared RubyStringLibrary stringsMimeType,
-                @Cached @Shared RubyStringLibrary stringsSource,
+                @Cached @Exclusive RubyStringLibrary stringsMimeType,
+                @Cached @Exclusive RubyStringLibrary stringsSource,
                 @Cached ToJavaStringNode toJavaStringMimeNode,
                 @Cached ToJavaStringNode toJavaStringSourceNode,
                 @Cached IndirectCallNode callNode,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             return callNode.call(parse(node, toJavaStringMimeNode.execute(node, mimeType),
                     toJavaStringSourceNode.execute(node, source)), EMPTY_ARGUMENTS);
         }
@@ -291,21 +295,22 @@ public abstract class InteropNodes {
     @Primitive(name = "interop_eval_nfi")
     public abstract static class InteropEvalNFINode extends PrimitiveArrayArgumentsNode {
 
-        @Specialization(guards = "library.isRubyString(code)", limit = "1")
-        Object evalNFI(Object code,
+        @Specialization(guards = "library.isRubyString(node, code)", limit = "1")
+        static Object evalNFI(Object code,
+                @Bind Node node,
                 @Cached RubyStringLibrary library,
                 @Cached IndirectCallNode callNode) {
-            return callNode.call(parse(code), EMPTY_ARGUMENTS);
+            return callNode.call(parse(node, code), EMPTY_ARGUMENTS);
         }
 
         @TruffleBoundary
-        protected CallTarget parse(Object code) {
+        protected static CallTarget parse(Node node, Object code) {
             final Source source = Source.newBuilder("nfi", RubyGuards.getJavaString(code), "(eval)").build();
 
             try {
-                return getContext().getEnv().parseInternal(source);
+                return getContext(node).getEnv().parseInternal(source);
             } catch (IllegalStateException e) {
-                throw new RaiseException(getContext(), coreExceptions().argumentError(e.getMessage(), this));
+                throw new RaiseException(getContext(node), coreExceptions(node).argumentError(e.getMessage(), node));
             }
         }
 
@@ -323,7 +328,7 @@ public abstract class InteropNodes {
     // endregion
 
     // region Exception
-    @CoreMethod(names = "exception?", onSingleton = true, required = 1)
+    @CoreMethod(names = "exception?", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class IsExceptionNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization(limit = "getInteropCacheLimit()")
@@ -333,7 +338,7 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "has_exception_cause?", onSingleton = true, required = 1)
+    @CoreMethod(names = "has_exception_cause?", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class HasExceptionCauseNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization(limit = "getInteropCacheLimit()")
@@ -343,14 +348,14 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "exception_cause", onSingleton = true, required = 1)
+    @CoreMethod(names = "exception_cause", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class ExceptionCauseNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization(limit = "getInteropCacheLimit()")
         static Object getExceptionCause(Object receiver,
                 @Cached TranslateInteropExceptionNode translateInteropException,
                 @CachedLibrary("receiver") InteropLibrary receivers,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 return receivers.getExceptionCause(receiver);
             } catch (UnsupportedMessageException e) {
@@ -359,14 +364,14 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "exception_exit_status", onSingleton = true, required = 1)
+    @CoreMethod(names = "exception_exit_status", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class ExceptionExitStatusSourceNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization(limit = "getInteropCacheLimit()")
         static int getExceptionExitStatus(Object receiver,
                 @Cached TranslateInteropExceptionNode translateInteropException,
                 @CachedLibrary("receiver") InteropLibrary receivers,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 return receivers.getExceptionExitStatus(receiver);
             } catch (UnsupportedMessageException e) {
@@ -375,14 +380,14 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "exception_incomplete_source?", onSingleton = true, required = 1)
+    @CoreMethod(names = "exception_incomplete_source?", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class IsExceptionIncompleteSourceNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization(limit = "getInteropCacheLimit()")
         static boolean isExceptionIncompleteSource(Object receiver,
                 @Cached TranslateInteropExceptionNode translateInteropException,
                 @CachedLibrary("receiver") InteropLibrary receivers,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 return receivers.isExceptionIncompleteSource(receiver);
             } catch (UnsupportedMessageException e) {
@@ -391,7 +396,7 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "has_exception_message?", onSingleton = true, required = 1)
+    @CoreMethod(names = "has_exception_message?", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class HasExceptionMessageNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization(limit = "getInteropCacheLimit()")
@@ -401,14 +406,14 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "exception_message", onSingleton = true, required = 1)
+    @CoreMethod(names = "exception_message", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class ExceptionMessageNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization(limit = "getInteropCacheLimit()")
         static Object getExceptionMessage(Object receiver,
                 @Cached TranslateInteropExceptionNode translateInteropException,
                 @CachedLibrary("receiver") InteropLibrary receivers,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 return receivers.getExceptionMessage(receiver);
             } catch (UnsupportedMessageException e) {
@@ -417,7 +422,7 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "has_exception_stack_trace?", onSingleton = true, required = 1)
+    @CoreMethod(names = "has_exception_stack_trace?", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class HasExceptionStackTraceNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization(limit = "getInteropCacheLimit()")
@@ -427,14 +432,14 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "exception_stack_trace", onSingleton = true, required = 1)
+    @CoreMethod(names = "exception_stack_trace", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class ExceptionStackTraceNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization(limit = "getInteropCacheLimit()")
         static Object getExceptionStackTrace(Object receiver,
                 @Cached TranslateInteropExceptionNode translateInteropException,
                 @CachedLibrary("receiver") InteropLibrary receivers,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 return receivers.getExceptionStackTrace(receiver);
             } catch (UnsupportedMessageException e) {
@@ -443,14 +448,14 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "exception_type", onSingleton = true, required = 1)
+    @CoreMethod(names = "exception_type", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class ExceptionTypeNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization(limit = "getInteropCacheLimit()")
         static RubySymbol getExceptionType(Object receiver,
                 @Cached TranslateInteropExceptionNode translateInteropException,
                 @CachedLibrary("receiver") InteropLibrary receivers,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 final ExceptionType exceptionType = receivers.getExceptionType(receiver);
                 return getLanguage(node).getSymbol(exceptionType.name());
@@ -460,14 +465,14 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "throw_exception", onSingleton = true, required = 1)
+    @CoreMethod(names = "throw_exception", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class ThrowExceptionNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization(limit = "getInteropCacheLimit()")
         static Object throwException(Object receiver,
                 @Cached TranslateInteropExceptionNode translateInteropException,
                 @CachedLibrary("receiver") InteropLibrary receivers,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 throw receivers.throwException(receiver);
             } catch (UnsupportedMessageException e) {
@@ -475,11 +480,10 @@ public abstract class InteropNodes {
             }
         }
     }
-
     // endregion
 
     // region Executable
-    @CoreMethod(names = "executable?", onSingleton = true, required = 1)
+    @CoreMethod(names = "executable?", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class IsExecutableNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization(limit = "getInteropCacheLimit()")
@@ -490,7 +494,7 @@ public abstract class InteropNodes {
     }
 
 
-    @CoreMethod(names = "has_executable_name?", onSingleton = true, required = 1)
+    @CoreMethod(names = "has_executable_name?", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class HasExecutableNameNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization(limit = "getInteropCacheLimit()")
@@ -500,14 +504,14 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "executable_name", onSingleton = true, required = 1)
+    @CoreMethod(names = "executable_name", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class ExecutableNameNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization(limit = "getInteropCacheLimit()")
         static Object getExecutableName(Object receiver,
                 @Cached TranslateInteropExceptionNode translateInteropException,
                 @CachedLibrary("receiver") InteropLibrary receivers,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 return receivers.getExecutableName(receiver);
             } catch (UnsupportedMessageException e) {
@@ -516,7 +520,7 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "execute", onSingleton = true, required = 1, rest = true)
+    @CoreMethod(names = "execute", onSingleton = true, required = 1, rest = true, split = Split.ALWAYS)
     public abstract static class ExecuteNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization(limit = "getInteropCacheLimit()")
@@ -524,27 +528,28 @@ public abstract class InteropNodes {
                 @CachedLibrary("receiver") InteropLibrary receivers,
                 @Cached ForeignToRubyNode foreignToRubyNode,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             final Object foreign = InteropNodes.execute(node, receiver, args, receivers, translateInteropException);
             return foreignToRubyNode.execute(node, foreign);
         }
     }
 
-    @CoreMethod(names = "execute_without_conversion", onSingleton = true, required = 1, rest = true)
+    @CoreMethod(names = "execute_without_conversion", onSingleton = true, required = 1, rest = true,
+            split = Split.ALWAYS)
     public abstract static class ExecuteWithoutConversionNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization(limit = "getInteropCacheLimit()")
         static Object interopExecuteWithoutConversion(Object receiver, Object[] args,
                 @CachedLibrary("receiver") InteropLibrary receivers,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             return InteropNodes.execute(node, receiver, args, receivers, translateInteropException);
         }
     }
     // endregion
 
     // region Instantiable
-    @CoreMethod(names = "instantiable?", onSingleton = true, required = 1)
+    @CoreMethod(names = "instantiable?", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class InstantiableNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization(limit = "getInteropCacheLimit()")
@@ -554,7 +559,7 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "instantiate", onSingleton = true, required = 1, rest = true)
+    @CoreMethod(names = "instantiate", onSingleton = true, required = 1, rest = true, split = Split.ALWAYS)
     public abstract static class InstantiateNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization(limit = "getInteropCacheLimit()")
@@ -562,7 +567,7 @@ public abstract class InteropNodes {
                 @CachedLibrary("receiver") InteropLibrary receivers,
                 @Cached ForeignToRubyNode foreignToRubyNode,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             final Object foreign;
             try {
                 foreign = receivers.instantiate(receiver, args);
@@ -576,7 +581,7 @@ public abstract class InteropNodes {
     // endregion
 
     // region Array elements
-    @CoreMethod(names = "has_array_elements?", onSingleton = true, required = 1)
+    @CoreMethod(names = "has_array_elements?", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class HasArrayElementsNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization(limit = "getInteropCacheLimit()")
@@ -587,14 +592,14 @@ public abstract class InteropNodes {
 
     }
 
-    @CoreMethod(names = "array_size", onSingleton = true, required = 1)
+    @CoreMethod(names = "array_size", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class ArraySizeNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization(limit = "getInteropCacheLimit()")
         static Object arraySize(Object receiver,
                 @CachedLibrary("receiver") InteropLibrary receivers,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
 
             try {
                 return receivers.getArraySize(receiver);
@@ -605,7 +610,7 @@ public abstract class InteropNodes {
 
     }
 
-    @CoreMethod(names = "read_array_element", onSingleton = true, required = 2)
+    @CoreMethod(names = "read_array_element", onSingleton = true, required = 2, split = Split.ALWAYS)
     public abstract static class ReadArrayElementNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization(limit = "getInteropCacheLimit()")
@@ -613,7 +618,7 @@ public abstract class InteropNodes {
                 @CachedLibrary("receiver") InteropLibrary receivers,
                 @Cached ForeignToRubyNode foreignToRubyNode,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             final Object foreign;
             try {
                 foreign = receivers.readArrayElement(receiver, identifier);
@@ -625,14 +630,14 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "write_array_element", onSingleton = true, required = 3)
+    @CoreMethod(names = "write_array_element", onSingleton = true, required = 3, split = Split.ALWAYS)
     public abstract static class WriteArrayElementNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization(limit = "getInteropCacheLimit()")
         static Object write(Object receiver, long identifier, Object value,
                 @CachedLibrary("receiver") InteropLibrary receivers,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 receivers.writeArrayElement(receiver, identifier, value);
             } catch (InteropException e) {
@@ -643,14 +648,14 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "remove_array_element", onSingleton = true, required = 2)
+    @CoreMethod(names = "remove_array_element", onSingleton = true, required = 2, split = Split.ALWAYS)
     public abstract static class RemoveArrayElementNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization(limit = "getInteropCacheLimit()")
         static Nil readArrayElement(Object receiver, long identifier,
                 @CachedLibrary("receiver") InteropLibrary receivers,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 receivers.removeArrayElement(receiver, identifier);
             } catch (InteropException e) {
@@ -661,7 +666,7 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "array_element_readable?", onSingleton = true, required = 2)
+    @CoreMethod(names = "array_element_readable?", onSingleton = true, required = 2, split = Split.ALWAYS)
     public abstract static class IsArrayElementReadableNode extends CoreMethodArrayArgumentsNode {
 
         public abstract boolean execute(Object receiver, long index);
@@ -673,7 +678,7 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "array_element_modifiable?", onSingleton = true, required = 2)
+    @CoreMethod(names = "array_element_modifiable?", onSingleton = true, required = 2, split = Split.ALWAYS)
     public abstract static class IsArrayElementModifiableNode extends CoreMethodArrayArgumentsNode {
 
         public abstract boolean execute(Object receiver, long index);
@@ -685,7 +690,7 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "array_element_insertable?", onSingleton = true, required = 2)
+    @CoreMethod(names = "array_element_insertable?", onSingleton = true, required = 2, split = Split.ALWAYS)
     public abstract static class IsArrayElementInsertableNode extends CoreMethodArrayArgumentsNode {
 
         public abstract boolean execute(Object receiver, long index);
@@ -697,7 +702,7 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "array_element_removable?", onSingleton = true, required = 2)
+    @CoreMethod(names = "array_element_removable?", onSingleton = true, required = 2, split = Split.ALWAYS)
     public abstract static class IsArrayElementRemovableNode extends CoreMethodArrayArgumentsNode {
 
         public abstract boolean execute(Object receiver, long index);
@@ -709,7 +714,7 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "array_element_writable?", onSingleton = true, required = 2)
+    @CoreMethod(names = "array_element_writable?", onSingleton = true, required = 2, split = Split.ALWAYS)
     public abstract static class IsArrayElementWritableNode extends CoreMethodArrayArgumentsNode {
 
         public abstract boolean execute(Object receiver, long index);
@@ -721,7 +726,7 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "array_element_existing?", onSingleton = true, required = 2)
+    @CoreMethod(names = "array_element_existing?", onSingleton = true, required = 2, split = Split.ALWAYS)
     public abstract static class IsArrayElementExistingNode extends CoreMethodArrayArgumentsNode {
 
         public abstract boolean execute(Object receiver, long index);
@@ -735,7 +740,7 @@ public abstract class InteropNodes {
     // endregion
 
     // region SourceLocation
-    @CoreMethod(names = "has_source_location?", onSingleton = true, required = 1)
+    @CoreMethod(names = "has_source_location?", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class HasSourceLocationNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         boolean hasSourceLocation(Object receiver,
@@ -744,13 +749,13 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "source_location", onSingleton = true, required = 1)
+    @CoreMethod(names = "source_location", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class GetSourceLocationNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         static RubySourceLocation getSourceLocation(Object receiver,
                 @CachedLibrary("receiver") InteropLibrary receivers,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             final SourceSection sourceLocation;
             try {
                 sourceLocation = receivers.getSourceLocation(receiver);
@@ -766,7 +771,7 @@ public abstract class InteropNodes {
     // endregion
 
     // region String
-    @CoreMethod(names = "string?", onSingleton = true, required = 1)
+    @CoreMethod(names = "string?", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class IsStringNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         boolean isString(Object receiver,
@@ -775,13 +780,13 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "as_string", onSingleton = true, required = 1)
+    @CoreMethod(names = "as_string", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class AsStringNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         static String asString(Object receiver,
                 @CachedLibrary("receiver") InteropLibrary receivers,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 return receivers.asString(receiver);
             } catch (InteropException e) {
@@ -790,13 +795,13 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "as_truffle_string", onSingleton = true, required = 1)
+    @CoreMethod(names = "as_truffle_string", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class AsTruffleStringNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         static TruffleString asTruffleString(Object receiver,
                 @CachedLibrary("receiver") InteropLibrary receivers,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 return receivers.asTruffleString(receiver);
             } catch (InteropException e) {
@@ -812,7 +817,7 @@ public abstract class InteropNodes {
                 @CachedLibrary("receiver") InteropLibrary receivers,
                 @Cached TranslateInteropExceptionNode translateInteropException,
                 @Cached TruffleString.SwitchEncodingNode switchEncodingNode,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             final TruffleString truffleString;
             try {
                 truffleString = receivers.asTruffleString(receiver);
@@ -827,7 +832,7 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "to_display_string", onSingleton = true, required = 1)
+    @CoreMethod(names = "to_display_string", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class ToDisplayStringNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         Object toDisplayString(Object receiver,
@@ -850,7 +855,7 @@ public abstract class InteropNodes {
     // endregion
 
     // region Boolean
-    @CoreMethod(names = "boolean?", onSingleton = true, required = 1)
+    @CoreMethod(names = "boolean?", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class IsBooleanNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         boolean isBoolean(Object receiver,
@@ -859,13 +864,13 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "as_boolean", onSingleton = true, required = 1)
+    @CoreMethod(names = "as_boolean", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class AsBooleanNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         static boolean asBoolean(Object receiver,
                 @Cached TranslateInteropExceptionNode translateInteropException,
                 @CachedLibrary("receiver") InteropLibrary receivers,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 return receivers.asBoolean(receiver);
             } catch (InteropException e) {
@@ -876,7 +881,7 @@ public abstract class InteropNodes {
     // endregion
 
     // region DateTime
-    @CoreMethod(names = "date?", onSingleton = true, required = 1)
+    @CoreMethod(names = "date?", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class IsDateNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         boolean isDate(Object receiver,
@@ -885,13 +890,13 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "as_date", onSingleton = true, required = 1)
+    @CoreMethod(names = "as_date", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class AsDateNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         static Object asDate(Object receiver,
                 @CachedLibrary("receiver") InteropLibrary receivers,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 return getContext(node).getEnv().asGuestValue(receivers.asDate(receiver));
             } catch (UnsupportedMessageException e) {
@@ -900,7 +905,7 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "duration?", onSingleton = true, required = 1)
+    @CoreMethod(names = "duration?", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class IsDurationNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         boolean isDuration(Object receiver,
@@ -909,13 +914,13 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "as_duration", onSingleton = true, required = 1)
+    @CoreMethod(names = "as_duration", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class AsDurationNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         static Object asDuration(Object receiver,
                 @CachedLibrary("receiver") InteropLibrary receivers,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 return getContext(node).getEnv().asGuestValue(receivers.asDuration(receiver));
             } catch (UnsupportedMessageException e) {
@@ -924,7 +929,7 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "instant?", onSingleton = true, required = 1)
+    @CoreMethod(names = "instant?", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class IsInstantNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         boolean isInstant(Object receiver,
@@ -933,13 +938,13 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "as_instant", onSingleton = true, required = 1)
+    @CoreMethod(names = "as_instant", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class AsInstantNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         static Object asInstant(Object receiver,
                 @CachedLibrary("receiver") InteropLibrary receivers,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 return getContext(node).getEnv().asGuestValue(receivers.asInstant(receiver));
             } catch (UnsupportedMessageException e) {
@@ -948,7 +953,7 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "time?", onSingleton = true, required = 1)
+    @CoreMethod(names = "time?", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class IsTimeNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         boolean isTime(Object receiver,
@@ -957,13 +962,13 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "as_time", onSingleton = true, required = 1)
+    @CoreMethod(names = "as_time", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class AsTimeNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         static Object asTime(Object receiver,
                 @CachedLibrary("receiver") InteropLibrary receivers,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 return getContext(node).getEnv().asGuestValue(receivers.asTime(receiver));
             } catch (UnsupportedMessageException e) {
@@ -972,7 +977,7 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "time_zone?", onSingleton = true, required = 1)
+    @CoreMethod(names = "time_zone?", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class IsTimeZoneNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         boolean isTimeZone(Object receiver,
@@ -981,13 +986,13 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "as_time_zone", onSingleton = true, required = 1)
+    @CoreMethod(names = "as_time_zone", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class AsTimeZoneNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         static Object asTimeZone(Object receiver,
                 @CachedLibrary("receiver") InteropLibrary receivers,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 return getContext(node).getEnv().asGuestValue(receivers.asTimeZone(receiver));
             } catch (UnsupportedMessageException e) {
@@ -998,7 +1003,7 @@ public abstract class InteropNodes {
     // endregion
 
     // region Number
-    @CoreMethod(names = "number?", onSingleton = true, required = 1)
+    @CoreMethod(names = "number?", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class IsNumberNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         boolean isNumber(Object receiver,
@@ -1007,7 +1012,7 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "fits_in_byte?", onSingleton = true, required = 1)
+    @CoreMethod(names = "fits_in_byte?", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class FitsInByteNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         boolean fits(Object receiver,
@@ -1016,7 +1021,7 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "fits_in_short?", onSingleton = true, required = 1)
+    @CoreMethod(names = "fits_in_short?", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class FitsInShortNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         boolean fits(Object receiver,
@@ -1025,7 +1030,7 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "fits_in_int?", onSingleton = true, required = 1)
+    @CoreMethod(names = "fits_in_int?", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class FitsInIntNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         boolean fits(Object receiver,
@@ -1034,7 +1039,7 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "fits_in_long?", onSingleton = true, required = 1)
+    @CoreMethod(names = "fits_in_long?", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class FitsInLongNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         boolean fits(Object receiver,
@@ -1043,7 +1048,7 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "fits_in_big_integer?", onSingleton = true, required = 1)
+    @CoreMethod(names = "fits_in_big_integer?", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class FitsInBigIntegerNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         boolean fits(Object receiver,
@@ -1052,7 +1057,7 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "fits_in_float?", onSingleton = true, required = 1)
+    @CoreMethod(names = "fits_in_float?", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class FitsInFloatNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         boolean fits(Object receiver,
@@ -1061,7 +1066,7 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "fits_in_double?", onSingleton = true, required = 1)
+    @CoreMethod(names = "fits_in_double?", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class FitsInDoubleNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         boolean fits(Object receiver,
@@ -1070,13 +1075,13 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "as_byte", onSingleton = true, required = 1)
+    @CoreMethod(names = "as_byte", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class AsByteNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         static int as(Object receiver,
                 @CachedLibrary("receiver") InteropLibrary receivers,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 return receivers.asByte(receiver);
             } catch (InteropException e) {
@@ -1085,13 +1090,13 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "as_short", onSingleton = true, required = 1)
+    @CoreMethod(names = "as_short", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class AsShortNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         static int as(Object receiver,
                 @CachedLibrary("receiver") InteropLibrary receivers,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 return receivers.asShort(receiver);
             } catch (InteropException e) {
@@ -1100,13 +1105,13 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "as_int", onSingleton = true, required = 1)
+    @CoreMethod(names = "as_int", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class AsIntNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         static int as(Object receiver,
                 @CachedLibrary("receiver") InteropLibrary receivers,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 return receivers.asInt(receiver);
             } catch (InteropException e) {
@@ -1115,13 +1120,13 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "as_long", onSingleton = true, required = 1)
+    @CoreMethod(names = "as_long", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class AsLongNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         static long as(Object receiver,
                 @CachedLibrary("receiver") InteropLibrary receivers,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 return receivers.asLong(receiver);
             } catch (InteropException e) {
@@ -1130,14 +1135,14 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "as_big_integer", onSingleton = true, required = 1)
+    @CoreMethod(names = "as_big_integer", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class AsBigIntegerNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         static Object as(Object receiver,
                 @CachedLibrary("receiver") InteropLibrary receivers,
                 @Cached FixnumOrBignumNode fixnumOrBignumNode,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 return fixnumOrBignumNode.execute(node, receivers.asBigInteger(receiver));
             } catch (InteropException e) {
@@ -1146,13 +1151,13 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "as_float", onSingleton = true, required = 1)
+    @CoreMethod(names = "as_float", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class AsFloatNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         static double as(Object receiver,
                 @CachedLibrary("receiver") InteropLibrary receivers,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 return receivers.asFloat(receiver);
             } catch (InteropException e) {
@@ -1161,13 +1166,13 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "as_double", onSingleton = true, required = 1)
+    @CoreMethod(names = "as_double", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class AsDoubleNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         static double as(Object receiver,
                 @CachedLibrary("receiver") InteropLibrary receivers,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 return receivers.asDouble(receiver);
             } catch (InteropException e) {
@@ -1178,7 +1183,7 @@ public abstract class InteropNodes {
     // endregion
 
     // region Null
-    @CoreMethod(names = "null?", onSingleton = true, required = 1)
+    @CoreMethod(names = "null?", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class IsNullNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization(limit = "getInteropCacheLimit()")
@@ -1190,7 +1195,7 @@ public abstract class InteropNodes {
     // endregion
 
     // region Pointer
-    @CoreMethod(names = "pointer?", onSingleton = true, required = 1)
+    @CoreMethod(names = "pointer?", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class PointerNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization(limit = "getInteropCacheLimit()")
@@ -1201,14 +1206,14 @@ public abstract class InteropNodes {
 
     }
 
-    @CoreMethod(names = "as_pointer", onSingleton = true, required = 1)
+    @CoreMethod(names = "as_pointer", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class AsPointerNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization(limit = "getInteropCacheLimit()")
         static long asPointer(Object receiver,
                 @CachedLibrary("receiver") InteropLibrary receivers,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 return receivers.asPointer(receiver);
             } catch (InteropException e) {
@@ -1217,7 +1222,7 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "to_native", onSingleton = true, required = 1)
+    @CoreMethod(names = "to_native", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class ToNativeNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization(limit = "getInteropCacheLimit()")
@@ -1231,7 +1236,7 @@ public abstract class InteropNodes {
     // endregion
 
     // region Members
-    @CoreMethod(names = "has_members?", onSingleton = true, required = 1)
+    @CoreMethod(names = "has_members?", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class HasMembersNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization(limit = "getInteropCacheLimit()")
@@ -1241,7 +1246,7 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "members", onSingleton = true, required = 1, optional = 1)
+    @CoreMethod(names = "members", onSingleton = true, required = 1, optional = 1, split = Split.ALWAYS)
     public abstract static class GetMembersNode extends CoreMethodArrayArgumentsNode {
 
         protected abstract Object executeMembers(Object receiver, boolean internal);
@@ -1255,7 +1260,7 @@ public abstract class InteropNodes {
         static Object members(Object receiver, boolean internal,
                 @CachedLibrary("receiver") InteropLibrary receivers,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 return receivers.getMembers(receiver, internal);
             } catch (InteropException e) {
@@ -1265,7 +1270,7 @@ public abstract class InteropNodes {
 
     }
 
-    @CoreMethod(names = "read_member", onSingleton = true, required = 2)
+    @CoreMethod(names = "read_member", onSingleton = true, required = 2, split = Split.ALWAYS)
     public abstract static class InteropReadMemberNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization
@@ -1294,7 +1299,7 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "read_member_without_conversion", onSingleton = true, required = 2)
+    @CoreMethod(names = "read_member_without_conversion", onSingleton = true, required = 2, split = Split.ALWAYS)
     public abstract static class ReadMemberWithoutConversionNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization(limit = "getInteropCacheLimit()")
@@ -1302,13 +1307,13 @@ public abstract class InteropNodes {
                 @CachedLibrary("receiver") InteropLibrary receivers,
                 @Cached TranslateInteropExceptionNode translateInteropException,
                 @Cached ToJavaStringNode toJavaStringNode,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             final String name = toJavaStringNode.execute(node, identifier);
             return InteropNodes.readMember(node, receivers, receiver, name, translateInteropException);
         }
     }
 
-    @CoreMethod(names = "write_member", onSingleton = true, required = 3)
+    @CoreMethod(names = "write_member", onSingleton = true, required = 3, split = Split.ALWAYS)
     public abstract static class WriteMemberNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization(limit = "getInteropCacheLimit()")
@@ -1316,7 +1321,7 @@ public abstract class InteropNodes {
                 @CachedLibrary("receiver") InteropLibrary receivers,
                 @Cached ToJavaStringNode toJavaStringNode,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             final String name = toJavaStringNode.execute(node, identifier);
             try {
                 receivers.writeMember(receiver, name, value);
@@ -1328,7 +1333,7 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "write_member_without_conversion", onSingleton = true, required = 3)
+    @CoreMethod(names = "write_member_without_conversion", onSingleton = true, required = 3, split = Split.ALWAYS)
     public abstract static class InteropWriteMemberWithoutConversionNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization
@@ -1361,7 +1366,7 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "remove_member", onSingleton = true, required = 2)
+    @CoreMethod(names = "remove_member", onSingleton = true, required = 2, split = Split.ALWAYS)
     public abstract static class RemoveMemberNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization(guards = "isRubySymbolOrString(identifier)", limit = "getInteropCacheLimit()")
@@ -1369,7 +1374,7 @@ public abstract class InteropNodes {
                 @CachedLibrary("receiver") InteropLibrary receivers,
                 @Cached ToJavaStringNode toJavaStringNode,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             final String name = toJavaStringNode.execute(node, identifier);
             try {
                 receivers.removeMember(receiver, name);
@@ -1381,7 +1386,7 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "invoke_member", onSingleton = true, required = 2, rest = true)
+    @CoreMethod(names = "invoke_member", onSingleton = true, required = 2, rest = true, split = Split.ALWAYS)
     public abstract static class InteropInvokeMemberNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization
@@ -1411,112 +1416,112 @@ public abstract class InteropNodes {
     }
 
 
-    @CoreMethod(names = "member_readable?", onSingleton = true, required = 2)
+    @CoreMethod(names = "member_readable?", onSingleton = true, required = 2, split = Split.ALWAYS)
     public abstract static class IsMemberReadableNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         static boolean isMemberReadable(Object receiver, Object name,
                 @Cached ToJavaStringNode toJavaStringNode,
                 @CachedLibrary("receiver") InteropLibrary receivers,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             return receivers.isMemberReadable(receiver, toJavaStringNode.execute(node, name));
         }
     }
 
-    @CoreMethod(names = "member_modifiable?", onSingleton = true, required = 2)
+    @CoreMethod(names = "member_modifiable?", onSingleton = true, required = 2, split = Split.ALWAYS)
     public abstract static class IsMemberModifiableNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         static boolean isMemberModifiable(Object receiver, Object name,
                 @Cached ToJavaStringNode toJavaStringNode,
                 @CachedLibrary("receiver") InteropLibrary receivers,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             return receivers.isMemberModifiable(receiver, toJavaStringNode.execute(node, name));
         }
     }
 
-    @CoreMethod(names = "member_insertable?", onSingleton = true, required = 2)
+    @CoreMethod(names = "member_insertable?", onSingleton = true, required = 2, split = Split.ALWAYS)
     public abstract static class IsMemberInsertableNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         static boolean isMemberInsertable(Object receiver, Object name,
                 @Cached ToJavaStringNode toJavaStringNode,
                 @CachedLibrary("receiver") InteropLibrary receivers,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             return receivers.isMemberInsertable(receiver, toJavaStringNode.execute(node, name));
         }
     }
 
-    @CoreMethod(names = "member_removable?", onSingleton = true, required = 2)
+    @CoreMethod(names = "member_removable?", onSingleton = true, required = 2, split = Split.ALWAYS)
     public abstract static class IsMemberRemovableNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         static boolean isMemberRemovable(Object receiver, Object name,
                 @Cached ToJavaStringNode toJavaStringNode,
                 @CachedLibrary("receiver") InteropLibrary receivers,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             return receivers.isMemberRemovable(receiver, toJavaStringNode.execute(node, name));
         }
     }
 
-    @CoreMethod(names = "member_invocable?", onSingleton = true, required = 2)
+    @CoreMethod(names = "member_invocable?", onSingleton = true, required = 2, split = Split.ALWAYS)
     public abstract static class IsMemberInvocableNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         static boolean isMemberInvocable(Object receiver, Object name,
                 @Cached ToJavaStringNode toJavaStringNode,
                 @CachedLibrary("receiver") InteropLibrary receivers,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             return receivers.isMemberInvocable(receiver, toJavaStringNode.execute(node, name));
         }
     }
 
-    @CoreMethod(names = "member_internal?", onSingleton = true, required = 2)
+    @CoreMethod(names = "member_internal?", onSingleton = true, required = 2, split = Split.ALWAYS)
     public abstract static class IsMemberInternalNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         static boolean isMemberInternal(Object receiver, Object name,
                 @Cached ToJavaStringNode toJavaStringNode,
                 @CachedLibrary("receiver") InteropLibrary receivers,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             return receivers.isMemberInternal(receiver, toJavaStringNode.execute(node, name));
         }
     }
 
-    @CoreMethod(names = "member_writable?", onSingleton = true, required = 2)
+    @CoreMethod(names = "member_writable?", onSingleton = true, required = 2, split = Split.ALWAYS)
     public abstract static class IsMemberWritableNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         static boolean isMemberWritable(Object receiver, Object name,
                 @Cached ToJavaStringNode toJavaStringNode,
                 @CachedLibrary("receiver") InteropLibrary receivers,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             return receivers.isMemberWritable(receiver, toJavaStringNode.execute(node, name));
         }
     }
 
-    @CoreMethod(names = "member_existing?", onSingleton = true, required = 2)
+    @CoreMethod(names = "member_existing?", onSingleton = true, required = 2, split = Split.ALWAYS)
     public abstract static class IsMemberExistingNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         static boolean isMemberExisting(Object receiver, Object name,
                 @Cached ToJavaStringNode toJavaStringNode,
                 @CachedLibrary("receiver") InteropLibrary receivers,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             return receivers.isMemberExisting(receiver, toJavaStringNode.execute(node, name));
         }
     }
 
-    @CoreMethod(names = "has_member_read_side_effects?", onSingleton = true, required = 2)
+    @CoreMethod(names = "has_member_read_side_effects?", onSingleton = true, required = 2, split = Split.ALWAYS)
     public abstract static class HasMemberReadSideEffectsNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         static boolean hasMemberReadSideEffects(Object receiver, Object name,
                 @Cached ToJavaStringNode toJavaStringNode,
                 @CachedLibrary("receiver") InteropLibrary receivers,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             return receivers.hasMemberReadSideEffects(receiver, toJavaStringNode.execute(node, name));
         }
     }
 
-    @CoreMethod(names = "has_member_write_side_effects?", onSingleton = true, required = 2)
+    @CoreMethod(names = "has_member_write_side_effects?", onSingleton = true, required = 2, split = Split.ALWAYS)
     public abstract static class HasMemberWriteSideEffectsNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         static boolean hasMemberWriteSideEffects(Object receiver, Object name,
                 @Cached ToJavaStringNode toJavaStringNode,
                 @CachedLibrary("receiver") InteropLibrary receivers,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             return receivers.hasMemberWriteSideEffects(receiver, toJavaStringNode.execute(node, name));
         }
     }
@@ -1563,7 +1568,7 @@ public abstract class InteropNodes {
     // endregion
 
     // region Language
-    @CoreMethod(names = "has_language?", onSingleton = true, required = 1)
+    @CoreMethod(names = "has_language?", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class HasLanguageNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         boolean hasLanguage(Object receiver,
@@ -1572,35 +1577,33 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "language", onSingleton = true, required = 1)
+    @CoreMethod(names = "language", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class GetLanguageNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization(limit = "getInteropCacheLimit()")
         static Object getLanguage(Object receiver,
                 @CachedLibrary("receiver") InteropLibrary receivers,
                 @Cached FromJavaStringNode fromJavaStringNode,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             if (!receivers.hasLanguage(receiver)) {
                 return nil;
             }
 
-            final Class<? extends TruffleLanguage<?>> language;
+            final Class<? extends TruffleLanguage<?>> languageClass;
             try {
-                language = receivers.getLanguage(receiver);
+                languageClass = receivers.getLanguage(receiver);
             } catch (UnsupportedMessageException e) {
                 return nil;
             }
 
-            final String name = languageClassToLanguageName(language);
+            final String name = languageClassToLanguageName(getContext(node), languageClass);
             return fromJavaStringNode.executeFromJavaString(node, name);
         }
 
         @TruffleBoundary
-        private static String languageClassToLanguageName(Class<? extends TruffleLanguage<?>> language) {
-            String name = language.getSimpleName();
-            if (name.endsWith("Language")) {
-                name = name.substring(0, name.length() - "Language".length());
-            }
+        private static String languageClassToLanguageName(RubyContext context,
+                Class<? extends TruffleLanguage<?>> languageClass) {
+            String name = context.getEnv().getLanguageInfo(languageClass).getName();
             if (name.equals("Host")) {
                 name = "Java";
             }
@@ -1771,7 +1774,7 @@ public abstract class InteropNodes {
     public abstract static class JavaAddToClasspathNode extends PrimitiveArrayArgumentsNode {
 
         @TruffleBoundary
-        @Specialization(guards = "strings.isRubyString(path)", limit = "1")
+        @Specialization(guards = "strings.isRubyString(this, path)", limit = "1")
         boolean javaAddToClasspath(Object path,
                 @Cached RubyStringLibrary strings) {
             TruffleLanguage.Env env = getContext().getEnv();
@@ -1790,7 +1793,7 @@ public abstract class InteropNodes {
     // endregion
 
     // region MetaObject
-    @CoreMethod(names = "meta_object?", onSingleton = true, required = 1)
+    @CoreMethod(names = "meta_object?", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class IsMetaObjectNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         boolean isMetaObject(Object receiver,
@@ -1799,7 +1802,7 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "has_meta_object?", onSingleton = true, required = 1)
+    @CoreMethod(names = "has_meta_object?", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class HasMetaObjectNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         boolean hasMetaObject(Object receiver,
@@ -1808,14 +1811,14 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "meta_object", onSingleton = true, required = 1)
+    @CoreMethod(names = "meta_object", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class InteropMetaObjectNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         static Object metaObject(Object value,
                 @CachedLibrary("value") InteropLibrary interop,
                 @Cached InlinedBranchProfile errorProfile,
                 @Cached LogicalClassNode logicalClassNode,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             if (interop.hasMetaObject(value)) {
                 try {
                     return interop.getMetaObject(value);
@@ -1829,7 +1832,7 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "has_declaring_meta_object?", onSingleton = true, required = 1)
+    @CoreMethod(names = "has_declaring_meta_object?", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class HasDeclaringMetaObjectNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         boolean hasDeclaringMetaObject(Object receiver,
@@ -1838,13 +1841,13 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "declaring_meta_object", onSingleton = true, required = 1)
+    @CoreMethod(names = "declaring_meta_object", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class DeclaringMetaObjectNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         static Object declaringMetaObject(Object value,
                 @CachedLibrary("value") InteropLibrary interop,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 return interop.getDeclaringMetaObject(value);
             } catch (UnsupportedMessageException e) {
@@ -1853,13 +1856,13 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "meta_instance?", onSingleton = true, required = 2)
+    @CoreMethod(names = "meta_instance?", onSingleton = true, required = 2, split = Split.ALWAYS)
     public abstract static class IsMetaInstanceNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         static boolean isMetaInstance(Object metaObject, Object instance,
                 @CachedLibrary("metaObject") InteropLibrary interop,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 return interop.isMetaInstance(metaObject, instance);
             } catch (UnsupportedMessageException e) {
@@ -1868,13 +1871,13 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "meta_simple_name", onSingleton = true, required = 1)
+    @CoreMethod(names = "meta_simple_name", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class GetMetaSimpleNameNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         static Object getMetaSimpleName(Object metaObject,
                 @CachedLibrary("metaObject") InteropLibrary interop,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 return interop.getMetaSimpleName(metaObject);
             } catch (UnsupportedMessageException e) {
@@ -1883,13 +1886,13 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "meta_qualified_name", onSingleton = true, required = 1)
+    @CoreMethod(names = "meta_qualified_name", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class GetMetaQualifiedNameNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         static Object getMetaQualifiedName(Object metaObject,
                 @CachedLibrary("metaObject") InteropLibrary interop,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 return interop.getMetaQualifiedName(metaObject);
             } catch (UnsupportedMessageException e) {
@@ -1898,7 +1901,7 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "has_meta_parents?", onSingleton = true, required = 1)
+    @CoreMethod(names = "has_meta_parents?", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class HasMetaParentsNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         boolean hasMetaParents(Object receiver,
@@ -1907,13 +1910,13 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "meta_parents", onSingleton = true, required = 1)
+    @CoreMethod(names = "meta_parents", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class GetMetaParentsNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         static Object getMetaParents(Object value,
                 @CachedLibrary("value") InteropLibrary interop,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 return interop.getMetaParents(value);
             } catch (UnsupportedMessageException e) {
@@ -1924,7 +1927,7 @@ public abstract class InteropNodes {
     // endregion
 
     // region Hash entries
-    @CoreMethod(names = "has_hash_entries?", onSingleton = true, required = 1)
+    @CoreMethod(names = "has_hash_entries?", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class HasHashEntriesNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         boolean hasHashEntriesNode(Object receiver,
@@ -1934,13 +1937,13 @@ public abstract class InteropNodes {
     }
 
 
-    @CoreMethod(names = "hash_entries_iterator", onSingleton = true, required = 1)
+    @CoreMethod(names = "hash_entries_iterator", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class HashEntriesIteratorNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         static Object hashEntriesIterator(Object receiver,
                 @CachedLibrary("receiver") InteropLibrary interop,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 return interop.getHashEntriesIterator(receiver);
             } catch (UnsupportedMessageException e) {
@@ -1949,7 +1952,7 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "hash_entry_existing?", onSingleton = true, required = 2)
+    @CoreMethod(names = "hash_entry_existing?", onSingleton = true, required = 2, split = Split.ALWAYS)
     public abstract static class HashEntryExistingNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         boolean hashEntryExisting(Object receiver, Object key,
@@ -1958,7 +1961,7 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "hash_entry_insertable?", onSingleton = true, required = 2)
+    @CoreMethod(names = "hash_entry_insertable?", onSingleton = true, required = 2, split = Split.ALWAYS)
     public abstract static class HashEntryInsertableNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         boolean hashEntryInsertable(Object receiver, Object key,
@@ -1967,7 +1970,7 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "hash_entry_modifiable?", onSingleton = true, required = 2)
+    @CoreMethod(names = "hash_entry_modifiable?", onSingleton = true, required = 2, split = Split.ALWAYS)
     public abstract static class HashEntryModifiableNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         boolean hashEntryModifiable(Object receiver, Object key,
@@ -1976,7 +1979,7 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "hash_entry_readable?", onSingleton = true, required = 2)
+    @CoreMethod(names = "hash_entry_readable?", onSingleton = true, required = 2, split = Split.ALWAYS)
     public abstract static class HashEntryReadableNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         boolean hashEntryReadable(Object receiver, Object key,
@@ -1985,7 +1988,7 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "hash_entry_removable?", onSingleton = true, required = 2)
+    @CoreMethod(names = "hash_entry_removable?", onSingleton = true, required = 2, split = Split.ALWAYS)
     public abstract static class HashEntryRemovableNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         boolean hashEntryRemovable(Object receiver, Object key,
@@ -1995,7 +1998,7 @@ public abstract class InteropNodes {
     }
 
 
-    @CoreMethod(names = "hash_entry_writable?", onSingleton = true, required = 2)
+    @CoreMethod(names = "hash_entry_writable?", onSingleton = true, required = 2, split = Split.ALWAYS)
     public abstract static class HashEntryWritableNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         boolean hashEntryWritable(Object receiver, Object key,
@@ -2004,13 +2007,13 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "hash_keys_iterator", onSingleton = true, required = 1)
+    @CoreMethod(names = "hash_keys_iterator", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class HashKeysIteratorNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         static Object hashKeysIterator(Object receiver,
                 @CachedLibrary("receiver") InteropLibrary interop,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 return interop.getHashKeysIterator(receiver);
             } catch (UnsupportedMessageException e) {
@@ -2019,13 +2022,13 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "hash_size", onSingleton = true, required = 1)
+    @CoreMethod(names = "hash_size", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class HashSizeNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         static long hashSize(Object receiver,
                 @CachedLibrary("receiver") InteropLibrary interop,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 return interop.getHashSize(receiver);
             } catch (UnsupportedMessageException e) {
@@ -2034,13 +2037,13 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "hash_values_iterator", onSingleton = true, required = 1)
+    @CoreMethod(names = "hash_values_iterator", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class HashValuesIteratorNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         static Object hashValuesIterator(Object receiver,
                 @CachedLibrary("receiver") InteropLibrary interop,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 return interop.getHashValuesIterator(receiver);
             } catch (UnsupportedMessageException e) {
@@ -2050,13 +2053,13 @@ public abstract class InteropNodes {
     }
 
 
-    @CoreMethod(names = "read_hash_value", onSingleton = true, required = 2)
+    @CoreMethod(names = "read_hash_value", onSingleton = true, required = 2, split = Split.ALWAYS)
     public abstract static class ReadHashValueNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         static Object readHashValue(Object receiver, Object key,
                 @CachedLibrary("receiver") InteropLibrary interop,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 return interop.readHashValue(receiver, key);
             } catch (InteropException e) {
@@ -2065,13 +2068,13 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "read_hash_value_or_default", onSingleton = true, required = 3)
+    @CoreMethod(names = "read_hash_value_or_default", onSingleton = true, required = 3, split = Split.ALWAYS)
     public abstract static class ReadHashValueOrDefaultNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         static Object readHashValueOrDefault(Object receiver, Object key, Object defaultValue,
                 @CachedLibrary("receiver") InteropLibrary interop,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 return interop.readHashValueOrDefault(receiver, key, defaultValue);
             } catch (UnsupportedMessageException e) {
@@ -2080,13 +2083,13 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "remove_hash_entry", onSingleton = true, required = 2)
+    @CoreMethod(names = "remove_hash_entry", onSingleton = true, required = 2, split = Split.ALWAYS)
     public abstract static class RemoveHashEntryNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         static Object removeHashEntry(Object receiver, Object key,
                 @CachedLibrary("receiver") InteropLibrary interop,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 interop.removeHashEntry(receiver, key);
                 return nil;
@@ -2096,13 +2099,13 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "write_hash_entry", onSingleton = true, required = 3)
+    @CoreMethod(names = "write_hash_entry", onSingleton = true, required = 3, split = Split.ALWAYS)
     public abstract static class WriteHashEntryNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         static Object writeHashEntry(Object receiver, Object key, Object value,
                 @CachedLibrary("receiver") InteropLibrary interop,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 interop.writeHashEntry(receiver, key, value);
                 return value;
@@ -2114,7 +2117,7 @@ public abstract class InteropNodes {
     // endregion
 
     // region Identity
-    @CoreMethod(names = "identical?", onSingleton = true, required = 2)
+    @CoreMethod(names = "identical?", onSingleton = true, required = 2, split = Split.ALWAYS)
     public abstract static class IsIdenticalNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         boolean isIdentical(Object receiver, Object other,
@@ -2124,7 +2127,7 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "has_identity?", onSingleton = true, required = 1)
+    @CoreMethod(names = "has_identity?", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class HasIdentityNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         boolean hasIdentity(Object receiver,
@@ -2133,13 +2136,13 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "identity_hash_code", onSingleton = true, required = 1)
+    @CoreMethod(names = "identity_hash_code", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class InteropIdentityHashCodeNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         static int identityHashCode(Object value,
                 @CachedLibrary("value") InteropLibrary interop,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             if (interop.hasIdentity(value)) {
                 try {
                     return interop.identityHashCode(value);
@@ -2154,7 +2157,7 @@ public abstract class InteropNodes {
     // endregion
 
     // region Scope
-    @CoreMethod(names = "scope?", onSingleton = true, required = 1)
+    @CoreMethod(names = "scope?", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class IsScopeNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         boolean isScope(Object receiver,
@@ -2163,7 +2166,7 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "has_scope_parent?", onSingleton = true, required = 1)
+    @CoreMethod(names = "has_scope_parent?", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class HasScopeParentNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         boolean hasScopeParent(Object receiver,
@@ -2172,14 +2175,14 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "scope_parent", onSingleton = true, required = 1)
+    @CoreMethod(names = "scope_parent", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class GetScopeParentNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization(limit = "getInteropCacheLimit()")
         static Object getScope(Object scope,
                 @CachedLibrary("scope") InteropLibrary interopLibrary,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             if (interopLibrary.hasScopeParent(scope)) {
                 try {
                     return interopLibrary.getScopeParent(scope);
@@ -2198,7 +2201,7 @@ public abstract class InteropNodes {
         Object getScope(VirtualFrame frame,
                 @CachedLibrary(limit = "1") NodeLibrary nodeLibrary,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 return nodeLibrary.getScope(this, frame, true);
             } catch (UnsupportedMessageException e) {
@@ -2217,7 +2220,7 @@ public abstract class InteropNodes {
     // endregion
 
     // region Buffer Messages
-    @CoreMethod(names = "has_buffer_elements?", onSingleton = true, required = 1)
+    @CoreMethod(names = "has_buffer_elements?", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class HasBufferElementsNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization(limit = "getInteropCacheLimit()")
@@ -2228,14 +2231,14 @@ public abstract class InteropNodes {
 
     }
 
-    @CoreMethod(names = "buffer_writable?", onSingleton = true, required = 1)
+    @CoreMethod(names = "buffer_writable?", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class IsBufferWritableNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization(limit = "getInteropCacheLimit()")
         static boolean isBufferWritable(Object receiver,
                 @CachedLibrary("receiver") InteropLibrary interop,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 return interop.isBufferWritable(receiver);
             } catch (UnsupportedMessageException e) {
@@ -2245,14 +2248,14 @@ public abstract class InteropNodes {
 
     }
 
-    @CoreMethod(names = "buffer_size", onSingleton = true, required = 1)
+    @CoreMethod(names = "buffer_size", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class GetBufferSizeNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization(limit = "getInteropCacheLimit()")
         static long getBufferSize(Object receiver,
                 @CachedLibrary("receiver") InteropLibrary interop,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 return interop.getBufferSize(receiver);
             } catch (UnsupportedMessageException e) {
@@ -2262,7 +2265,7 @@ public abstract class InteropNodes {
 
     }
 
-    @CoreMethod(names = "read_buffer", onSingleton = true, required = 3, lowerFixnum = { 2, 3 })
+    @CoreMethod(names = "read_buffer", onSingleton = true, required = 3, lowerFixnum = { 2, 3 }, split = Split.ALWAYS)
     public abstract static class ReadBufferNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization(limit = "getInteropCacheLimit()")
@@ -2270,7 +2273,7 @@ public abstract class InteropNodes {
                 @CachedLibrary("receiver") InteropLibrary interop,
                 @Cached TranslateInteropExceptionNode translateInteropException,
                 @Cached TruffleString.FromByteArrayNode fromByteArrayNode,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             byte[] bytes = new byte[length];
             try {
                 interop.readBuffer(receiver, byteOffset, bytes, 0, length);
@@ -2283,14 +2286,14 @@ public abstract class InteropNodes {
 
     }
 
-    @CoreMethod(names = "read_buffer_byte", onSingleton = true, required = 2)
+    @CoreMethod(names = "read_buffer_byte", onSingleton = true, required = 2, split = Split.ALWAYS)
     public abstract static class ReadBufferByteNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization(limit = "getInteropCacheLimit()")
         static byte readBufferByte(Object receiver, long byteOffset,
                 @CachedLibrary("receiver") InteropLibrary interop,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 return interop.readBufferByte(receiver, byteOffset);
             } catch (InteropException e) {
@@ -2300,7 +2303,7 @@ public abstract class InteropNodes {
 
     }
 
-    @CoreMethod(names = "write_buffer_byte", onSingleton = true, required = 3)
+    @CoreMethod(names = "write_buffer_byte", onSingleton = true, required = 3, split = Split.ALWAYS)
     public abstract static class WriteBufferByteNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization(limit = "getInteropCacheLimit()", guards = "interopValue.fitsInByte(value)")
@@ -2308,7 +2311,7 @@ public abstract class InteropNodes {
                 @CachedLibrary("receiver") InteropLibrary interop,
                 @CachedLibrary("value") InteropLibrary interopValue,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 final byte byteValue = interopValue.asByte(value);
                 interop.writeBufferByte(receiver, byteOffset, byteValue);
@@ -2320,7 +2323,7 @@ public abstract class InteropNodes {
 
     }
 
-    @CoreMethod(names = "read_buffer_short", onSingleton = true, required = 3)
+    @CoreMethod(names = "read_buffer_short", onSingleton = true, required = 3, split = Split.ALWAYS)
     public abstract static class ReadBufferShortNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization(limit = "getInteropCacheLimit()")
@@ -2328,7 +2331,7 @@ public abstract class InteropNodes {
                 @CachedLibrary("receiver") InteropLibrary interop,
                 @Cached SymbolToByteOrderNode symbolToByteOrderNode,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 final var byteOrder = symbolToByteOrderNode.execute(node, byteOrderObject);
                 return interop.readBufferShort(receiver, byteOrder, byteOffset);
@@ -2339,7 +2342,7 @@ public abstract class InteropNodes {
 
     }
 
-    @CoreMethod(names = "write_buffer_short", onSingleton = true, required = 4)
+    @CoreMethod(names = "write_buffer_short", onSingleton = true, required = 4, split = Split.ALWAYS)
     public abstract static class WriteBufferShortNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization(limit = "getInteropCacheLimit()", guards = "interopValue.fitsInShort(value)")
@@ -2348,7 +2351,7 @@ public abstract class InteropNodes {
                 @CachedLibrary("value") InteropLibrary interopValue,
                 @Cached SymbolToByteOrderNode symbolToByteOrderNode,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 final var byteOrder = symbolToByteOrderNode.execute(node, byteOrderObject);
                 final short shortValue = interopValue.asShort(value);
@@ -2361,7 +2364,7 @@ public abstract class InteropNodes {
 
     }
 
-    @CoreMethod(names = "read_buffer_int", onSingleton = true, required = 3)
+    @CoreMethod(names = "read_buffer_int", onSingleton = true, required = 3, split = Split.ALWAYS)
     public abstract static class ReadBufferIntNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization(limit = "getInteropCacheLimit()")
@@ -2369,7 +2372,7 @@ public abstract class InteropNodes {
                 @CachedLibrary("receiver") InteropLibrary interop,
                 @Cached SymbolToByteOrderNode symbolToByteOrderNode,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 final var byteOrder = symbolToByteOrderNode.execute(node, byteOrderObject);
                 return interop.readBufferInt(receiver, byteOrder, byteOffset);
@@ -2380,7 +2383,7 @@ public abstract class InteropNodes {
 
     }
 
-    @CoreMethod(names = "write_buffer_int", onSingleton = true, required = 4, lowerFixnum = 4)
+    @CoreMethod(names = "write_buffer_int", onSingleton = true, required = 4, lowerFixnum = 4, split = Split.ALWAYS)
     public abstract static class WriteBufferIntNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization(limit = "getInteropCacheLimit()", guards = "interopValue.fitsInInt(value)")
@@ -2389,7 +2392,7 @@ public abstract class InteropNodes {
                 @CachedLibrary("value") InteropLibrary interopValue,
                 @Cached SymbolToByteOrderNode symbolToByteOrderNode,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 final var order = symbolToByteOrderNode.execute(node, orderObject);
                 final int intValue = interopValue.asInt(value);
@@ -2402,7 +2405,7 @@ public abstract class InteropNodes {
 
     }
 
-    @CoreMethod(names = "read_buffer_long", onSingleton = true, required = 3)
+    @CoreMethod(names = "read_buffer_long", onSingleton = true, required = 3, split = Split.ALWAYS)
     public abstract static class ReadBufferLongNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization(limit = "getInteropCacheLimit()")
@@ -2410,7 +2413,7 @@ public abstract class InteropNodes {
                 @CachedLibrary("receiver") InteropLibrary interop,
                 @Cached SymbolToByteOrderNode symbolToByteOrderNode,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 final var byteOrder = symbolToByteOrderNode.execute(node, byteOrderObject);
                 return interop.readBufferLong(receiver, byteOrder, byteOffset);
@@ -2421,7 +2424,7 @@ public abstract class InteropNodes {
 
     }
 
-    @CoreMethod(names = "write_buffer_long", onSingleton = true, required = 4)
+    @CoreMethod(names = "write_buffer_long", onSingleton = true, required = 4, split = Split.ALWAYS)
     public abstract static class WriteBufferLongNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization(limit = "getInteropCacheLimit()", guards = "interopValue.fitsInLong(value)")
@@ -2430,7 +2433,7 @@ public abstract class InteropNodes {
                 @CachedLibrary("value") InteropLibrary interopValue,
                 @Cached SymbolToByteOrderNode symbolToByteOrderNode,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 final var order = symbolToByteOrderNode.execute(node, orderObject);
                 final long longValue = interopValue.asLong(value);
@@ -2443,7 +2446,7 @@ public abstract class InteropNodes {
 
     }
 
-    @CoreMethod(names = "read_buffer_float", onSingleton = true, required = 3)
+    @CoreMethod(names = "read_buffer_float", onSingleton = true, required = 3, split = Split.ALWAYS)
     public abstract static class ReadBufferFloatNode extends CoreMethodArrayArgumentsNode {
 
         // must return double so Ruby nodes can deal with it
@@ -2452,7 +2455,7 @@ public abstract class InteropNodes {
                 @CachedLibrary("receiver") InteropLibrary interop,
                 @Cached SymbolToByteOrderNode symbolToByteOrderNode,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 final var byteOrder = symbolToByteOrderNode.execute(node, byteOrderObject);
                 return interop.readBufferFloat(receiver, byteOrder, byteOffset);
@@ -2463,7 +2466,7 @@ public abstract class InteropNodes {
 
     }
 
-    @CoreMethod(names = "write_buffer_float", onSingleton = true, required = 4)
+    @CoreMethod(names = "write_buffer_float", onSingleton = true, required = 4, split = Split.ALWAYS)
     public abstract static class WriteBufferFloatNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization(limit = "getInteropCacheLimit()", guards = "interopValue.fitsInDouble(value)")
@@ -2472,7 +2475,7 @@ public abstract class InteropNodes {
                 @CachedLibrary("value") InteropLibrary interopValue,
                 @Cached SymbolToByteOrderNode symbolToByteOrderNode,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 final var order = symbolToByteOrderNode.execute(node, orderObject);
                 final float floatValue = (float) interopValue.asDouble(value);
@@ -2485,7 +2488,7 @@ public abstract class InteropNodes {
 
     }
 
-    @CoreMethod(names = "read_buffer_double", onSingleton = true, required = 3)
+    @CoreMethod(names = "read_buffer_double", onSingleton = true, required = 3, split = Split.ALWAYS)
     public abstract static class ReadBufferDoubleNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization(limit = "getInteropCacheLimit()")
@@ -2493,7 +2496,7 @@ public abstract class InteropNodes {
                 @CachedLibrary("receiver") InteropLibrary interop,
                 @Cached SymbolToByteOrderNode symbolToByteOrderNode,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 final var byteOrder = symbolToByteOrderNode.execute(node, byteOrderObject);
                 return interop.readBufferDouble(receiver, byteOrder, byteOffset);
@@ -2504,7 +2507,7 @@ public abstract class InteropNodes {
 
     }
 
-    @CoreMethod(names = "write_buffer_double", onSingleton = true, required = 4)
+    @CoreMethod(names = "write_buffer_double", onSingleton = true, required = 4, split = Split.ALWAYS)
     public abstract static class WriteBufferDoubleNode extends CoreMethodArrayArgumentsNode {
 
         @Specialization(limit = "getInteropCacheLimit()", guards = "interopValue.fitsInDouble(value)")
@@ -2513,7 +2516,7 @@ public abstract class InteropNodes {
                 @CachedLibrary("value") InteropLibrary interopValue,
                 @Cached SymbolToByteOrderNode symbolToByteOrderNode,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 final var order = symbolToByteOrderNode.execute(node, orderObject);
                 final double doubleValue = interopValue.asDouble(value);
@@ -2528,7 +2531,7 @@ public abstract class InteropNodes {
     // endregion
 
     // region Iterator
-    @CoreMethod(names = "has_iterator?", onSingleton = true, required = 1)
+    @CoreMethod(names = "has_iterator?", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class HasIteratorNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         boolean hasIterator(Object receiver,
@@ -2537,7 +2540,7 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "iterator?", onSingleton = true, required = 1)
+    @CoreMethod(names = "iterator?", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class IsIteratorNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         boolean isIterator(Object receiver,
@@ -2546,13 +2549,13 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "iterator", onSingleton = true, required = 1)
+    @CoreMethod(names = "iterator", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class GetIteratorNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         static Object getIterator(Object receiver,
                 @CachedLibrary("receiver") InteropLibrary interop,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 return interop.getIterator(receiver);
             } catch (UnsupportedMessageException e) {
@@ -2561,13 +2564,13 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "has_iterator_next_element?", onSingleton = true, required = 1)
+    @CoreMethod(names = "has_iterator_next_element?", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class HasIteratorNextElementNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         static boolean hasIteratorNextElement(Object receiver,
                 @CachedLibrary("receiver") InteropLibrary interop,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 return interop.hasIteratorNextElement(receiver);
             } catch (UnsupportedMessageException e) {
@@ -2576,13 +2579,13 @@ public abstract class InteropNodes {
         }
     }
 
-    @CoreMethod(names = "iterator_next_element", onSingleton = true, required = 1)
+    @CoreMethod(names = "iterator_next_element", onSingleton = true, required = 1, split = Split.ALWAYS)
     public abstract static class GetIteratorNextElementNode extends CoreMethodArrayArgumentsNode {
         @Specialization(limit = "getInteropCacheLimit()")
         static Object getIteratorNextElement(Object receiver,
                 @CachedLibrary("receiver") InteropLibrary interop,
                 @Cached TranslateInteropExceptionNode translateInteropException,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             try {
                 return interop.getIteratorNextElement(receiver);
             } catch (InteropException e) {

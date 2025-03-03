@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2014, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -9,13 +9,16 @@
  */
 package org.truffleruby.core.regexp;
 
+import com.oracle.truffle.api.dsl.Bind;
+import com.oracle.truffle.api.dsl.NeverDefault;
+import com.oracle.truffle.api.nodes.Node;
 import com.oracle.truffle.api.strings.TruffleString;
 import com.oracle.truffle.api.strings.TruffleString.AsTruffleStringNode;
 import org.truffleruby.core.cast.ToSNode;
 import org.truffleruby.core.encoding.RubyEncoding;
-import org.truffleruby.core.regexp.InterpolatedRegexpNodeFactory.RegexpBuilderNodeGen;
+import org.truffleruby.core.regexp.InterpolatedRegexpNodeGen.RegexpBuilderNodeGen;
 import org.truffleruby.core.string.TStringWithEncoding;
-import org.truffleruby.language.NotOptimizedWarningNode;
+import org.truffleruby.language.PerformanceWarningNode;
 import org.truffleruby.language.RubyBaseNode;
 import org.truffleruby.language.RubyContextSourceNode;
 import org.truffleruby.language.RubyNode;
@@ -28,44 +31,46 @@ import com.oracle.truffle.api.frame.VirtualFrame;
 import com.oracle.truffle.api.nodes.ExplodeLoop;
 import org.truffleruby.language.library.RubyStringLibrary;
 
-public final class InterpolatedRegexpNode extends RubyContextSourceNode {
-
-    @Children private final ToSNode[] children;
-    @Child private RegexpBuilderNode builderNode;
-    private final RubyStringLibrary rubyStringLibrary = RubyStringLibrary.create();
-    @Child private AsTruffleStringNode asTruffleStringNode = AsTruffleStringNode.create();
+public abstract class InterpolatedRegexpNode extends RubyContextSourceNode {
+    private final @Children ToSNode[] children;
     /** initial encoding to start encodings negotiation */
-    private final RubyEncoding encoding;
+    public final RubyEncoding encoding;
+    public final RegexpOptions options;
 
-    public InterpolatedRegexpNode(ToSNode[] children, RubyEncoding encoding, RegexpOptions options) {
-        this.children = children;
+    public InterpolatedRegexpNode(RubyEncoding encoding, RegexpOptions options, ToSNode[] children) {
         this.encoding = encoding;
-        this.builderNode = RegexpBuilderNode.create(encoding, options);
+        this.options = options;
+        this.children = children;
     }
 
-    @Override
-    public Object execute(VirtualFrame frame) {
-        return builderNode.execute(executeChildren(frame));
+    @Specialization
+    RubyRegexp interpolatedRegexp(VirtualFrame frame,
+            @Bind Node node,
+            @Cached("create(encoding, options)") RegexpBuilderNode builderNode,
+            @Cached AsTruffleStringNode asTruffleStringNode,
+            @Cached RubyStringLibrary libString) {
+        return builderNode.execute(childrenToStrings(frame, node, libString, asTruffleStringNode));
     }
 
     @ExplodeLoop
-    protected TStringWithEncoding[] executeChildren(VirtualFrame frame) {
+    protected TStringWithEncoding[] childrenToStrings(VirtualFrame frame, Node node, RubyStringLibrary libString,
+            AsTruffleStringNode asTruffleStringNode) {
         TStringWithEncoding[] values = new TStringWithEncoding[children.length];
         for (int i = 0; i < children.length; i++) {
             final Object value = children[i].execute(frame);
             values[i] = new TStringWithEncoding(asTruffleStringNode,
-                    rubyStringLibrary.getTString(value),
-                    rubyStringLibrary.getEncoding(value));
+                    libString.getTString(node, value),
+                    libString.getEncoding(node, value));
         }
         return values;
     }
 
     @Override
     public RubyNode cloneUninitialized() {
-        var copy = new InterpolatedRegexpNode(
-                cloneUninitialized(children),
+        var copy = InterpolatedRegexpNodeGen.create(
                 encoding,
-                builderNode.options);
+                options,
+                cloneUninitialized(children));
         return copy.copyFlags(this);
     }
 
@@ -83,6 +88,7 @@ public final class InterpolatedRegexpNode extends RubyContextSourceNode {
         private final RubyEncoding encoding;
         private final RegexpOptions options;
 
+        @NeverDefault
         public static RegexpBuilderNode create(RubyEncoding encoding, RegexpOptions options) {
             return RegexpBuilderNodeGen.create(encoding, options);
         }
@@ -92,19 +98,20 @@ public final class InterpolatedRegexpNode extends RubyContextSourceNode {
             this.options = options;
         }
 
-        public abstract Object execute(TStringWithEncoding[] parts);
+        public abstract RubyRegexp execute(TStringWithEncoding[] parts);
 
         @Specialization(guards = "tstringsWithEncodingsMatch(cachedParts, parts)", limit = "getDefaultCacheLimit()")
-        Object fast(TStringWithEncoding[] parts,
+        RubyRegexp fast(TStringWithEncoding[] parts,
                 @Cached(value = "parts", dimensions = 1) TStringWithEncoding[] cachedParts,
                 @Cached("createRegexp(cachedParts)") RubyRegexp regexp) {
             return regexp;
         }
 
         @Specialization(replaces = "fast")
-        Object slow(TStringWithEncoding[] parts,
-                @Cached NotOptimizedWarningNode notOptimizedWarningNode) {
-            notOptimizedWarningNode.warn("unstable interpolated regexps are not optimized");
+        RubyRegexp slow(TStringWithEncoding[] parts,
+                @Cached PerformanceWarningNode performanceWarningNode) {
+            performanceWarningNode.warn(
+                    "unstable interpolated regexps cause deoptimization loops which hurt performance significantly, avoid creating regexps dynamically where possible or cache them to fix this");
             return createRegexp(parts);
         }
 

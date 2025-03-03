@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2018, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -74,6 +74,13 @@ public class ContextPermissionsTest {
         try (Context context = Context.newBuilder("ruby").allowIO(IOAccess.ALL).allowNativeAccess(true).build()) {
             // NOTE: rake is a bundled gem, so it needs RubyGems to be required
             Assert.assertEquals("Rake", context.eval("ruby", "require 'rake'; Rake.to_s").asString());
+        }
+    }
+
+    @Test
+    public void testRequireCExtension() {
+        try (Context context = Context.newBuilder("ruby").allowIO(IOAccess.ALL).allowNativeAccess(true).build()) {
+            Assert.assertEquals("Etc", context.eval("ruby", "require 'etc'; Etc.to_s").asString());
         }
     }
 

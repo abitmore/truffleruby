@@ -37,11 +37,24 @@ JDKS_CACHE_DIR = File.expand_path('~/.mx/jdks')
 CACHE_EXTRA_DIR = File.expand_path('~/.mx/cache/truffleruby')
 FileUtils.mkdir_p(CACHE_EXTRA_DIR)
 
-TRUFFLERUBY_GEM_TEST_PACK_VERSION = 'a735a43977257d3b08140f8d258ac58f1a3416c3'
+TRUFFLERUBY_GEM_TEST_PACK_VERSION = '8d89d2e3ca7990af900f9d8491ba49b0a625e549'
 
 JDEBUG = '--vm.agentlib:jdwp=transport=dt_socket,server=y,address=8000,suspend=y'
 METRICS_REPS = Integer(ENV['TRUFFLERUBY_METRICS_REPS'] || 10)
 DEFAULT_PROFILE_OPTIONS = %w[--cpusampler --cpusampler.Output=flamegraph]
+
+MRI_TEST_RETAG_RETAIN_PATTERNS = [
+  /hangs/i,
+  /slow/i,
+  /retain-on-retag/,
+  /OOM/,
+  /flaky/,
+  /spurious/,
+  /transient/,
+  /if RUBY_PLATFORM/,
+  /pid \d+ (exit|killed)/,
+  /GR-\d+/ # mentioning an existing ticket number
+]
 
 RUBOCOP_INCLUDE_LIST = %w[
   lib/cext
@@ -54,7 +67,7 @@ RUBOCOP_INCLUDE_LIST = %w[
 ]
 
 RUBOCOP_VERSION = '1.36.0'
-SEAFOAM_VERSION = '0.15'
+SEAFOAM_VERSION = '0.17'
 CFG2ASM_VERSION = '0.2'
 
 DLEXT = RbConfig::CONFIG.fetch('DLEXT')
@@ -67,7 +80,8 @@ JT_SPECS_SPLITTING = ENV['JT_SPECS_SPLITTING'] == 'true' ? true : JT_SPECS_COMPI
 ENV['GEM_HOME'] = File.expand_path(ENV['GEM_HOME']) if ENV['GEM_HOME']
 
 JDK_VERSIONS = %w[latest 21]
-DEFAULT_JDK_VERSION = JDK_VERSIONS.last
+LTS_JDK_VERSION = '21'
+DEFAULT_JDK_VERSION = 'latest'
 
 MRI_TEST_RELATIVE_PREFIX = 'test/mri/tests'
 MRI_TEST_PREFIX = "#{TRUFFLERUBY_DIR}/#{MRI_TEST_RELATIVE_PREFIX}"
@@ -256,7 +270,7 @@ module Utilities
                       File.directory?(@ruby_name) ? "#{@ruby_name}/bin/ruby" : @ruby_name
                     else
                       graalvm = "#{TRUFFLERUBY_DIR}/mxbuild/truffleruby-#{@ruby_name}"
-                      "#{graalvm}/languages/ruby/bin/ruby"
+                      "#{graalvm}/bin/ruby"
                     end
 
     raise "The Ruby executable #{ruby_launcher} does not exist" unless File.exist?(ruby_launcher)
@@ -268,7 +282,6 @@ module Utilities
     unless @silent
       shortened_path = @ruby_launcher.sub(%r[^#{Regexp.escape TRUFFLERUBY_DIR}/], '')
       shortened_path = shortened_path.sub(%r[/bin/(ruby|truffleruby)$], '')
-      shortened_path = shortened_path.sub(%r[/languages/ruby$], '') if graalvm_home
       tags = [*('Interpreted' if truffleruby? && !truffleruby_compiler?),
               truffleruby? ? 'TruffleRuby' : 'a Ruby',
               *('with Native' if truffleruby_native_built?),
@@ -286,18 +299,6 @@ module Utilities
   def ruby_home
     require_ruby_launcher!
     File.expand_path('../..', @ruby_launcher_realpath)
-  end
-
-  def graalvm_home
-    up = if ruby_home.end_with?('jre/languages/ruby')
-           3
-         elsif ruby_home.end_with?('languages/ruby')
-           2
-         else
-           nil # standalone
-         end
-    return nil unless up
-    File.expand_path((['..'] * up).join('/'), ruby_home)
   end
 
   def truffleruby!
@@ -350,8 +351,8 @@ module Utilities
     return @truffleruby_compiler = false unless truffleruby?
     return @truffleruby_compiler = true if truffleruby_native_built?
 
-    # Detect if the compiler is present by reading the $graalvm_home/release file
-    @truffleruby_compiler = File.readlines("#{graalvm_home || ruby_home}/release").grep(/^COMMIT_INFO=/).any? do |line|
+    # Detect if the compiler is present by reading the $ruby_home/release file
+    @truffleruby_compiler = File.readlines("#{ruby_home}/release").grep(/^COMMIT_INFO=/).any? do |line|
       line.include?('"compiler":') || line.include?("'compiler':")
     end
   end
@@ -516,6 +517,8 @@ module Utilities
     end
 
     if status.success? || continue_on_failure
+      $LAST_SH_STATUS = status
+
       if capture
         out
       else
@@ -688,8 +691,10 @@ module Utilities
 
   def run_mspec(env_vars, command = 'run', *args)
     mspec_args = ['spec/mspec/bin/mspec', command, '--config', ENV['TRUFFLERUBY_MSPEC_CONFIG'] || 'spec/truffleruby.mspec']
+
     Dir.chdir(TRUFFLERUBY_DIR) do
-      ruby env_vars, *mspec_args, '-t', ruby_launcher, *args
+      # always enable assertions with --ea to catch issues earlier
+      ruby env_vars, '--ea', *mspec_args, '-t', ruby_launcher, *args
     end
   end
 
@@ -818,11 +823,11 @@ module Commands
       jt ruby [jt options] [--] [ruby options] args...
                                                      run TruffleRuby with args
           --stress        stress the compiler (compile immediately, foreground compilation, compilation exceptions are fatal)
-          --reveal        enable assertions
+          --ea            enable assertions
           --asm           show assembly
-          --igv           dump select Graal graphs to graal_dumps/ (-Dgraal.Dump=Truffle:1)
-          --igv-full      dump all Graal graphs to graal_dumps/ (-Dgraal.Dump=Truffle:2,TruffleHostInlining:0)
-          --igv-network   dump to IGV directly through the network (-Dgraal.PrintGraph=Network)
+          --igv           dump select Graal graphs to graal_dumps/ (-Djdk.graal.Dump=Truffle:1)
+          --igv-full      dump all Graal graphs to graal_dumps/ (-Djdk.graal.Dump=Truffle:2,TruffleHostInlining:0)
+          --igv-network   dump to IGV directly through the network (-Djdk.graal.PrintGraph=Network)
           --infopoints    show source location for each node in IGV
           --fg            disable background compilation
           --trace         show compilation information on stdout
@@ -853,7 +858,7 @@ module Commands
                                                      run tests in given file, -n option of the runner can be used to further
                                                      limit executed test methods
           --fast                                     skip MRI tests using subprocesses
-      jt retag FILE                                  Remove MRI excludes and re-add as necessary for MRI tests
+      jt retag [--together] [FILES]                  Remove MRI excludes and re-add as necessary for MRI tests. If FILES are omitted - all the test files are processed
       ---
       jt test basictest                              run MRI's basictest suite
       jt test bootstraptest                          run MRI's bootstraptest suite
@@ -898,7 +903,7 @@ module Commands
       jt sync                                        continuously synchronize changes from the Ruby source files to the GraalVM build
       jt idea                                        generates IntelliJ projects
       jt format                                      run eclipse code formatter
-      jt graalvm-home                                prints the GraalVM home of the RUBY_SELECTOR
+      jt ruby-home                                   prints the Ruby home of the RUBY_SELECTOR
 
       you can also put --build or --rebuild in front of any command to build or rebuild first
 
@@ -929,8 +934,8 @@ module Commands
     puts ruby_launcher
   end
 
-  define_method(:'graalvm-home') do
-    puts graalvm_home
+  define_method(:'ruby-home') do
+    puts ruby_home
   end
 
   def build(*options)
@@ -1032,7 +1037,7 @@ module Commands
         vm_args << arg
       when '--no-core-load-path'
         core_load_path = false
-      when '--reveal', '--ea'
+      when '--ea'
         vm_args += %w[--vm.ea --vm.esa] if truffleruby_jvm?
       when '--check-compilation'
         add_experimental_options.call
@@ -1066,14 +1071,14 @@ module Commands
       when '--igv', '--igv-full'
         truffleruby_compiler!
         if arg == '--igv-full'
-          vm_args << '--vm.Dgraal.Dump=Truffle:2,TruffleHostInlining:0,TruffleInjectImmutableFrameFields:0'
+          vm_args << '--vm.Djdk.graal.Dump=Truffle:2,TruffleHostInlining:0,TruffleInjectImmutableFrameFields:0'
         else
-          vm_args << '--vm.Dgraal.Dump=Truffle:1'
+          vm_args << '--vm.Djdk.graal.Dump=Truffle:1'
         end
-        vm_args << '--vm.Dgraal.PrintBackendCFG=false'
+        vm_args << '--vm.Djdk.graal.PrintBackendCFG=false'
       when '--igv-network'
         truffleruby_compiler!
-        vm_args << '--vm.Dgraal.PrintGraph=Network'
+        vm_args << '--vm.Djdk.graal.PrintGraph=Network'
       when '--exec'
         options[:use_exec] = true
       when /^--vm\./
@@ -1252,8 +1257,7 @@ module Commands
     end
 
     mri_args = []
-    excluded_files = File.readlines("#{TRUFFLERUBY_DIR}/test/mri/failing.exclude").
-      map { |line| line.gsub(/#.*/, '').strip }.reject(&:empty?)
+    excluded_files = load_excluded_file_names
     patterns = []
 
     args.each do |arg|
@@ -1270,9 +1274,16 @@ module Commands
       end
     end
 
-    patterns.push "#{MRI_TEST_PREFIX}/**/test_*.rb" if patterns.empty?
+    files_to_run = get_mri_test_files(patterns)
+    files_to_run -= excluded_files
 
-    files_to_run = patterns.flat_map do |pattern|
+    run_mri_tests(mri_args, files_to_run, runner_args, use_exec: true)
+  end
+
+  private def get_mri_test_files(patterns)
+    patterns << "#{MRI_TEST_PREFIX}/**/test_*.rb" if patterns.empty?
+
+    patterns.flat_map do |pattern|
       if pattern.start_with?(MRI_TEST_RELATIVE_PREFIX)
         pattern = "#{TRUFFLERUBY_DIR}/#{pattern}"
       elsif !pattern.start_with?(MRI_TEST_PREFIX)
@@ -1288,9 +1299,6 @@ module Commands
       abort "pattern #{pattern} matched no files" if glob.empty?
       glob.map { |path| mri_test_name(path) }
     end.sort
-    files_to_run -= excluded_files
-
-    run_mri_tests(mri_args, files_to_run, runner_args, use_exec: true)
   end
 
   private def mri_test_name(test)
@@ -1311,7 +1319,7 @@ module Commands
 
     truffle_args = []
     if truffleruby?
-      vm_args, ruby_args, _parsed_options = ruby_options({}, %w[--reveal --experimental-options --testing-rubygems])
+      vm_args, ruby_args, _parsed_options = ruby_options({}, %w[--ea --experimental-options --testing-rubygems])
       truffle_args = vm_args + ruby_args
     end
 
@@ -1321,10 +1329,6 @@ module Commands
       'RUBYOPT' => [*ENV['RUBYOPT'], '--disable-gems'].join(' '),
       'TRUFFLERUBYOPT' => [*ENV['TRUFFLERUBYOPT'], *truffle_args].join(' '),
     }
-    compile_env = {
-      # MRI C-ext tests expect to be built with $extmk = true.
-      'MKMF_SET_EXTMK_TO_TRUE' => 'true',
-    }
 
     if extra_args.delete '--fast'
       env_vars['MRI_TEST_SUBPROCESSES'] = 'false'
@@ -1333,6 +1337,20 @@ module Commands
     cext_tests = test_files.select do |f|
       f.include?('cext-ruby') || MRI_TEST_CAPI_TESTS.include?(f)
     end
+
+    compile_cext_for_mri_c_api_tests(cext_tests)
+
+    command = %w[test/mri/tests/runner.rb -v --test-order=sorted --color=never --tty=no -q]
+    command.unshift("-I#{TRUFFLERUBY_DIR}/.ext")  if !cext_tests.empty?
+    run_ruby(env_vars, *extra_args, *command, *test_files, *runner_args, run_options)
+  end
+
+  private def compile_cext_for_mri_c_api_tests(cext_tests)
+    compile_env = {
+      # MRI C-ext tests expect to be built with $extmk = true.
+      'MKMF_SET_EXTMK_TO_TRUE' => 'true',
+    }
+
     cext_tests.each do |test|
       puts
       puts test
@@ -1363,45 +1381,108 @@ module Commands
         puts "c require not found for cext test: #{test_path}"
       end
     end
-
-    command = %w[test/mri/tests/runner.rb -v --test-order=sorted --color=never --tty=no -q]
-    command.unshift("-I#{TRUFFLERUBY_DIR}/.ext")  if !cext_tests.empty?
-    run_ruby(env_vars, *extra_args, *command, *test_files, *runner_args, run_options)
   end
 
   def retag(*args)
     in_truffleruby_repo_root!
     require_ruby_launcher!
     options, test_files = args.partition { |a| a.start_with?('-') }
+    together = options.delete('--together')
 
-    test_files.each do |test_file|
-      puts '', test_file
-      test_classes = File.read(test_file).scan(/class\s+([\w:]+)\s*<.+TestCase/).map(&:first)
-      raise "Could not find class inheriting from TestCase in #{test_file}" if test_classes.empty?
-      found_excludes = false
-      test_classes.each do |test_class|
-        prefix = "test/mri/excludes/#{test_class.gsub('::', '/')}"
-        ["#{prefix}.rb", prefix].each do |file|
-          if File.exist?(file)
-            FileUtils::Verbose.rm_r file
-            found_excludes = true
+    test_files = get_mri_test_files(test_files)
+
+    excluded_files = load_excluded_file_names
+    files_to_skip = test_files & excluded_files
+    files_to_retag = test_files - excluded_files
+
+    puts 'The following files are excluded in test/mri/failing.exclude:'
+    puts files_to_skip.map { |s| '- ' + s }
+
+    puts 'The following files will be retagged:'
+    puts files_to_retag.map { |s| '- ' + s }
+
+    files_to_retag_relative = files_to_retag # paths are relative to test/mri/tests directory
+    files_to_retag = files_to_retag_relative.map { |test_file| "#{MRI_TEST_RELATIVE_PREFIX}/#{test_file}" }
+
+    # Detect test classes in runtime
+    #
+    # It's difficult to find out test classes declared in a test file properly by static analysis (probably only parsing and checking AST may work)
+    # There are the following issues with static analysis:
+    #   - there may be a base class for several test classes - so we cannot just look up with a regexp for classes that directly inherit Test::Unit::TestCase
+    #   - test classes can inherit one another
+    #   - test classes may share common test cases by including a module with test cases
+    #   - there may be several test classes in a single test file
+
+    # build native extensions needed for MRI tests
+    cext_tests = files_to_retag_relative.select do |f|
+      f.include?('cext-ruby') || MRI_TEST_CAPI_TESTS.include?(f)
+    end
+    compile_cext_for_mri_c_api_tests(cext_tests)
+
+    command = ['tool/retag_helper.rb']
+    command.unshift("-I#{TRUFFLERUBY_DIR}/.ext") if !cext_tests.empty?
+    output = run_ruby(*command, *files_to_retag, capture: :both)
+    test_classes = output.lines.map(&:chomp)
+    if test_classes.empty?
+      puts "\nWARNING: Could not find class inheriting from TestCase in #{files_to_retag}"
+      return
+    end
+
+    puts "Preprocess exclude files for classes: #{test_classes}"
+    test_classes.each do |test_class|
+      prefix = "test/mri/excludes/#{test_class.gsub('::', '/')}"
+      ["#{prefix}.rb", prefix].each do |file|
+        if File.exist?(file) && File.file?(file)
+          lines = File.readlines(file)
+          FileUtils::Verbose.rm_r file
+
+          # We know some tests hang and odds are very good they're going to continue to hang, so let's keep those
+          # tests as excluded and manually inspect them later. We need to be careful that we're not checking for our
+          # retains pattern on the test name. Thus, we limit our checks to either the exclusion reason string or a
+          # conditional guard that applies to the exclusion.
+          retain = lines.select do |line|
+            reason_or_guard = line.split(',', 2).last
+
+            MRI_TEST_RETAG_RETAIN_PATTERNS.any? { |pattern| reason_or_guard =~ pattern }
+          end
+
+          unless retain.empty?
+            puts 'Retaining:'
+            puts retain
+            File.write(file, retain.sort.join)
           end
         end
       end
-      unless found_excludes
-        puts "Found no excludes for #{test_classes.join(', ')}"
-        next
+    end
+
+    if together
+      groups = [files_to_retag]
+    else
+      groups = files_to_retag.map { |file| [file] }
+    end
+
+    groups.each do |group|
+      process_tests = true
+      while process_tests
+        puts '1. Tagging tests'
+        output_file = 'mri_tests.txt'
+        run_mri_tests(options, group, [], [:err, :out] => output_file, continue_on_failure: true)
+
+        # Uncomment this to debug retagging and test class/method name capturing
+        # puts ">"*80
+        # puts "*** mri_tests.txt:"
+        # puts ">"*80
+        # puts File.read(output_file)
+        # puts "<"*80
+
+        puts '2. Parsing errors'
+        sh 'ruby', 'tool/parse_mri_errors.rb', output_file, continue_on_failure: true
+
+        process_tests = $LAST_SH_STATUS.exitstatus == 2
       end
 
-      puts '1. Tagging tests'
-      output_file = 'mri_tests.txt'
-      run_mri_tests(options, [test_file], [], out: output_file, continue_on_failure: true)
-
-      puts '2. Parsing errors'
-      sh 'ruby', 'tool/parse_mri_errors.rb', output_file
-
       puts '3. Verifying tests pass'
-      run_mri_tests(options, [test_file], [], use_exec: test_files.size == 1)
+      run_mri_tests(options, group, [], use_exec: groups.size == 1)
     end
   end
 
@@ -1418,19 +1499,22 @@ module Commands
     out.sub('-', '--vm.')
   end
 
-  ALL_CEXTS_TESTS = %w[
-    tools postinstallhook
-    minimum module method globals backtraces xopenssl werror no_timespec stripped
+  GEMS_CEXTS_TESTS = %w[
     oily_png psd_native
     puma sqlite3 unf_ext json grpc RubyInline msgpack
   ]
+
+  ALL_CEXTS_TESTS = %w[
+    tools postinstallhook
+    minimum module method globals backtraces xopenssl werror no_timespec stripped
+  ] + GEMS_CEXTS_TESTS
 
   private def test_cexts(*args)
     no_openssl = args.delete('--no-openssl')
     no_gems = args.delete('--no-gems')
     tests = args.empty? ? ALL_CEXTS_TESTS : args
     tests -= %w[xopenssl] if no_openssl
-    tests.delete 'gems' if no_gems
+    tests -= GEMS_CEXTS_TESTS if no_gems
 
     tests.each do |test_name|
       run_single_cexts_test(test_name)
@@ -1455,7 +1539,7 @@ module Commands
         script = "#{dir}/bin/#{test_name}"
         # bin/backtraces relies on being run with an absolute path for __FILE__
         script = "#{TRUFFLERUBY_DIR}/#{script}" if test_name == 'backtraces'
-        run_ruby "-I#{dir}/lib", script, out: output_file
+        run_ruby "-I#{dir}/lib", script, out: output_file, continue_on_failure: true
         begin
           actual = File.read(output_file)
           expected_file = "#{dir}/expected.txt"
@@ -1698,7 +1782,9 @@ module Commands
     options += %w[--timeout 600] if ci?
 
     args, ruby_args = args_split(args)
-    vm_args, ruby_args, parsed_options = ruby_options({}, ['--reveal', *ruby_args])
+
+    # always enable assertions (with jt's --ea flag) to catch issues earlier
+    vm_args, ruby_args, parsed_options = ruby_options({}, ['--ea', *ruby_args])
 
     if !JT_SPECS_COMPILATION && truffleruby_compiler? && truffleruby_jvm?
       vm_args << '--vm.XX:-UseJVMCICompiler' << '--experimental-options' << '--engine.Compilation=false'
@@ -2237,19 +2323,19 @@ module Commands
       "--engine.CompileOnly=#{method}",
       '--engine.MultiTier=false',
       '--compiler.NodeSourcePositions',
-      '--vm.Dgraal.PrintGraphWithSchedule=true',
-      *('--vm.Dgraal.PrintBackendCFG=true' if cfg2asm),
-      '--vm.Dgraal.Dump=Truffle:1',
+      '--vm.Djdk.graal.PrintGraphWithSchedule=true',
+      *('--vm.Djdk.graal.PrintBackendCFG=true' if cfg2asm),
+      '--vm.Djdk.graal.Dump=Truffle:1',
       '--log.file=/dev/stderr', # suppress the Truffle log output help message
     ]
 
     # As per https://github.com/Shopify/seafoam/blob/master/docs/getting-graphs.md
     # GR-36849: needs #truffleruby_native_built? instead of #truffleruby_native?
     simplify_vm_args = [
-      *('--vm.Dgraal.PartialUnroll=false' unless truffleruby_native_built?),
-      *('--vm.Dgraal.LoopPeeling=false' unless truffleruby_native_built?),
-      *('--vm.Dgraal.LoopUnswitch=false' unless truffleruby_native_built?),
-      '--vm.Dgraal.OptScheduleOutOfLoops=false',
+      *('--vm.Djdk.graal.PartialUnroll=false' unless truffleruby_native_built?),
+      *('--vm.Djdk.graal.LoopPeeling=false' unless truffleruby_native_built?),
+      *('--vm.Djdk.graal.LoopUnswitch=false' unless truffleruby_native_built?),
+      '--vm.Djdk.graal.OptScheduleOutOfLoops=false',
     ]
 
     base_vm_args += simplify_vm_args if simplify
@@ -2262,7 +2348,7 @@ module Commands
       IO.popen(command, err: [:child, :out]) do |pipe|
         pipe.each_line do |line|
           puts line
-          if line =~ /\[engine\] opt done\s+id=\d+\s+#{Regexp.escape(method)}/
+          if line =~ /\[engine\] opt done(\s+engine=\d+)?\s+id=\d+\s+#{Regexp.escape(method)}/
             compiled = true
             Process.kill 'TERM', pipe.pid
           end
@@ -2341,6 +2427,7 @@ module Commands
 
   def igv
     compiler = "#{GRAAL_DIR}/compiler"
+    @jdk_version = LTS_JDK_VERSION
     mx('igv', chdir: compiler)
   end
 
@@ -2389,22 +2476,22 @@ module Commands
     if linux?
       eclipse_exe = 'eclipse/eclipse'
       if aarch64?
-        eclipse_url = 'https://github.com/chrisseaton/eclipse-mirror/releases/download/eclipse-SDK-4.23/eclipse-SDK-4.23-linux-gtk-aarch64.tar.gz'
-        sha256 = '148b5d3c46d7e5153ba580ec23913e5c003d0b075241c6a13c395b682b4309d6'
+        eclipse_url = 'https://github.com/eregon/eclipse-mirror/releases/download/eclipse-SDK-4.26/eclipse-4.26.0-linux-aarch64.tar.gz'
+        sha256 = '6cbf7ef69206739f1f11e2883b78ecb9b0a6254400bce51ce5c0c5c2cd550a43'
       elsif amd64?
-        eclipse_url = 'https://github.com/chrisseaton/eclipse-mirror/releases/download/eclipse-SDK-4.23/eclipse-SDK-4.23-linux-gtk-x86_64.tar.gz'
-        sha256 = 'e422548918a3ca1cb5b3990ee35fae7e29f9bcc926f18bfc859f7720ac5cf4d4'
+        eclipse_url = 'https://github.com/eregon/eclipse-mirror/releases/download/eclipse-SDK-4.26/eclipse-4.26.0-linux-amd64.tar.gz'
+        sha256 = '5a71af895af325de533e175289983a023167183ebdcc4cb7d8b3b01420d5b8c0'
       else
         raise 'Only AARCH64 and AMD64 are supported for Eclipse on Linux'
       end
     elsif darwin?
       eclipse_exe = 'Eclipse.app/Contents/MacOS/eclipse'
       if aarch64?
-        eclipse_url = 'https://github.com/chrisseaton/eclipse-mirror/releases/download/eclipse-SDK-4.23/eclipse-SDK-4.23-macosx-cocoa-aarch64.tar.gz'
-        sha256 = '3cae00ac3ff318882aeff11a02d3c5cacd7061ce31c1814184257ac9dd3aabd7'
+        eclipse_url = 'https://github.com/eregon/eclipse-mirror/releases/download/eclipse-SDK-4.26/eclipse-4.26.0-darwin-aarch64.dmg'
+        sha256 = 'fcabac1b5a7c49ac674bd0f6273f5a93007261d3f7a0296473be9295d9424e00'
       elsif amd64?
-        eclipse_url = 'https://github.com/chrisseaton/eclipse-mirror/releases/download/eclipse-SDK-4.23/eclipse-SDK-4.23-macosx-cocoa-x86_64.tar.gz'
-        sha256 = '34934bcbba8082a7691e68d7b9752d99c300ca74df2dfb5a616f57b84e2ac87c'
+        eclipse_url = 'https://github.com/eregon/eclipse-mirror/releases/download/eclipse-SDK-4.26/eclipse-4.26.0-darwin-amd64.dmg'
+        sha256 = '9f26d17e3633085aaac2b97212205492134ae4e5497cadb9957c2bb6c4b63a59'
       else
         raise 'Only AARCH64 and AMD64 are supported for Eclipse on macOS'
       end
@@ -2412,22 +2499,33 @@ module Commands
       raise 'Installing Eclipse is only available on Linux and macOS currently'
     end
 
-    eclipse_tar = eclipse_url.split('/').last
-    eclipse_name = File.basename(eclipse_tar, '.tar.gz')
+    eclipse_package = eclipse_url.split('/').last
+    eclipse_name = File.basename(eclipse_package, linux? ? '.tar.gz' : '.dmg')
     eclipse_path = "#{CACHE_EXTRA_DIR}/#{eclipse_name}/#{eclipse_exe}"
     return eclipse_path if File.exist?(eclipse_path)
 
     chdir(CACHE_EXTRA_DIR) do
-      unless File.exist?(eclipse_tar)
-        sh 'curl', '-L', eclipse_url, '-o', eclipse_tar
+      unless File.exist?(eclipse_package)
+        sh 'curl', '-L', eclipse_url, '-o', eclipse_package
       end
+
       unless File.exist?(eclipse_name)
-        computed = Digest::SHA256.file(eclipse_tar).hexdigest
+        computed = Digest::SHA256.file(eclipse_package).hexdigest
+
         if computed == sha256
           Dir.mkdir eclipse_name
-          sh 'tar', 'xf', eclipse_tar, '-C', eclipse_name
+
+          if linux?
+            # extract tar archive into eclipse_name directory
+            sh 'tar', 'xf', eclipse_package, '-C', eclipse_name
+          else # darwin
+            # mount macOS volume into /Volumes/Eclipse (default) and copy files into eclipse_name directory
+            sh 'hdiutil', 'attach', '-readonly', '-nobrowse', eclipse_package
+            sh 'cp', '-rf', '/Volumes/Eclipse/Eclipse.app', eclipse_name
+            sh 'hdiutil', 'detach', '/Volumes/Eclipse'
+          end
         else
-          raise "Incorrect sha256 for #{eclipse_tar}: #{computed} instead of expected #{sha256}"
+          raise "Incorrect sha256 for #{eclipse_package}: #{computed} instead of expected #{sha256}"
         end
       end
     end
@@ -2540,19 +2638,14 @@ module Commands
     mx_options, mx_build_options = args_split(options)
     mx_args = mx_base_args + mx_options
 
+    standalone_type = env.include?('native') ? 'native' : 'jvm'
     mx(*mx_args, 'build', *mx_build_options, primary_suite: TRUFFLERUBY_DIR)
-    build_dir = mx(*mx_args, 'graalvm-home', primary_suite: TRUFFLERUBY_DIR, capture: :out).lines.last.chomp
+    build_dir = mx(*mx_args, 'standalone-home', "--type=#{standalone_type}", 'ruby', primary_suite: TRUFFLERUBY_DIR, capture: :out).lines.last.chomp
 
     dest = "#{TRUFFLERUBY_DIR}/mxbuild/#{name}"
-    dest_ruby = "#{dest}/languages/ruby"
     FileUtils.rm_rf dest
-    if @ruby_name != @mx_env
-      # if `--name NAME` is passed, we want to copy so we don't end up with two symlinks
-      # to the same directory for the same --env but different names
-      FileUtils.cp_r(build_dir, dest)
-    else
-      File.symlink(build_dir, dest)
-    end
+    # NOTE: revert the changes and create a symlink if possible when [GR-53433] is resolved
+    FileUtils.cp_r(build_dir, dest)
 
     # Symlink builds into version manager
     rbenv_root = ENV['RBENV_ROOT']
@@ -2573,7 +2666,7 @@ module Commands
 
       link_path = "#{rubies_dir}/#{name}"
       File.delete link_path if File.symlink? link_path or File.exist? link_path
-      File.symlink dest_ruby, link_path
+      File.symlink dest, link_path
     end
   end
 
@@ -2594,7 +2687,7 @@ module Commands
     if args.empty?
       args = %w[--dy /substratevm,/tools,/vm]
     end
-    mx(*args, 'intellijinit')
+    mx(*args, 'intellijinit', '--import-inner-classes')
   end
 
   def command_format(changed_java_files = nil)
@@ -3172,8 +3265,11 @@ module Commands
     JT::Docker.new.docker(*args)
   end
 
-  def visualvm
-    sh "#{graalvm_home}/bin/jvisualvm"
+  private
+
+  def load_excluded_file_names
+    File.readlines("#{TRUFFLERUBY_DIR}/test/mri/failing.exclude").
+      map { |line| line.gsub(/#.*/, '').strip }.reject(&:empty?)
   end
 end
 

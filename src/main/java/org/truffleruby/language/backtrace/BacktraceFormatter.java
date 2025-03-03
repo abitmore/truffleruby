@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2014, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -31,7 +31,6 @@ import org.truffleruby.language.control.RaiseException;
 import org.truffleruby.language.dispatch.DispatchNode;
 import org.truffleruby.language.library.RubyStringLibrary;
 import org.truffleruby.language.methods.TranslateExceptionNode;
-import org.truffleruby.parser.RubySource;
 
 import java.io.PrintStream;
 import java.util.ArrayList;
@@ -69,7 +68,7 @@ public final class BacktraceFormatter {
     // For debugging:
     // org.truffleruby.language.backtrace.BacktraceFormatter.printableRubyBacktrace(this)
     public static String printableRubyBacktrace(Object maybeNode) {
-        final Node node = maybeNode instanceof Node ? (Node) maybeNode : null;
+        final Node node = maybeNode instanceof Node n && n.isAdoptable() ? (Node) maybeNode : null;
         final RubyContext context = RubyLanguage.getCurrentContext();
         final BacktraceFormatter backtraceFormatter = new BacktraceFormatter(
                 context,
@@ -79,7 +78,7 @@ public final class BacktraceFormatter {
         if (backtrace.isEmpty()) {
             return "<empty backtrace>";
         } else if (node == null) {
-            return "# the first entry line is imprecise because 'this' is not a Node, select caller Java frames in the debugger until 'this' is a Node to fix this\n" +
+            return "# the first entry line is imprecise because 'this' is not an adopted Node, select caller Java frames in the debugger until 'this' is an adopted Node to fix this\n" +
                     backtrace;
         } else {
             return backtrace;
@@ -136,10 +135,7 @@ public final class BacktraceFormatter {
                     context.getCoreLibrary().truffleExceptionOperationsModule,
                     "get_formatted_backtrace",
                     exceptionObject);
-            final String formatted = fullMessage != null
-                    // Use toJavaStringUncached() instead of RubyGuards.getJavaString() here so it still shows something if BINARY encoding and there are non-ASCII bytes
-                    ? RubyStringLibrary.getUncached().getTString(fullMessage).toJavaStringUncached()
-                    : "<no message>";
+            final String formatted = RubyStringLibrary.getTStringUncached(fullMessage).toJavaStringUncached();
             if (formatted.endsWith("\n")) {
                 printer.print(formatted);
             } else {
@@ -284,13 +280,13 @@ public final class BacktraceFormatter {
             } else {
                 builder.append(language.getSourcePath(reportedSourceSection.getSource()));
                 builder.append(":");
-                builder.append(RubySource.getStartLineAdjusted(context, reportedSourceSection));
+                builder.append(language.getStartLineAdjusted(reportedSourceSection));
             }
         } else { // A foreign frame
             if (sourceSection == null) {
                 builder.append("???");
             } else {
-                builder.append(context.fileLine(sourceSection));
+                builder.append(language.fileLine(sourceSection));
             }
         }
 

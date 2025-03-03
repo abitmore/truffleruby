@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2013, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -82,6 +82,7 @@ import org.truffleruby.language.methods.DeclarationContext;
 import org.truffleruby.language.methods.InternalMethod;
 import org.truffleruby.annotations.Split;
 import org.truffleruby.language.objects.AllocationTracing;
+import org.truffleruby.language.objects.shared.IsSharedNode;
 import org.truffleruby.language.objects.shared.SharedObjects;
 import org.truffleruby.language.yield.CallBlockNode;
 
@@ -105,7 +106,6 @@ import com.oracle.truffle.api.library.ExportLibrary;
 import com.oracle.truffle.api.library.ExportMessage;
 import com.oracle.truffle.api.nodes.Node;
 import com.oracle.truffle.api.nodes.NodeUtil;
-import com.oracle.truffle.api.object.Shape;
 import com.oracle.truffle.api.utilities.TriState;
 import org.truffleruby.parser.ParserContext;
 import org.truffleruby.parser.RubySource;
@@ -124,7 +124,7 @@ public abstract class TruffleDebugNodes {
         Object debugPrint(Object string,
                 @Cached RubyStringLibrary strings) {
             final String javaString;
-            if (strings.isRubyString(string)) {
+            if (strings.isRubyString(this, string)) {
                 javaString = RubyGuards.getJavaString(string);
             } else {
                 javaString = string.toString();
@@ -139,11 +139,13 @@ public abstract class TruffleDebugNodes {
     @CoreMethod(names = "tstring_to_debug_string", onSingleton = true, required = 1)
     public abstract static class TStringToDebugPrintNode extends CoreMethodArrayArgumentsNode {
         @TruffleBoundary
-        @Specialization(guards = "strings.isRubyString(string)", limit = "1")
-        RubyString toStringDebug(Object string,
+        @Specialization(guards = "strings.isRubyString(node, string)", limit = "1")
+        static RubyString toStringDebug(Object string,
+                @Bind Node node,
                 @Cached RubyStringLibrary strings,
                 @Cached TruffleString.FromJavaStringNode fromJavaStringNode) {
-            return createString(fromJavaStringNode, strings.getTString(string).toStringDebug(), Encodings.US_ASCII);
+            return createString(node, fromJavaStringNode, strings.getTString(node, string).toStringDebug(),
+                    Encodings.US_ASCII);
         }
     }
 
@@ -151,16 +153,17 @@ public abstract class TruffleDebugNodes {
     public abstract static class FlattenStringNode extends CoreMethodArrayArgumentsNode {
         // Also flattens the original String, but that one might still have an offset
         @TruffleBoundary
-        @Specialization(guards = "libString.isRubyString(string)", limit = "1")
-        RubyString flattenString(Object string,
+        @Specialization(guards = "libString.isRubyString(node, string)", limit = "1")
+        static RubyString flattenString(Object string,
+                @Bind Node node,
                 @Cached TruffleString.FromByteArrayNode fromByteArrayNode,
                 @Cached RubyStringLibrary libString) {
-            final RubyEncoding rubyEncoding = libString.getEncoding(string);
-            var tstring = libString.getTString(string);
+            final RubyEncoding rubyEncoding = libString.getEncoding(node, string);
+            var tstring = libString.getTString(node, string);
             // Use GetInternalByteArrayNode as a way to flatten the TruffleString.
             // Ensure the result has offset = 0 and length = byte[].length for image build time checks
             byte[] byteArray = TStringUtils.getBytesOrCopy(tstring, rubyEncoding);
-            return createString(fromByteArrayNode, byteArray, rubyEncoding);
+            return createString(node, fromByteArrayNode, byteArray, rubyEncoding);
         }
     }
 
@@ -169,7 +172,7 @@ public abstract class TruffleDebugNodes {
     public abstract static class BreakNode extends CoreMethodArrayArgumentsNode {
 
         @TruffleBoundary
-        @Specialization(guards = "strings.isRubyString(file)", limit = "1")
+        @Specialization(guards = "strings.isRubyString(this, file)", limit = "1")
         RubyHandle setBreak(Object file, int line, RubyProc block,
                 @Cached RubyStringLibrary strings) {
             final String fileString = RubyGuards.getJavaString(file);
@@ -251,18 +254,19 @@ public abstract class TruffleDebugNodes {
     @CoreMethod(names = "parse_ast", onSingleton = true, required = 1)
     public abstract static class ParseASTNode extends CoreMethodArrayArgumentsNode {
         @TruffleBoundary
-        @Specialization(guards = "strings.isRubyString(code)", limit = "1")
-        Object ast(Object code,
+        @Specialization(guards = "strings.isRubyString(node, code)", limit = "1")
+        static Object ast(Object code,
+                @Bind Node node,
                 @Cached RubyStringLibrary strings,
                 @Cached TruffleString.FromJavaStringNode fromJavaStringNode) {
             var codeString = new TStringWithEncoding(RubyGuards.asTruffleStringUncached(code),
-                    RubyStringLibrary.getUncached().getEncoding(code));
+                    RubyStringLibrary.getUncached().getEncoding(node, code));
 
             var rubySource = createRubySource(codeString);
-            var parseResult = getParseResult(getLanguage(), rubySource);
+            var parseResult = getParseResult(getLanguage(node), rubySource);
             var ast = parseResult.value;
 
-            return createString(fromJavaStringNode, ast.toString(), Encodings.UTF_8);
+            return createString(node, fromJavaStringNode, ast.toString(), Encodings.UTF_8);
         }
 
         private static RubySource createRubySource(TStringWithEncoding code) {
@@ -275,7 +279,8 @@ public abstract class TruffleDebugNodes {
             String sourcePath = rubySource.getSourcePath(language).intern();
 
             return YARPTranslatorDriver.parseToYARPAST(rubySource, sourcePath, rubySource.getBytes(),
-                    Collections.emptyList(), language.options.FROZEN_STRING_LITERALS);
+                    Collections.emptyList(), language.options.FROZEN_STRING_LITERALS, null,
+                    ParserContext.TOP_LEVEL_FIRST);
         }
     }
 
@@ -285,7 +290,7 @@ public abstract class TruffleDebugNodes {
         @Specialization
         Object profileTranslator(Object code, int repeat) {
             var codeString = new TStringWithEncoding(RubyGuards.asTruffleStringUncached(code),
-                    RubyStringLibrary.getUncached().getEncoding(code));
+                    RubyStringLibrary.getUncached().getEncoding(this, code));
 
             var rubySource = ParseASTNode.createRubySource(codeString);
             var parseResult = ParseASTNode.getParseResult(getLanguage(), rubySource);
@@ -420,21 +425,12 @@ public abstract class TruffleDebugNodes {
 
     @CoreMethod(names = "shared?", onSingleton = true, required = 1)
     @ImportStatic(SharedObjects.class)
-    public abstract static class IsSharedNode extends CoreMethodArrayArgumentsNode {
+    public abstract static class IsSharedCoreMethodNode extends CoreMethodArrayArgumentsNode {
 
-        @Specialization(
-                guards = "object.getShape() == cachedShape",
-                assumptions = "cachedShape.getValidAssumption()",
-                limit = "getDynamicObjectCacheLimit()")
-        boolean isSharedCached(RubyDynamicObject object,
-                @Cached("object.getShape()") Shape cachedShape,
-                @Cached("cachedShape.isShared()") boolean shared) {
-            return shared;
-        }
-
-        @Specialization(replaces = "isSharedCached")
-        boolean isShared(RubyDynamicObject object) {
-            return SharedObjects.isShared(object);
+        @Specialization
+        boolean isShared(RubyDynamicObject object,
+                @Cached IsSharedNode isSharedNode) {
+            return isSharedNode.execute(this, object);
         }
 
         @Specialization
@@ -498,7 +494,7 @@ public abstract class TruffleDebugNodes {
     public abstract static class ThrowJavaExceptionNode extends CoreMethodArrayArgumentsNode {
 
         @TruffleBoundary
-        @Specialization(guards = "strings.isRubyString(message)", limit = "1")
+        @Specialization(guards = "strings.isRubyString(this, message)", limit = "1")
         Object throwJavaException(Object message,
                 @Cached RubyStringLibrary strings) {
             callingMethod(RubyGuards.getJavaString(message));
@@ -521,7 +517,7 @@ public abstract class TruffleDebugNodes {
     public abstract static class ThrowJavaExceptionWithCauseNode extends CoreMethodArrayArgumentsNode {
 
         @TruffleBoundary
-        @Specialization(guards = "strings.isRubyString(message)", limit = "1")
+        @Specialization(guards = "strings.isRubyString(this, message)", limit = "1")
         Object throwJavaExceptionWithCause(Object message,
                 @Cached RubyStringLibrary strings) {
             var cause2 = new RuntimeException("cause 2");
@@ -537,7 +533,7 @@ public abstract class TruffleDebugNodes {
     public abstract static class ThrowAssertionErrorNode extends CoreMethodArrayArgumentsNode {
 
         @TruffleBoundary
-        @Specialization(guards = "strings.isRubyString(message)", limit = "1")
+        @Specialization(guards = "strings.isRubyString(this, message)", limit = "1")
         Object throwAssertionError(Object message,
                 @Cached RubyStringLibrary strings) {
             throw new AssertionError(RubyGuards.getJavaString(message));
@@ -943,6 +939,58 @@ public abstract class TruffleDebugNodes {
         }
     }
 
+    @CoreMethod(names = "foreign_iterator_iterable", onSingleton = true)
+    public abstract static class ForeignIteratorIterableNode extends CoreMethodArrayArgumentsNode {
+        @ExportLibrary(InteropLibrary.class)
+        public static final class ForeignIteratorIterable implements TruffleObject {
+            final int[] values = { 1, 2, 3 };
+            int index = 0;
+
+            @ExportMessage
+            protected boolean hasIterator() {
+                return true;
+            }
+
+            @ExportMessage
+            protected Object getIterator() {
+                return this;
+            }
+
+            @ExportMessage
+            protected boolean isIterator() {
+                return true;
+            }
+
+            @ExportMessage
+            protected boolean hasIteratorNextElement() {
+                return index < values.length;
+            }
+
+            @TruffleBoundary
+            @ExportMessage
+            protected Object getIteratorNextElement() throws StopIterationException {
+                if (hasIteratorNextElement()) {
+                    Object value = values[index];
+                    index++;
+                    return value;
+                } else {
+                    throw StopIterationException.create();
+                }
+            }
+
+            @ExportMessage
+            protected String toDisplayString(boolean allowSideEffects) {
+                return "[foreign iterator iterable]";
+            }
+        }
+
+        @TruffleBoundary
+        @Specialization
+        Object foreignIteratorIterable() {
+            return new ForeignIteratorIterable();
+        }
+    }
+
     @CoreMethod(names = "foreign_hash", onSingleton = true)
     public abstract static class ForeignHashNode extends CoreMethodArrayArgumentsNode {
 
@@ -1129,7 +1177,7 @@ public abstract class TruffleDebugNodes {
         }
 
         @TruffleBoundary
-        @Specialization(guards = "strings.isRubyString(string)", limit = "1")
+        @Specialization(guards = "strings.isRubyString(this, string)", limit = "1")
         Object foreignString(Object string,
                 @Cached RubyStringLibrary strings) {
             return new ForeignString(RubyGuards.getJavaString(string));
@@ -1163,7 +1211,7 @@ public abstract class TruffleDebugNodes {
         }
 
         @TruffleBoundary
-        @Specialization(guards = "strings.isRubyString(message)", limit = "1")
+        @Specialization(guards = "strings.isRubyString(this, message)", limit = "1")
         Object foreignException(Object message,
                 @Cached RubyStringLibrary strings) {
             return new ForeignException(RubyGuards.getJavaString(message));
@@ -1375,7 +1423,7 @@ public abstract class TruffleDebugNodes {
             String nodeClassNameString = RubyGuards.getJavaString(focusedNodeClassName);
 
             var code = new TStringWithEncoding(RubyGuards.asTruffleStringUncached(sourceCode),
-                    RubyStringLibrary.getUncached().getEncoding(sourceCode));
+                    RubyStringLibrary.getUncached().getEncoding(this, sourceCode));
 
             RubyRootNode rootNode = parse(code, mainScript);
             String output = TruffleASTPrinter.dump(rootNode, nodeClassNameString, index);

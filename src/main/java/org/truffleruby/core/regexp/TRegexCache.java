@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2017, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -43,19 +43,19 @@ public final class TRegexCache {
     private Object binaryRegexAtStart;
 
     public Object getUSASCIIRegex(boolean atStart) {
-        return atStart ? usAsciiRegex : usAsciiRegexAtStart;
+        return atStart ? usAsciiRegexAtStart : usAsciiRegex;
     }
 
     public Object getLatin1Regex(boolean atStart) {
-        return atStart ? latin1Regex : latin1RegexAtStart;
+        return atStart ? latin1RegexAtStart : latin1Regex;
     }
 
     public Object getUTF8Regex(boolean atStart) {
-        return atStart ? utf8Regex : utf8RegexAtStart;
+        return atStart ? utf8RegexAtStart : utf8Regex;
     }
 
     public Object getBinaryRegex(boolean atStart) {
-        return atStart ? binaryRegex : binaryRegexAtStart;
+        return atStart ? binaryRegexAtStart : binaryRegex;
     }
 
     @TruffleBoundary
@@ -85,27 +85,27 @@ public final class TRegexCache {
 
         if (encoding == Encodings.US_ASCII) {
             if (atStart) {
-                usAsciiRegex = tregex;
-            } else {
                 usAsciiRegexAtStart = tregex;
+            } else {
+                usAsciiRegex = tregex;
             }
         } else if (encoding == Encodings.ISO_8859_1) {
             if (atStart) {
-                latin1Regex = tregex;
-            } else {
                 latin1RegexAtStart = tregex;
+            } else {
+                latin1Regex = tregex;
             }
         } else if (encoding == Encodings.UTF_8) {
             if (atStart) {
-                utf8Regex = tregex;
-            } else {
                 utf8RegexAtStart = tregex;
+            } else {
+                utf8Regex = tregex;
             }
         } else if (encoding == Encodings.BINARY) {
             if (atStart) {
-                binaryRegex = tregex;
-            } else {
                 binaryRegexAtStart = tregex;
+            } else {
+                binaryRegex = tregex;
             }
         } else {
             throw CompilerDirectives.shouldNotReachHere();

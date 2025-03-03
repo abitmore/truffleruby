@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2015, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -24,12 +24,13 @@ import com.oracle.truffle.api.dsl.Specialization;
 import com.oracle.truffle.api.frame.VirtualFrame;
 
 /** Caches {@link ModuleOperations#lookupSuperMethod} on an actual instance. */
+// Splitting: naturally split
 public abstract class LookupSuperMethodNode extends RubyBaseNode {
 
     public abstract InternalMethod executeLookupSuperMethod(VirtualFrame frame, Object self);
 
     // The check for same metaClass is overly restrictive,
-    // but seems to be the only reasonable check in term of performance.
+    // but seems to be the only reasonable check in terms of performance.
     // The ideal condition would be to check if both ancestor lists starting at
     // the current method's module are identical, which is non-trivial
     // if the current method's module is an (included) module and not a class.
@@ -44,7 +45,7 @@ public abstract class LookupSuperMethodNode extends RubyBaseNode {
     InternalMethod lookupSuperMethodCached(VirtualFrame frame, Object self,
             @Cached("getCurrentMethod(frame)") InternalMethod currentMethod,
             @Cached @Shared MetaClassNode metaClassNode,
-            @Cached("metaClassNode.execute(this, self)") RubyClass selfMetaClass,
+            @Cached("metaClassNode.execute($node, self)") RubyClass selfMetaClass,
             @Cached("doLookup(currentMethod, selfMetaClass)") MethodLookupResult superMethod) {
         return superMethod.getMethod();
     }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2016, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -107,6 +107,8 @@ public final class Options {
     public final boolean CEXTS;
     /** --cexts-lock=true */
     public final boolean CEXT_LOCK;
+    /** --cexts-panama=true */
+    public final boolean CEXTS_PANAMA;
     /** --options-log=false */
     public final boolean OPTIONS_LOG;
     /** --log-load=false */
@@ -135,6 +137,8 @@ public final class Options {
     public final boolean WARN_TRUFFLE_REGEX_MATCH_FALLBACK;
     /** --truffle-regex-ignore-atomic-groups=false */
     public final boolean TRUFFLE_REGEX_IGNORE_ATOMIC_GROUPS;
+    /** --reuse-precompiled-gems=StringArrayOptionType.EMPTY_STRING_ARRAY */
+    public final String[] REUSE_PRECOMPILED_GEMS;
     /** --argv-globals=false */
     public final boolean ARGV_GLOBALS;
     /** --chomp-loop=false */
@@ -248,6 +252,7 @@ public final class Options {
         BACKTRACE_ON_NEW_FIBER = options.get(OptionsCatalog.BACKTRACE_ON_NEW_FIBER_KEY);
         CEXTS = options.get(OptionsCatalog.CEXTS_KEY);
         CEXT_LOCK = options.get(OptionsCatalog.CEXT_LOCK_KEY);
+        CEXTS_PANAMA = options.get(OptionsCatalog.CEXTS_PANAMA_KEY);
         OPTIONS_LOG = options.get(OptionsCatalog.OPTIONS_LOG_KEY);
         LOG_LOAD = options.get(OptionsCatalog.LOG_LOAD_KEY);
         LOG_AUTOLOAD = options.get(OptionsCatalog.LOG_AUTOLOAD_KEY);
@@ -262,6 +267,7 @@ public final class Options {
         WARN_TRUFFLE_REGEX_COMPILE_FALLBACK = options.get(OptionsCatalog.WARN_TRUFFLE_REGEX_COMPILE_FALLBACK_KEY);
         WARN_TRUFFLE_REGEX_MATCH_FALLBACK = options.get(OptionsCatalog.WARN_TRUFFLE_REGEX_MATCH_FALLBACK_KEY);
         TRUFFLE_REGEX_IGNORE_ATOMIC_GROUPS = options.get(OptionsCatalog.TRUFFLE_REGEX_IGNORE_ATOMIC_GROUPS_KEY);
+        REUSE_PRECOMPILED_GEMS = options.get(OptionsCatalog.REUSE_PRECOMPILED_GEMS_KEY);
         ARGV_GLOBALS = options.get(OptionsCatalog.ARGV_GLOBALS_KEY);
         CHOMP_LOOP = options.get(OptionsCatalog.CHOMP_LOOP_KEY);
         GETS_LOOP = options.get(OptionsCatalog.GETS_LOOP_KEY);
@@ -383,6 +389,8 @@ public final class Options {
                 return CEXTS;
             case "ruby.cexts-lock":
                 return CEXT_LOCK;
+            case "ruby.cexts-panama":
+                return CEXTS_PANAMA;
             case "ruby.options-log":
                 return OPTIONS_LOG;
             case "ruby.log-load":
@@ -411,6 +419,8 @@ public final class Options {
                 return WARN_TRUFFLE_REGEX_MATCH_FALLBACK;
             case "ruby.truffle-regex-ignore-atomic-groups":
                 return TRUFFLE_REGEX_IGNORE_ATOMIC_GROUPS;
+            case "ruby.reuse-precompiled-gems":
+                return REUSE_PRECOMPILED_GEMS;
             case "ruby.argv-globals":
                 return ARGV_GLOBALS;
             case "ruby.chomp-loop":

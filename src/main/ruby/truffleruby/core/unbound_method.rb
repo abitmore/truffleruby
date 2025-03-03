@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Copyright (c) 2015, 2024 Oracle and/or its affiliates. All rights reserved. This
+# Copyright (c) 2015, 2025 Oracle and/or its affiliates. All rights reserved. This
 # code is released under a tri EPL/GPL/LGPL license. You can use it,
 # redistribute it and/or modify it under the terms of the:
 #
@@ -17,4 +17,5 @@ class UnboundMethod
   def bind_call(recv, ...)
     bind(recv).call(...)
   end
+  Truffle::Graal.always_split instance_method(:bind_call)
 end

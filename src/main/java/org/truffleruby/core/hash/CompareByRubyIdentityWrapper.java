@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2013, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -12,25 +12,26 @@ package org.truffleruby.core.hash;
 import org.truffleruby.core.basicobject.ReferenceEqualNode;
 import org.truffleruby.core.hash.HashingNodes.ToHashByIdentity;
 
-/** Wraps a value so that it will compared and hashed according to Ruby identity semantics. These semantics differ from
+/** Wraps a key so that it will be hashed and compared according to Ruby identity semantics. These semantics differ from
  * Java semantics notably for primitives (e.g. all the NaN are different according to Ruby, but Java compares them
  * equal). */
 public final class CompareByRubyIdentityWrapper {
 
-    public final Object value;
+    public final Object key;
 
-    public CompareByRubyIdentityWrapper(Object value) {
-        this.value = value;
+    public CompareByRubyIdentityWrapper(Object key) {
+        this.key = key;
     }
 
     @Override
     public int hashCode() {
-        return ToHashByIdentity.getUncached().execute(value);
+        return ToHashByIdentity.getUncached().execute(key);
     }
 
     @Override
     public boolean equals(Object obj) {
+        // We use an uncached ReferenceEqualNode here since we are not in PE-able code
         return obj instanceof CompareByRubyIdentityWrapper &&
-                ReferenceEqualNode.executeUncached(value, ((CompareByRubyIdentityWrapper) obj).value);
+                ReferenceEqualNode.executeUncached(key, ((CompareByRubyIdentityWrapper) obj).key);
     }
 }

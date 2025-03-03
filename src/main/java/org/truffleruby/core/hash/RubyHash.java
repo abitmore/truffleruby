@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2018, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -131,7 +131,7 @@ public final class RubyHash extends RubyDynamicObject implements ObjectGraphNode
     public final boolean isHashEntryExisting(Object key,
             @CachedLibrary("this.store") HashStoreLibrary hashStores,
             @Cached @Shared ForeignToRubyNode toRuby,
-            @Bind("$node") Node node) {
+            @Bind Node node) {
         return hashStores.lookupOrDefault(store, null, this, toRuby.execute(node, key), NULL_PROVIDER) != null;
     }
 
@@ -156,7 +156,7 @@ public final class RubyHash extends RubyDynamicObject implements ObjectGraphNode
             // @Exclusive to fix truffle-interpreted-performance warning
             @Cached @Exclusive ForeignToRubyNode toRuby,
             @Cached InlinedConditionProfile unknownKey,
-            @Bind("$node") Node node)
+            @Bind Node node)
             throws UnknownKeyException {
         final Object value = hashStores.lookupOrDefault(store, null, this, toRuby.execute(node, key), NULL_PROVIDER);
         if (unknownKey.profile(node, value == null)) {
@@ -169,7 +169,7 @@ public final class RubyHash extends RubyDynamicObject implements ObjectGraphNode
     public Object readHashValueOrDefault(Object key, Object defaultValue,
             @CachedLibrary("this.store") HashStoreLibrary hashStores,
             @Cached @Shared ForeignToRubyNode toRuby,
-            @Bind("$node") Node node) {
+            @Bind Node node) {
         return hashStores
                 .lookupOrDefault(store, null, this, toRuby.execute(node, key), new DefaultProvider(defaultValue));
     }
@@ -179,7 +179,7 @@ public final class RubyHash extends RubyDynamicObject implements ObjectGraphNode
             @Cached @Exclusive DispatchNode set,
             @Cached @Shared IsFrozenNode isFrozenNode,
             @Cached @Shared ForeignToRubyNode toRuby,
-            @Bind("$node") Node node)
+            @Bind Node node)
             throws UnsupportedMessageException {
         if (isFrozenNode.execute(this)) {
             throw UnsupportedMessageException.create();
@@ -193,7 +193,7 @@ public final class RubyHash extends RubyDynamicObject implements ObjectGraphNode
             @Cached @Shared IsFrozenNode isFrozenNode,
             @CachedLibrary("this") InteropLibrary interop,
             @Cached @Shared ForeignToRubyNode toRuby,
-            @Bind("$node") Node node)
+            @Bind Node node)
             throws UnsupportedMessageException, UnknownKeyException {
         if (isFrozenNode.execute(this)) {
             throw UnsupportedMessageException.create();

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2015, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -59,12 +59,16 @@ public abstract class HashingNodes {
     /** Keep consistent with {@link org.truffleruby.core.kernel.KernelNodes.HashNode} */
     @GenerateUncached
     @GenerateInline(inlineByDefault = true)
-    @ReportPolymorphism
+    @ReportPolymorphism // calling #hash on the key and many specializations
     public abstract static class ToHashByHashCode extends RubyBaseNode {
 
         @NeverDefault
         public static ToHashByHashCode create() {
             return HashingNodesFactory.ToHashByHashCodeNodeGen.create();
+        }
+
+        public static int executeUncached(Object key) {
+            return HashingNodesFactory.ToHashByHashCodeNodeGen.getUncached().execute(null, key);
         }
 
         public abstract int execute(Node node, Object key);

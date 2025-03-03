@@ -317,7 +317,7 @@ class Socket < BasicSocket
 
     Errno.handle('socket(2)') if descriptor < 0
 
-    IO.setup(self, descriptor, nil, true)
+    setup(descriptor, nil, true)
     binmode
   end
 
@@ -374,17 +374,21 @@ class Socket < BasicSocket
 
   def recvfrom(bytes, flags = 0)
     message, addr = recvmsg(bytes, flags)
+    return nil if Primitive.nil?(message)
 
     [message, addr]
   end
 
   private def __recvfrom_nonblock(bytes, flags, buffer, exception)
     message, addr = recvmsg_nonblock(bytes, flags, exception: exception)
+    return nil if Primitive.nil?(message)
 
     if message == :wait_readable
       message
     else
-      message = buffer.replace(message) if buffer
+      if buffer
+        message = buffer.replace message.force_encoding(buffer.encoding)
+      end
       [message, addr]
     end
   end

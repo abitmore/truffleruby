@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2015, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -27,7 +27,6 @@ import org.truffleruby.language.objects.ObjectGraph;
 
 import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
 import com.oracle.truffle.api.object.DynamicObjectLibrary;
-import org.truffleruby.language.objects.ShapeCachingGuards;
 import org.truffleruby.language.objects.classvariables.ClassVariableStorage;
 
 public final class SharedObjects {
@@ -158,7 +157,8 @@ public final class SharedObjects {
             return false;
         }
 
-        ShapeCachingGuards.updateShape(object);
+        // GR-49349: we must updateShape() before markShared()
+        DynamicObjectLibrary.getUncached().updateShape(object);
         DynamicObjectLibrary.getUncached().markShared(object);
 
         onShareHook(object);
@@ -167,12 +167,12 @@ public final class SharedObjects {
 
     public static void onShareHook(RubyDynamicObject object) {
         if (object instanceof RubyModule) {
-            // We want to share ClassVariableStorage but not expose is to ObjectSpace.reachable_objects_from
+            // We want to share ClassVariableStorage but not expose it to ObjectSpace.reachable_objects_from
             final ClassVariableStorage classVariables = ((RubyModule) object).fields.getClassVariables();
+            // GR-49349: we must updateShape() before markShared()
             DynamicObjectLibrary.getUncached().updateShape(classVariables);
             DynamicObjectLibrary.getUncached().markShared(classVariables);
-        } else if (object instanceof RubyArray) {
-            RubyArray array = (RubyArray) object;
+        } else if (object instanceof RubyArray array) {
             array.setStore(ArrayStoreLibrary.getUncached().makeShared(array.getStore(), array.size));
         }
     }

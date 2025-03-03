@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2013, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -196,7 +196,8 @@ public abstract class HashNodes {
         }
     }
 
-    @CoreMethod(names = "[]", required = 1)
+    // Splitting: calling #hash on the key
+    @CoreMethod(names = "[]", required = 1, split = Split.ALWAYS)
     @ImportStatic(HashGuards.class)
     public abstract static class GetIndexNode extends CoreMethodArrayArgumentsNode implements PEBiFunction {
 
@@ -328,7 +329,7 @@ public abstract class HashNodes {
                 @Cached CallBlockNode yieldNode,
                 @Cached @Exclusive InlinedConditionProfile hasValue,
                 @Cached @Exclusive InlinedConditionProfile hasBlock,
-                @Bind("this") Node node) {
+                @Bind Node node) {
             final Object value = hashes.delete(hash.store, hash, key);
             if (hasValue.profile(node, value != null)) {
                 return value;

@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Copyright (c) 2015, 2024 Oracle and/or its affiliates. All rights reserved. This
+# Copyright (c) 2015, 2025 Oracle and/or its affiliates. All rights reserved. This
 # code is released under a tri EPL/GPL/LGPL license. You can use it,
 # redistribute it and/or modify it under the terms of the:
 #
@@ -63,15 +63,33 @@ class String
         return if length < 0
       end
 
-      length = bytesize unless Primitive.integer_fits_into_int(index)
+      length = bytesize unless Primitive.integer_fits_into_int?(index)
       return if index < 0 or index > bytesize
     end
 
     byteslice index, length
   end
 
-  def bytesplice(index_or_range, length = undefined, str)
+  def bytesplice(index_or_range, *args)
     is_range = Primitive.is_a?(index_or_range, Range)
+
+    length = undefined
+    str_index_or_range = undefined
+    str_length = undefined
+    case args.size
+    when 1
+      str = args[0]
+    when 2
+      if is_range
+        str, str_index_or_range = args
+      else
+        length, str = args
+      end
+    when 4
+      length, str, str_index_or_range, str_length = args
+    else
+      raise ArgumentError, "wrong number of arguments (given #{args.size + 1}, expected 2, 3, or 5)"
+    end
 
     if Primitive.undefined?(length)
       raise TypeError, "wrong argument type #{Primitive.class(index_or_range)} (expected Range)" unless is_range
@@ -86,27 +104,38 @@ class String
 
     str = StringValue(str)
 
+    if !Primitive.undefined?(str_index_or_range)
+      if Primitive.undefined?(str_length)
+        if !Primitive.is_a?(str_index_or_range, Range)
+          raise TypeError, "wrong argument type #{Primitive.class(str_index_or_range)} (expected Range)"
+        end
+
+        str_start, str_len = Primitive.range_normalized_start_length(str_index_or_range, str.bytesize)
+        str_len = Primitive.max(0, str_len)
+        str_arg_is_range = true
+      else
+        str_start = Primitive.rb_to_int(str_index_or_range)
+        str_start += str.bytesize if str_start < 0
+        str_len = Primitive.rb_to_int(str_length)
+        str_arg_is_range = false
+      end
+
+      if str_len < 0
+        raise IndexError, "negative length #{str_length}"
+      end
+
+      str_len = Primitive.min(str.bytesize - str_start, str_len)
+      Truffle::StringOperations.validate_bytesplice_bounds(str, str_start, str_len, str_index_or_range, str_arg_is_range)
+
+      str = str.byteslice(str_start, str_len)
+    end
+
     if len < 0
       raise IndexError, "negative length #{len}"
     end
 
-    if bytesize < start || start < 0
-      if is_range
-        raise RangeError, "#{index_or_range} out of range"
-      else
-        raise IndexError, "index #{index_or_range} out of string"
-      end
-    end
-
     len = Primitive.min(bytesize - start, len)
-    finish = start + len
-
-    if start < bytesize && !Primitive.string_is_character_head?(encoding, self, start)
-      raise IndexError, "offset #{start} does not land on character boundary"
-    end
-    if finish < bytesize && !Primitive.string_is_character_head?(encoding, self, finish)
-      raise IndexError, "offset #{finish} does not land on character boundary"
-    end
+    Truffle::StringOperations.validate_bytesplice_bounds(self, start, len, index_or_range, is_range)
 
     Primitive.check_mutable_string(self)
     enc = Primitive.encoding_ensure_compatible_str(self, str)
@@ -128,10 +157,6 @@ class String
     else
       pattern =~ self
     end
-  end
-
-  def empty?
-    bytesize == 0
   end
 
   def chomp(separator = $/)
@@ -185,7 +210,7 @@ class String
     if block_given?
       each_grapheme_cluster(&block)
     else
-      regex = Regexp.new('\X'.encode(encoding))
+      regex = Primitive.regexp_compile('\X'.encode(encoding), 0)
       scan(regex)
     end
   end
@@ -315,10 +340,12 @@ class String
     Primitive.regexp_last_match_set(Primitive.caller_special_variables, last_match)
     ret
   end
+  Truffle::Graal.always_split(instance_method(:scan))
 
   def split(pattern = nil, limit = undefined, &block)
     Truffle::Splitter.split(Primitive.dup_as_string_instance(self), pattern, limit, &block)
   end
+  Truffle::Graal.always_split(instance_method(:split))
 
   def squeeze(*strings)
     str = Primitive.dup_as_string_instance(self)
@@ -374,7 +401,7 @@ class String
   def each_grapheme_cluster
     return to_enum(:each_grapheme_cluster) { size } unless block_given?
 
-    regex = Regexp.new('\X'.encode(encoding))
+    regex = Primitive.regexp_compile('\X'.encode(encoding), 0)
     # scan(regex, &block) would leak the $ vars in the user block which is probably unwanted
     scan(regex) { |e| yield e }
     self
@@ -417,6 +444,7 @@ class String
           (_, fallback_enc_from, fallback_enc_to, error_bytes, _) = ec.primitive_errinfo
           rep = fallback[error_bytes.force_encoding(fallback_enc_from)]
           raise ec.last_error unless rep
+          rep = Truffle::Type.rb_convert_type rep, String, :to_str
           dest << rep.encode(fallback_enc_to)
           status = ec.primitive_convert src, dest, nil, nil
         end
@@ -429,7 +457,7 @@ class String
 
     case options[:invalid]
     when :replace
-      replacement = options[:replace] || (Primitive.encoding_is_unicode(from_enc) ? "\ufffd" : '?')
+      replacement = options[:replace] || (Primitive.encoding_is_unicode?(from_enc) ? "\ufffd" : '?')
       self.scrub!(replacement)
     end
     case xml = options[:xml]
@@ -484,13 +512,13 @@ class String
 
     enc = encoding
     ascii = enc.ascii_compatible?
-    unicode = Primitive.encoding_is_unicode enc
+    unicode = Primitive.encoding_is_unicode? enc
 
     actual_encoding = Primitive.get_actual_encoding(self)
     if actual_encoding != enc
       enc = actual_encoding
       if unicode
-        unicode = Primitive.encoding_is_unicode enc
+        unicode = Primitive.encoding_is_unicode? enc
       end
     end
 
@@ -606,7 +634,7 @@ class String
     stop = StringValue(stop)
 
     if stop.bytesize == 1 && bytesize == 1 && self.ascii_only? && stop.ascii_only?
-      enc = Primitive.encoding_ensure_compatible(self.encoding, stop.encoding)
+      enc = Primitive.encoding_ensure_compatible_str(self, stop)
 
       return self if self > stop
       after_stop = stop.getbyte(0) + (exclusive ? 0 : 1)
@@ -617,7 +645,7 @@ class String
       end
     else
       unless stop.size < size
-        Primitive.encoding_ensure_compatible(self.encoding, stop.encoding)
+        Primitive.encoding_ensure_compatible_str(self, stop)
 
         after_stop = exclusive ? stop : stop.succ
         current = self
@@ -653,6 +681,7 @@ class String
     Primitive.string_replace(s, res) if res
     s
   end
+  Truffle::Graal.always_split(instance_method(:sub))
 
   def sub!(pattern, replacement = undefined, &block)
     if Primitive.undefined?(replacement) && !block_given?
@@ -671,6 +700,7 @@ class String
       nil
     end
   end
+  Truffle::Graal.always_split(instance_method(:sub!))
 
   def slice!(one, two = undefined)
     Primitive.check_mutable_string self
@@ -898,6 +928,7 @@ class String
     Primitive.string_replace(s, res) if res
     s
   end
+  Truffle::Graal.always_split(instance_method(:gsub))
 
   def gsub!(pattern, replacement = undefined, &block)
     if Primitive.undefined?(replacement) && !block_given?
@@ -916,6 +947,7 @@ class String
       nil
     end
   end
+  Truffle::Graal.always_split(instance_method(:gsub!))
 
   def match(pattern, pos = 0)
     pattern = Truffle::Type.coerce_to_regexp(pattern) unless Primitive.is_a?(pattern, Regexp)
@@ -930,11 +962,13 @@ class String
     Primitive.regexp_last_match_set(Primitive.caller_special_variables, $~)
     result
   end
+  Truffle::Graal.always_split(instance_method(:match))
 
   def match?(pattern, pos = 0)
     pattern = Truffle::Type.coerce_to_regexp(pattern) unless Primitive.is_a?(pattern, Regexp)
     pattern.match? self, pos
   end
+  Truffle::Graal.always_split(instance_method(:match?))
 
   def scrub(replace = nil, &block)
     return Primitive.dup_as_string_instance(self) if valid_encoding?
@@ -1384,10 +1418,12 @@ class String
     end
     Primitive.string_unpack(self, format, offset)
   end
+  Truffle::Graal.always_split(instance_method(:unpack))
 
   def unpack1(format, offset: undefined)
     unpack(format, offset: offset).first
   end
+  Truffle::Graal.always_split(instance_method(:unpack1))
 
   def unicode_normalize(form = :nfc)
     require 'unicode_normalize/normalize.rb' unless defined? UnicodeNormalize

@@ -9,17 +9,25 @@
 from __future__ import print_function
 
 import os
-import pipes
+import shlex
 from os.path import join, exists, basename
+import re
 import shutil
 import sys
 
 import mx
+import mx_util
 import mx_gate
 import mx_sdk
 import mx_sdk_vm
+import mx_sdk_vm_impl
 import mx_subst
 import mx_spotbugs
+import mx_truffle
+import mx_unittest
+
+# re-export custom mx project classes, so they can be used from suite.py
+from mx_sdk_shaded import ShadedLibraryProject # pylint: disable=unused-import
 
 # Fail early and clearly when trying to build with a too old JDK
 jdk = mx.get_jdk(mx.JavaCompliance('11+'), 'building TruffleRuby which requires JDK 11 or newer')
@@ -42,6 +50,42 @@ def add_ext_suffix(name):
         return name + '.so'
 
 mx_subst.results_substitutions.register_with_arg('extsuffix', add_ext_suffix)
+
+# From org.truffleruby.shared.Platform
+def get_cruby_arch():
+    arch = mx.get_arch()
+    if arch == 'amd64':
+        return 'x86_64'
+    elif arch == 'aarch64':
+        if mx.is_darwin():
+            # CRuby makes exception for macOS and uses `arm64` instead of `aarch64`
+            return 'arm64'
+        else:
+            return 'aarch64'
+    else:
+        raise Exception("Unknown platform " + arch)
+
+mx_subst.results_substitutions.register_no_arg('cruby_arch', get_cruby_arch)
+
+def get_truffleruby_abi_version():
+    path = join(root, 'lib/cext/include/truffleruby/truffleruby-abi-version.h')
+    with open(path, "r") as f:
+        contents = f.read()
+    m = re.search('"(.+)"', contents)
+    return m.group(1)
+
+mx_subst.results_substitutions.register_no_arg('truffleruby_abi_version', get_truffleruby_abi_version)
+
+class TruffleRubyUnittestConfig(mx_unittest.MxUnittestConfig):
+    def __init__(self):
+        super(TruffleRubyUnittestConfig, self).__init__('truffleruby')
+
+    def apply(self, config):
+        vmArgs, mainClass, mainClassArgs = config
+        mx_truffle.enable_truffle_native_access(vmArgs)
+        return (vmArgs, mainClass, mainClassArgs)
+
+mx_unittest.register_unittest_config(TruffleRubyUnittestConfig())
 
 # Utilities
 
@@ -94,7 +138,7 @@ class TruffleRubyBootstrapLauncherBuildTask(mx.BuildTask):
         return False, 'up to date'
 
     def build(self):
-        mx.ensure_dir_exists(self.subject.get_output_root())
+        mx_util.ensure_dir_exists(self.subject.get_output_root())
         for result, _, _ in self.subject.launchers():
             with open(result, "w") as f:
                 f.write(self.contents(result))
@@ -106,17 +150,18 @@ class TruffleRubyBootstrapLauncherBuildTask(mx.BuildTask):
 
     def contents(self, result):
         classpath_deps = [dep for dep in self.subject.buildDependencies if isinstance(dep, mx.ClasspathDependency)]
-        jvm_args = [pipes.quote(arg) for arg in mx.get_runtime_jvm_args(classpath_deps)]
+        jvm_args = [shlex.quote(arg) for arg in mx.get_runtime_jvm_args(classpath_deps)]
+        mx_truffle.enable_truffle_native_access(jvm_args)
 
         debug_args = mx.java_debug_args()
         jvm_args.extend(debug_args)
         if debug_args:
             jvm_args.extend(['-ea', '-esa'])
 
-        jvm_args.append('-Dorg.graalvm.language.ruby.home=' + root)
+        bootstrap_home = mx.distribution('TRUFFLERUBY_BOOTSTRAP_HOME').get_output()
+        jvm_args.append('-Dorg.graalvm.language.ruby.home=' + bootstrap_home)
 
-        libyarpbindings = list(mx.project('org.truffleruby.yarp.bindings').getArchivableResults())[0][0]
-        jvm_args.append('-Dtruffleruby.libyarpbindings=' + libyarpbindings)
+        jvm_args.append('-Dtruffleruby.repository=' + root)
 
         main_class = 'org.truffleruby.launcher.RubyLauncher'
         ruby_options = [
@@ -160,6 +205,7 @@ def ruby_check_heap_dump(input_args, out=None):
     args.insert(0, "--experimental-options")
     vm_args, truffleruby_args = mx.extract_VM_args(args, useDoubleDash=True, defaultAllVMArgs=False)
     vm_args += mx.get_runtime_jvm_args(dists)
+    mx_truffle.enable_truffle_native_access(vm_args)
     # vm_args.append("-agentlib:jdwp=transport=dt_socket,server=y,address=8000,suspend=y")
     vm_args.append("org.truffleruby.test.internal.LeakTest")
     out = mx.OutputCapture() if out is None else out
@@ -187,9 +233,9 @@ def ruby_check_heap_dump(input_args, out=None):
         raise Exception("heap dump check failed")
 
 def ruby_run_ruby(args):
-    """run TruffleRuby in $(mx graalvm-home), use bin/jt for more control and shortcuts"""
-    graalvm_home = mx_sdk_vm.graalvm_home(fatalIfMissing=True)
-    ruby = join(graalvm_home, 'languages/ruby/bin/ruby')
+    """run TruffleRuby in $(mx standalone-home --type=jvm ruby), needs an env including a ruby standalone. Use bin/jt for more control and shortcuts"""
+    standalone_home = mx_sdk_vm_impl.standalone_home('ruby', is_jvm=True)
+    ruby = join(standalone_home, 'bin/ruby')
     os.execlp(ruby, ruby, *args)
 
 def ruby_run_specs(ruby, args):
@@ -220,7 +266,9 @@ def ruby_testdownstream_aot(args):
 
 def ruby_spotbugs(args):
     """Run SpotBugs with custom options to detect more issues"""
-    mx.command_function('build')(['--no-native']) # SpotBugs needs all Java projects to be built
+    # SpotBugs needs all Java projects to be built
+    # GR-52408: mx.command_function('build')(['--no-native']) should be enough but it fails
+    mx.command_function('build')([])
 
     filters = join(root, 'mx.truffleruby', 'spotbugs-filters.xml')
     spotbugsArgs = ['-textui', '-low', '-longBugCodes', '-include', filters]
@@ -236,6 +284,9 @@ def ruby_maven_deploy_public(args):
     mx.command_function('build')([])
     licenses = ['EPL-2.0', 'PSF-License', 'GPLv2-CPE', 'ICU,GPLv2', 'BSD-simplified', 'BSD-new', 'UPL', 'MIT']
     mx_sdk.maven_deploy_public(args, licenses=licenses, deploy_snapshots=False)
+
+def ruby_maven_deploy_public_repo_dir(args):
+    print(mx_sdk.maven_deploy_public_repo_dir())
 
 mx_sdk_vm.register_graalvm_component(mx_sdk_vm.GraalVmLanguage(
     suite=_suite,
@@ -289,9 +340,9 @@ mx_sdk_vm.register_graalvm_component(mx_sdk_vm.GraalVmLanguage(
         'truffleruby:TRUFFLERUBY-SHARED',
         'truffleruby:TRUFFLERUBY-ANNOTATIONS',
         'sdk:JLINE3',
-        # Libraries
-        'truffleruby:JCODINGS',
-        'truffleruby:JONI',
+        # Library distributions
+        'truffle:TRUFFLE_JCODINGS',
+        'truffleruby:TRUFFLERUBY_JONI',
     ],
     support_distributions=[
         'truffleruby:TRUFFLERUBY_GRAALVM_SUPPORT_PLATFORM_AGNOSTIC',
@@ -310,6 +361,7 @@ mx_sdk_vm.register_graalvm_component(mx_sdk_vm.GraalVmLanguage(
         'bin/rdbg',
         'bin/rdoc',
         'bin/ri',
+        'bin/syntax_suggest',
     ],
     library_configs=[
         mx_sdk_vm.LanguageLibraryConfig(
@@ -350,4 +402,5 @@ mx.update_commands(_suite, {
     'verify-ci': [verify_ci, '[options]'],
     'ruby_jacoco_args': [ruby_jacoco_args, ''],
     'ruby_maven_deploy_public': [ruby_maven_deploy_public, ''],
+    'ruby_maven_deploy_public_repo_dir': [ruby_maven_deploy_public_repo_dir, ''],
 })

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2020, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -11,10 +11,15 @@ package org.truffleruby.signal;
 
 public abstract class LibRubySignal {
 
+    @SuppressWarnings("restricted")
     public static void loadLibrary(String rubyHome, String libSuffix) {
         final String path = rubyHome + "/lib/cext/librubysignal" + libSuffix;
         System.load(path);
     }
+
+    public static native void setupLocale();
+
+    public static native void setupLocaleOnlyCTYPE();
 
     public static native int setupSIGVTALRMEmptySignalHandler();
 

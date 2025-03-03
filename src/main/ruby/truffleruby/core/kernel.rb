@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Copyright (c) 2014, 2024 Oracle and/or its affiliates. All rights reserved. This
+# Copyright (c) 2014, 2025 Oracle and/or its affiliates. All rights reserved. This
 # code is released under a tri EPL/GPL/LGPL license. You can use it,
 # redistribute it and/or modify it under the terms of the:
 #
@@ -319,7 +319,7 @@ module Kernel
   def extend(*modules)
     raise ArgumentError, 'wrong number of arguments (0 for 1+)' if modules.empty?
 
-    modules.reverse_each do |mod|
+    block = proc do |mod|
       if !Primitive.is_a?(mod, Module) or Primitive.is_a?(mod, Class)
         raise TypeError, "wrong argument type #{Primitive.class(mod)} (expected Module)"
       elsif Primitive.is_a?(mod, Refinement)
@@ -329,16 +329,24 @@ module Kernel
       mod.__send__ :extend_object, self
       mod.__send__ :extended, self
     end
+
+    # __send__ calls above report polymorphism because they see different singleton classes for each module instance.
+    # But these methods are called only once per object and module pair, so it is not worth to split for them.
+    Truffle::Graal.never_split block
+
+    modules.reverse_each(&block)
+
     self
   end
+  Truffle::Graal.never_split instance_method(:extend)
 
   def getc
     $stdin.getc
   end
   module_function :getc
 
-  def gets(*args)
-    line = ARGF.gets(*args)
+  def gets(...)
+    line = ARGF.gets(...)
     Primitive.io_last_line_set(Primitive.caller_special_variables, line) if line
     line
   end
@@ -621,6 +629,12 @@ module Kernel
 
   def warn(*messages, uplevel: undefined, category: nil)
     if !Primitive.nil?($VERBOSE) && !messages.empty?
+      unless Primitive.nil?(category)
+        category = Truffle::Type.rb_convert_type(category, Symbol, :to_sym)
+        Truffle::WarningOperations.check_category(category)
+        return nil unless Warning[category]
+      end
+
       prefix = if Primitive.undefined?(uplevel)
                  ''
                else
@@ -654,7 +668,6 @@ module Kernel
         unless message.encoding.ascii_compatible?
           raise Encoding::CompatibilityError, "ASCII incompatible encoding: #{message.encoding}"
         end
-        Truffle::WarningOperations.check_category(category) unless Primitive.nil?(category)
 
         $stderr.write message
       else
@@ -662,7 +675,6 @@ module Kernel
         if warning_warn.arity == 1
           warning_warn.call(message)
         else
-          category = Truffle::Type.rb_convert_type(category, Symbol, :to_sym) unless Primitive.nil?(category)
           warning_warn.call(message, category: category)
         end
       end
@@ -721,6 +733,8 @@ module Kernel
     nil
   end
   module_function :printf
+  Truffle::Graal.always_split(instance_method(:printf))
+  Truffle::Graal.always_split(method(:printf))
 
   private def pp(*args)
     require 'pp'
@@ -767,8 +781,8 @@ module Kernel
     Process._fork
   end
   module_function :fork
+  Primitive.method_unimplement instance_method(:fork)
   Primitive.method_unimplement method(:fork)
-  Primitive.method_unimplement nil.method(:fork)
 
   def clone(freeze: nil)
     unless Primitive.boolean_or_nil?(freeze)
@@ -777,6 +791,8 @@ module Kernel
 
     Primitive.kernel_clone self, freeze
   end
+  Truffle::Graal.always_split instance_method(:clone)
+  Truffle::Graal.always_split method(:clone)
 
   def initialize_clone(from, freeze: nil)
     initialize_copy(from)

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2017, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -9,6 +9,8 @@
  */
 package org.truffleruby.core.inlined;
 
+import com.oracle.truffle.api.dsl.Bind;
+import com.oracle.truffle.api.nodes.Node;
 import org.truffleruby.RubyLanguage;
 import org.truffleruby.core.string.RubyString;
 import org.truffleruby.core.string.ImmutableRubyString;
@@ -36,8 +38,9 @@ public abstract class InlinedByteSizeNode extends UnaryInlinedOperationNode {
             assumptions = "assumptions")
     int byteSize(VirtualFrame frame, RubyString self,
             @Cached @Shared LookupMethodOnSelfNode lookupNode,
-            @Cached @Exclusive RubyStringLibrary libString) {
-        return libString.byteLength(self);
+            @Cached @Exclusive RubyStringLibrary libString,
+            @Bind Node node) {
+        return libString.byteLength(node, self);
     }
 
     @Specialization(
@@ -45,8 +48,9 @@ public abstract class InlinedByteSizeNode extends UnaryInlinedOperationNode {
             assumptions = "assumptions")
     int byteSizeImmutable(VirtualFrame frame, ImmutableRubyString self,
             @Cached @Shared LookupMethodOnSelfNode lookupNode,
-            @Cached @Exclusive RubyStringLibrary libString) {
-        return libString.byteLength(self);
+            @Cached @Exclusive RubyStringLibrary libString,
+            @Bind Node node) {
+        return libString.byteLength(node, self);
     }
 
     @Specialization

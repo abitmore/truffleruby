@@ -1,4 +1,4 @@
-# Copyright (c) 2018, 2024 Oracle and/or its affiliates. All rights reserved. This
+# Copyright (c) 2018, 2025 Oracle and/or its affiliates. All rights reserved. This
 # code is released under a tri EPL/GPL/LGPL license. You can use it,
 # redistribute it and/or modify it under the terms of the:
 #
@@ -18,7 +18,7 @@ describe "RubyGems" do
   # This spec needs no upgraded gems installed
   it "is not loaded for default gems if there is no upgraded default gem" do
     default_gems = []
-    keep_hyphen = %w[open-uri readline-ext resolv-replace]
+    keep_hyphen = %w[open-uri resolv-replace]
 
     Truffle::GemUtil::DEFAULT_GEMS.each_pair do |prefix, names|
       if names == true
@@ -33,7 +33,6 @@ describe "RubyGems" do
       'bundler', # explicitly requires RubyGems
       'dbm', 'gdbm', # not available
       'debug', # not available
-      'readline-ext', # readline.so on CRuby, we have no readline C-ext
     ]
     default_gems[default_gems.index('english')] = 'English'
     default_gems[default_gems.index('rinda')] = 'rinda/rinda'

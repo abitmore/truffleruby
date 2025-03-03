@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2013, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -43,7 +43,7 @@ public final class MainLoader {
         var sourceCode = new TStringWithEncoding(TStringUtils.fromJavaString(code, Encodings.UTF_8), Encodings.UTF_8);
         final Source source = Source
                 .newBuilder(TruffleRuby.LANGUAGE_ID, new ByteBasedCharSequence(sourceCode), "-e")
-                .mimeType(RubyLanguage.MIME_TYPE_MAIN_SCRIPT)
+                .option("ruby.MainScript", "true")
                 .build();
         return new RubySource(source, "-e");
     }
@@ -54,7 +54,7 @@ public final class MainLoader {
 
         final Source source = Source
                 .newBuilder(TruffleRuby.LANGUAGE_ID, new ByteBasedCharSequence(sourceTString), path)
-                .mimeType(RubyLanguage.MIME_TYPE_MAIN_SCRIPT)
+                .option("ruby.MainScript", "true")
                 .build();
         return new RubySource(source, path, sourceTString);
     }

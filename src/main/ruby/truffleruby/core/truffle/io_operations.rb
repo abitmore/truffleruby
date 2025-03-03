@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Copyright (c) 2018, 2024 Oracle and/or its affiliates. All rights reserved. This
+# Copyright (c) 2018, 2025 Oracle and/or its affiliates. All rights reserved. This
 # code is released under a tri EPL/GPL/LGPL license. You can use it,
 # redistribute it and/or modify it under the terms of the:
 #
@@ -259,7 +259,19 @@ module Truffle
       end
 
       begin
-        returned_events = Truffle::POSIX.truffleposix_poll_single_fd(Primitive.io_fd(io), event_mask, remaining_timeout)
+        # Change thread status manually.
+        # Don't mark Truffle::POSIX.truffleposix_poll_single_fd as blocking because
+        # then it would automatically retry on EINTR without considering/adjusting the timeout.
+        status = Primitive.thread_set_status(Thread.current, :sleep)
+
+        begin
+          returned_events = Primitive.thread_run_blocking_nfi_system_call(
+            Truffle::POSIX::POLL_SINGLE_FD,
+            [Primitive.io_fd(io), event_mask, remaining_timeout])
+        ensure
+          Primitive.thread_set_status(Thread.current, status)
+        end
+
         result =
           if returned_events < 0
             errno = Errno.errno
@@ -405,7 +417,7 @@ module Truffle
     def self.parse_external_enc(io, external)
       if BOM.match?(external)
         external = external[4..-1]
-        io.__send__(:strip_bom) || Encoding.find(external)
+        strip_bom_for_regular_file(io) || Encoding.find(external)
       else
         Encoding.find(external)
       end
@@ -552,6 +564,71 @@ module Truffle
       external = Encoding::BINARY if binary and !external and !internal
       perm ||= 0666
       [mode, binary, external, internal, autoclose, perm, path]
+    end
+
+    def self.strip_bom_for_regular_file(io)
+      mode = Truffle::POSIX.truffleposix_fstat_mode(Primitive.io_fd(io))
+      return nil unless Truffle::StatOperations.file?(mode)
+
+      strip_bom(io)
+    end
+
+    def self.strip_bom(io)
+      case b1 = io.getbyte
+      when 0x00
+        b2 = io.getbyte
+        if b2 == 0x00
+          b3 = io.getbyte
+          if b3 == 0xFE
+            b4 = io.getbyte
+            if b4 == 0xFF
+              return Encoding::UTF_32BE
+            end
+            io.ungetbyte b4
+          end
+          io.ungetbyte b3
+        end
+        io.ungetbyte b2
+
+      when 0xFF
+        b2 = io.getbyte
+        if b2 == 0xFE
+          b3 = io.getbyte
+          if b3 == 0x00
+            b4 = io.getbyte
+            if b4 == 0x00
+              return Encoding::UTF_32LE
+            end
+            io.ungetbyte b4
+          else
+            io.ungetbyte b3
+            return Encoding::UTF_16LE
+          end
+          io.ungetbyte b3
+        end
+        io.ungetbyte b2
+
+      when 0xFE
+        b2 = io.getbyte
+        if b2 == 0xFF
+          return Encoding::UTF_16BE
+        end
+        io.ungetbyte b2
+
+      when 0xEF
+        b2 = io.getbyte
+        if b2 == 0xBB
+          b3 = io.getbyte
+          if b3 == 0xBF
+            return Encoding::UTF_8
+          end
+          io.ungetbyte b3
+        end
+        io.ungetbyte b2
+      end
+
+      io.ungetbyte b1
+      nil
     end
   end
 end

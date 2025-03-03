@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2020, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -49,7 +49,7 @@ public final class RubySyntaxError extends RubyException {
     @TruffleBoundary
     @ExportMessage
     public boolean isExceptionIncompleteSource() {
-        if (RubyStringLibrary.getUncached().isRubyString(message)) {
+        if (RubyStringLibrary.isRubyStringUncached(message)) {
             String messageString = RubyGuards.getJavaString(message);
             return messageString.endsWith(" unexpected end-of-file") ||
                     messageString.endsWith(" meets end of file");

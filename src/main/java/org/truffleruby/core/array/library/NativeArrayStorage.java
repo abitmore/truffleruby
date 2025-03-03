@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2019, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -94,7 +94,7 @@ public final class NativeArrayStorage implements ObjectGraphNode {
     @ExportMessage
     protected Object read(int index,
             @Cached @Shared UnwrapNode unwrapNode,
-            @Bind("$node") Node node) {
+            @Bind Node node) {
         return unwrapNode.execute(node, readElement(index));
     }
 
@@ -103,7 +103,7 @@ public final class NativeArrayStorage implements ObjectGraphNode {
             @CachedLibrary(limit = "1") InteropLibrary wrappers,
             @Cached WrapNode wrapNode,
             @Cached InlinedConditionProfile isPointerProfile,
-            @Bind("$node") Node node) {
+            @Bind Node node) {
         final ValueWrapper wrapper = wrapNode.execute(value);
         if (!isPointerProfile.profile(node, wrappers.isPointer(wrapper))) {
             wrappers.toNative(wrapper);
@@ -142,7 +142,7 @@ public final class NativeArrayStorage implements ObjectGraphNode {
     @ExportMessage
     protected Object[] boxedCopyOfRange(int start, int length,
             @Cached @Shared UnwrapNode unwrapNode,
-            @Bind("$node") Node node) {
+            @Bind Node node) {
         Object[] newStore = new Object[length];
         for (int i = 0; i < length; i++) {
             newStore[i] = unwrapNode.execute(node, readElement(start + i));
@@ -165,7 +165,7 @@ public final class NativeArrayStorage implements ObjectGraphNode {
                 @CachedLibrary("store") ArrayStoreLibrary arrayStoreLibrary,
                 @Cached @Exclusive LoopConditionProfile loopProfile,
                 @Cached WriteBarrierNode writeBarrierNode,
-                @Bind("$node") Node node) {
+                @Bind Node node) {
             int i = start;
             try {
                 for (; loopProfile.inject(i < end); i++) {
@@ -209,7 +209,7 @@ public final class NativeArrayStorage implements ObjectGraphNode {
     @ExportMessage
     protected Object[] toJavaArrayCopy(int size,
             @Cached @Shared UnwrapNode unwrapNode,
-            @Bind("$node") Node node) {
+            @Bind Node node) {
         Object[] newStore = new Object[size];
         assert size >= length;
         for (int i = 0; i < length; i++) {

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2020, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -27,8 +27,8 @@ import org.truffleruby.core.klass.RubyClass;
 import org.truffleruby.language.RubyRootNode;
 import org.truffleruby.language.SpecialVariablesSendingNode;
 import org.truffleruby.language.arguments.ArgumentsDescriptor;
+import org.truffleruby.language.arguments.KeywordArgumentsDescriptor;
 import org.truffleruby.language.arguments.NoKeywordArgumentsDescriptor;
-import org.truffleruby.language.arguments.KeywordArgumentsDescriptorManager;
 import org.truffleruby.language.arguments.RubyArguments;
 import org.truffleruby.language.methods.CallInternalMethodNode;
 import org.truffleruby.language.methods.InternalMethod;
@@ -149,7 +149,7 @@ public abstract class DispatchNode extends SpecialVariablesSendingNode {
         final Object[] rubyArgs = RubyArguments.allocate(2);
         RubyArguments.setSelf(rubyArgs, receiver);
         RubyArguments.setBlock(rubyArgs, nil);
-        RubyArguments.setDescriptor(rubyArgs, KeywordArgumentsDescriptorManager.EMPTY);
+        RubyArguments.setDescriptor(rubyArgs, KeywordArgumentsDescriptor.EMPTY);
         RubyArguments.setArgument(rubyArgs, 0, arg1);
         RubyArguments.setArgument(rubyArgs, 1, keywords);
         return execute(null, receiver, method, rubyArgs, PRIVATE);
@@ -300,12 +300,10 @@ public abstract class DispatchNode extends SpecialVariablesSendingNode {
         return callNode.execute(frame, method, receiver, rubyArgs);
     }
 
-
     /** This will be called from the {@link CallInternalMethodNode} child whenever it creates a new
      * {@link DirectCallNode}. */
     public final void applySplittingInliningStrategy(RootCallTarget callTarget, String methodName,
             DirectCallNode callNode) {
-
 
         final Options options = getContext().getOptions();
 

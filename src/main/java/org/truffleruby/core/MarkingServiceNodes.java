@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2019, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -11,7 +11,6 @@ package org.truffleruby.core;
 
 import com.oracle.truffle.api.dsl.GenerateCached;
 import com.oracle.truffle.api.dsl.GenerateInline;
-import com.oracle.truffle.api.dsl.NeverDefault;
 import com.oracle.truffle.api.dsl.NonIdempotent;
 import com.oracle.truffle.api.nodes.Node;
 import com.oracle.truffle.api.profiles.InlinedConditionProfile;
@@ -73,22 +72,6 @@ public abstract class MarkingServiceNodes {
         @NonIdempotent
         protected static ExtensionCallStack getStack(Node node) {
             return getLanguage(node).getCurrentThread().getCurrentFiber().extensionCallStack;
-        }
-    }
-
-    public static final class QueueForMarkOnExitNode extends RubyBaseNode {
-
-        @NeverDefault
-        public static QueueForMarkOnExitNode create() {
-            return new QueueForMarkOnExitNode();
-        }
-
-        public void execute(ValueWrapper object) {
-            addToList(getLanguage().getCurrentThread().getCurrentFiber().extensionCallStack, object);
-        }
-
-        protected void addToList(ExtensionCallStack stack, ValueWrapper object) {
-            stack.markOnExitObject(object);
         }
     }
 

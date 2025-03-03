@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2023, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -60,7 +60,7 @@ public abstract class DispatchMethodMissingNode extends RubyBaseNode {
             @Cached ToSymbolNode toSymbol,
             @Cached DispatchNode callMethodMissing,
             @Cached InlinedBranchProfile methodMissingMissingProfile,
-            @Bind("this") Node node) {
+            @Bind Node node) {
         final RubySymbol symbolName = toSymbol.execute(node, methodName);
 
         final Object[] newArgs = RubyArguments.repack(rubyArgs, receiver, 0, 1);

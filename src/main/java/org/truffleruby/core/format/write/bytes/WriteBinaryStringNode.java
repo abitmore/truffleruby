@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2015, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -9,6 +9,7 @@
  */
 package org.truffleruby.core.format.write.bytes;
 
+import com.oracle.truffle.api.dsl.Fallback;
 import com.oracle.truffle.api.strings.TruffleString;
 import org.truffleruby.core.format.FormatNode;
 
@@ -57,12 +58,15 @@ public abstract class WriteBinaryStringNode extends FormatNode {
         return null;
     }
 
-    @Specialization(guards = "libString.isRubyString(string)", limit = "1")
+    // We use @Fallback here instead of:
+    // @Specialization(guards = "libString.isRubyString(node, string)", limit = "1")
+    // because otherwise Truffle wants this to be static and that would be very messy with the many instance fields.
+    @Fallback
     Object write(VirtualFrame frame, Object string,
             @Cached RubyStringLibrary libString,
             @Cached TruffleString.GetInternalByteArrayNode getInternalByteArrayNode) {
-        var tstring = libString.getTString(string);
-        var byteArray = getInternalByteArrayNode.execute(tstring, libString.getTEncoding(string));
+        var tstring = libString.getTString(this, string);
+        var byteArray = getInternalByteArrayNode.execute(tstring, libString.getTEncoding(this, string));
         write(frame, byteArray.getArray(), byteArray.getOffset(), byteArray.getLength());
         return null;
     }

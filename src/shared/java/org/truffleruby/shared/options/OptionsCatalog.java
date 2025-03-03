@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016, 2024 Oracle and/or its affiliates. All rights reserved. This
+ * Copyright (c) 2016, 2025 Oracle and/or its affiliates. All rights reserved. This
  * code is released under a tri EPL/GPL/LGPL license. You can use it,
  * redistribute it and/or modify it under the terms of the:
  *
@@ -71,6 +71,7 @@ public final class OptionsCatalog {
     public static final OptionKey<Boolean> BACKTRACE_ON_NEW_FIBER_KEY = new OptionKey<>(false);
     public static final OptionKey<Boolean> CEXTS_KEY = new OptionKey<>(true);
     public static final OptionKey<Boolean> CEXT_LOCK_KEY = new OptionKey<>(true);
+    public static final OptionKey<Boolean> CEXTS_PANAMA_KEY = new OptionKey<>(true);
     public static final OptionKey<Boolean> OPTIONS_LOG_KEY = new OptionKey<>(false);
     public static final OptionKey<Boolean> LOG_LOAD_KEY = new OptionKey<>(false);
     public static final OptionKey<Boolean> LOG_AUTOLOAD_KEY = new OptionKey<>(false);
@@ -85,6 +86,7 @@ public final class OptionsCatalog {
     public static final OptionKey<Boolean> WARN_TRUFFLE_REGEX_COMPILE_FALLBACK_KEY = new OptionKey<>(false);
     public static final OptionKey<Boolean> WARN_TRUFFLE_REGEX_MATCH_FALLBACK_KEY = new OptionKey<>(false);
     public static final OptionKey<Boolean> TRUFFLE_REGEX_IGNORE_ATOMIC_GROUPS_KEY = new OptionKey<>(false);
+    public static final OptionKey<String[]> REUSE_PRECOMPILED_GEMS_KEY = new OptionKey<>(StringArrayOptionType.EMPTY_STRING_ARRAY, StringArrayOptionType.INSTANCE);
     public static final OptionKey<Boolean> ARGV_GLOBALS_KEY = new OptionKey<>(false);
     public static final OptionKey<Boolean> CHOMP_LOOP_KEY = new OptionKey<>(false);
     public static final OptionKey<Boolean> GETS_LOOP_KEY = new OptionKey<>(false);
@@ -115,7 +117,6 @@ public final class OptionsCatalog {
     public static final OptionKey<Integer> METHOD_LOOKUP_CACHE_KEY = new OptionKey<>(DEFAULT_CACHE_KEY.getDefaultValue());
     public static final OptionKey<Integer> DISPATCH_CACHE_KEY = new OptionKey<>(DEFAULT_CACHE_KEY.getDefaultValue());
     public static final OptionKey<Integer> YIELD_CACHE_KEY = new OptionKey<>(DEFAULT_CACHE_KEY.getDefaultValue());
-    public static final OptionKey<Integer> METHOD_TO_PROC_CACHE_KEY = new OptionKey<>(DEFAULT_CACHE_KEY.getDefaultValue());
     public static final OptionKey<Integer> IS_A_CACHE_KEY = new OptionKey<>(DEFAULT_CACHE_KEY.getDefaultValue());
     public static final OptionKey<Integer> BIND_CACHE_KEY = new OptionKey<>(DEFAULT_CACHE_KEY.getDefaultValue());
     public static final OptionKey<Integer> CONSTANT_CACHE_KEY = new OptionKey<>(DEFAULT_CACHE_KEY.getDefaultValue());
@@ -125,7 +126,6 @@ public final class OptionsCatalog {
     public static final OptionKey<Integer> PACK_CACHE_KEY = new OptionKey<>(DEFAULT_CACHE_KEY.getDefaultValue());
     public static final OptionKey<Integer> UNPACK_CACHE_KEY = new OptionKey<>(DEFAULT_CACHE_KEY.getDefaultValue());
     public static final OptionKey<Integer> EVAL_CACHE_KEY = new OptionKey<>(DEFAULT_CACHE_KEY.getDefaultValue());
-    public static final OptionKey<Integer> ENCODING_COMPATIBLE_QUERY_CACHE_KEY = new OptionKey<>(DEFAULT_CACHE_KEY.getDefaultValue());
     public static final OptionKey<Integer> ENCODING_LOADED_CLASSES_CACHE_KEY = new OptionKey<>(DEFAULT_CACHE_KEY.getDefaultValue());
     public static final OptionKey<Integer> INTEROP_CONVERT_CACHE_KEY = new OptionKey<>(DEFAULT_CACHE_KEY.getDefaultValue());
     public static final OptionKey<Integer> TIME_FORMAT_CACHE_KEY = new OptionKey<>(DEFAULT_CACHE_KEY.getDefaultValue());
@@ -415,7 +415,7 @@ public final class OptionsCatalog {
 
     public static final OptionDescriptor VIRTUAL_THREAD_FIBERS = OptionDescriptor
             .newBuilder(VIRTUAL_THREAD_FIBERS_KEY, "ruby.virtual-thread-fibers")
-            .help("Use JDK 19+ VirtualThread for Fibers, also requires --vm.-enable-preview")
+            .help("Use VirtualThread for Fibers")
             .category(OptionCategory.EXPERT)
             .stability(OptionStability.EXPERIMENTAL)
             .usageSyntax("")
@@ -573,6 +573,14 @@ public final class OptionsCatalog {
             .usageSyntax("")
             .build();
 
+    public static final OptionDescriptor CEXTS_PANAMA = OptionDescriptor
+            .newBuilder(CEXTS_PANAMA_KEY, "ruby.cexts-panama")
+            .help("Use Panama for native to Ruby calls in C extensions. Only available in --jvm mode on JDK 22+.")
+            .category(OptionCategory.EXPERT)
+            .stability(OptionStability.EXPERIMENTAL)
+            .usageSyntax("")
+            .build();
+
     public static final OptionDescriptor OPTIONS_LOG = OptionDescriptor
             .newBuilder(OPTIONS_LOG_KEY, "ruby.options-log")
             .help("Log the final value of all options")
@@ -685,6 +693,14 @@ public final class OptionsCatalog {
             .usageSyntax("")
             .build();
 
+    public static final OptionDescriptor REUSE_PRECOMPILED_GEMS = OptionDescriptor
+            .newBuilder(REUSE_PRECOMPILED_GEMS_KEY, "ruby.reuse-precompiled-gems")
+            .help("A list of gems we want to install precompiled (using the local platform) on TruffleRuby. Can only be used for gem extensions which do not depend on the Ruby C API.")
+            .category(OptionCategory.EXPERT)
+            .stability(OptionStability.EXPERIMENTAL)
+            .usageSyntax("<gem>,<gem>,...")
+            .build();
+
     public static final OptionDescriptor ARGV_GLOBALS = OptionDescriptor
             .newBuilder(ARGV_GLOBALS_KEY, "ruby.argv-globals")
             .help("Parse options in script argv into global variables (configured by the -s Ruby option)")
@@ -759,7 +775,7 @@ public final class OptionsCatalog {
 
     public static final OptionDescriptor BUILDING_CORE_CEXTS = OptionDescriptor
             .newBuilder(BUILDING_CORE_CEXTS_KEY, "ruby.building-core-cexts")
-            .help("Used while building TruffleRuby to build core C extensions")
+            .help("Used while building TruffleRuby to build default & bundled gems C extensions")
             .category(OptionCategory.INTERNAL)
             .stability(OptionStability.EXPERIMENTAL)
             .usageSyntax("")
@@ -925,14 +941,6 @@ public final class OptionsCatalog {
             .usageSyntax("8")
             .build();
 
-    public static final OptionDescriptor METHOD_TO_PROC_CACHE = OptionDescriptor
-            .newBuilder(METHOD_TO_PROC_CACHE_KEY, "ruby.to-proc-cache")
-            .help("Method#to_proc cache size")
-            .category(OptionCategory.INTERNAL)
-            .stability(OptionStability.EXPERIMENTAL)
-            .usageSyntax("8")
-            .build();
-
     public static final OptionDescriptor IS_A_CACHE = OptionDescriptor
             .newBuilder(IS_A_CACHE_KEY, "ruby.is-a-cache")
             .help("Kernel#is_a? and #kind_of? cache size")
@@ -1000,14 +1008,6 @@ public final class OptionsCatalog {
     public static final OptionDescriptor EVAL_CACHE = OptionDescriptor
             .newBuilder(EVAL_CACHE_KEY, "ruby.eval-cache")
             .help("eval cache size")
-            .category(OptionCategory.INTERNAL)
-            .stability(OptionStability.EXPERIMENTAL)
-            .usageSyntax("8")
-            .build();
-
-    public static final OptionDescriptor ENCODING_COMPATIBLE_QUERY_CACHE = OptionDescriptor
-            .newBuilder(ENCODING_COMPATIBLE_QUERY_CACHE_KEY, "ruby.encoding-compatible-query-cache")
-            .help("Encoding.compatible? cache size")
             .category(OptionCategory.INTERNAL)
             .stability(OptionStability.EXPERIMENTAL)
             .usageSyntax("8")
@@ -1421,6 +1421,8 @@ public final class OptionsCatalog {
                 return CEXTS;
             case "ruby.cexts-lock":
                 return CEXT_LOCK;
+            case "ruby.cexts-panama":
+                return CEXTS_PANAMA;
             case "ruby.options-log":
                 return OPTIONS_LOG;
             case "ruby.log-load":
@@ -1449,6 +1451,8 @@ public final class OptionsCatalog {
                 return WARN_TRUFFLE_REGEX_MATCH_FALLBACK;
             case "ruby.truffle-regex-ignore-atomic-groups":
                 return TRUFFLE_REGEX_IGNORE_ATOMIC_GROUPS;
+            case "ruby.reuse-precompiled-gems":
+                return REUSE_PRECOMPILED_GEMS;
             case "ruby.argv-globals":
                 return ARGV_GLOBALS;
             case "ruby.chomp-loop":
@@ -1509,8 +1513,6 @@ public final class OptionsCatalog {
                 return DISPATCH_CACHE;
             case "ruby.yield-cache":
                 return YIELD_CACHE;
-            case "ruby.to-proc-cache":
-                return METHOD_TO_PROC_CACHE;
             case "ruby.is-a-cache":
                 return IS_A_CACHE;
             case "ruby.bind-cache":
@@ -1529,8 +1531,6 @@ public final class OptionsCatalog {
                 return UNPACK_CACHE;
             case "ruby.eval-cache":
                 return EVAL_CACHE;
-            case "ruby.encoding-compatible-query-cache":
-                return ENCODING_COMPATIBLE_QUERY_CACHE;
             case "ruby.encoding-loaded-classes-cache":
                 return ENCODING_LOADED_CLASSES_CACHE;
             case "ruby.interop-convert-cache":
@@ -1665,6 +1665,7 @@ public final class OptionsCatalog {
             BACKTRACE_ON_NEW_FIBER,
             CEXTS,
             CEXT_LOCK,
+            CEXTS_PANAMA,
             OPTIONS_LOG,
             LOG_LOAD,
             LOG_AUTOLOAD,
@@ -1679,6 +1680,7 @@ public final class OptionsCatalog {
             WARN_TRUFFLE_REGEX_COMPILE_FALLBACK,
             WARN_TRUFFLE_REGEX_MATCH_FALLBACK,
             TRUFFLE_REGEX_IGNORE_ATOMIC_GROUPS,
+            REUSE_PRECOMPILED_GEMS,
             ARGV_GLOBALS,
             CHOMP_LOOP,
             GETS_LOOP,
@@ -1709,7 +1711,6 @@ public final class OptionsCatalog {
             METHOD_LOOKUP_CACHE,
             DISPATCH_CACHE,
             YIELD_CACHE,
-            METHOD_TO_PROC_CACHE,
             IS_A_CACHE,
             BIND_CACHE,
             CONSTANT_CACHE,
@@ -1719,7 +1720,6 @@ public final class OptionsCatalog {
             PACK_CACHE,
             UNPACK_CACHE,
             EVAL_CACHE,
-            ENCODING_COMPATIBLE_QUERY_CACHE,
             ENCODING_LOADED_CLASSES_CACHE,
             INTEROP_CONVERT_CACHE,
             TIME_FORMAT_CACHE,
