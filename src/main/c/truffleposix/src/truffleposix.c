@@ -529,8 +529,8 @@ int64_t truffleposix_clock_getres(int clock) {
 
 #define CHECK(call, label) if ((error = call) != 0) { perror(#call); goto label; }
 
-pid_t truffleposix_posix_spawnp(const char *command, char *const argv[], char *const envp[],
-                                int nredirects, int* redirects, int pgroup, int nfds_to_close, int* fds_to_close) {
+pid_t truffleposix_posix_spawn(const char *command, char *const argv[], char *const envp[],
+                               int nredirects, int* redirects, int pgroup, int nfds_to_close, int* fds_to_close) {
   int ret = -1;
   pid_t pid = -1;
   int error = 0;
@@ -576,7 +576,7 @@ pid_t truffleposix_posix_spawnp(const char *command, char *const argv[], char *c
     CHECK(posix_spawnattr_setpgroup(&attrs, pgroup), cleanup_attrs);
   }
 
-  ret = posix_spawnp(&pid, command, file_actions_ptr, attrs_ptr, argv, envp);
+  ret = posix_spawn(&pid, command, file_actions_ptr, attrs_ptr, argv, envp);
   called_posix_spawn = 1;
 
 cleanup_attrs:

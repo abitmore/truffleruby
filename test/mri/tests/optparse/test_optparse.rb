@@ -204,7 +204,7 @@ class TestOptionParser < Test::Unit::TestCase
       if RbConfig::CONFIG["EXECUTABLE_EXTS"]&.include?(".cmd")
         command = "@echo off"
       else # if File.executable?("/bin/sh")
-        # TruffleRuby just calls `posix_spawnp` and no fallback to `/bin/sh`.
+        # TruffleRuby uses posix_spawn and no fallback to `/bin/sh` here.
         command = "#!/bin/sh\n"
       end
 

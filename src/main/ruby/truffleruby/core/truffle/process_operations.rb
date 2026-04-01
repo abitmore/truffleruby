@@ -225,7 +225,7 @@ module Truffle
           if should_use_shell?(@command)
             @command, @argv = '/bin/sh', ['sh', '-c', @command]
           else
-            # No shell processing, and posix_spawnp will do the lookup of the command if needed
+            # No shell processing, and #resolve_in_path will resolve the command in PATH if needed
             @command = @command.strip
             if @command.empty?
               # Special case for command == "" as split does not work
@@ -238,7 +238,7 @@ module Truffle
           end
         else
           # If arguments are explicitly passed, the semantics of this method (defined in Ruby) are to run the
-          # command directly. posix_spawnp(3) will lookup the full path to the command if needed.
+          # command directly. #resolve_in_path will resolve the command in PATH if needed.
         end
 
         parse_options(options)
@@ -506,8 +506,8 @@ module Truffle
       def spawn
         log_command 'spawn'
 
-        # Check if the command exists before posix_spawnp to avoid zombie processes
-        # if posix_spawnp returned a pid (e.g. on Linux) but the command is not found/executable.
+        # Check if the command exists before posix_spawn to avoid zombie processes
+        # if posix_spawn returned a pid (e.g. on Linux) but the command is not found/executable.
         # Also sets $? like MRI does when spawn raises.
         begin
           @command = resolve_in_path(@command)
@@ -516,12 +516,12 @@ module Truffle
           raise
         end
 
-        pid = posix_spawnp @command, @argv, @env_array, @options
-        raise SystemCallError.new("posix_spawnp #{@command}", -pid) if pid < 0
+        pid = posix_spawn @command, @argv, @env_array, @options
+        raise SystemCallError.new("posix_spawn #{@command}", -pid) if pid < 0
         pid
       end
 
-      def posix_spawnp(command, args, env_array, options)
+      def posix_spawn(command, args, env_array, options)
         redirects = []
         pgroup = -1
         fds_to_close = []
@@ -576,8 +576,8 @@ module Truffle
           Truffle::POSIX.with_array_of_strings_pointer(args) do |argv|
             Truffle::POSIX.with_array_of_strings_pointer(env_array) do |env|
               Truffle::POSIX.with_array_of_ints(fds_to_close) do |fds_to_close_ptr|
-                Truffle::POSIX.truffleposix_posix_spawnp(command, argv, env, redirects.size, redirects_ptr,
-                                                         pgroup, fds_to_close.size, fds_to_close_ptr)
+                Truffle::POSIX.truffleposix_posix_spawn(command, argv, env, redirects.size, redirects_ptr,
+                                                        pgroup, fds_to_close.size, fds_to_close_ptr)
               end
             end
           end
