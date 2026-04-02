@@ -517,6 +517,11 @@ module Truffle
         end
 
         pid = posix_spawn @command, @argv, @env_array, @options
+        if pid == -Errno::ENOEXEC::Errno
+          # The command is not a valid executable (no shebang), fall back to /bin/sh like MRI does
+          @argv = ['/bin/sh', @command, *@argv.drop(1)]
+          pid = posix_spawn '/bin/sh', @argv, @env_array, @options
+        end
         raise SystemCallError.new("posix_spawn #{@command}", -pid) if pid < 0
         pid
       end
