@@ -2403,6 +2403,7 @@ module Commands
     end
     archive = "#{dir || raise}.tar.gz"
     unless File.file?(archive)
+      FileUtils.mkdir_p(File.dirname(archive))
       verbosity = STDOUT.tty? ? [] : ['--no-verbose']
       sh 'wget', *verbosity, '-O', archive, url
     end
