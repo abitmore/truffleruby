@@ -230,7 +230,8 @@ public final class TranslatorEnvironment {
         int index = addSlot(name);
         Object prev = nameToIndex.putIfAbsent(name, index);
         if (prev != null) {
-            throw CompilerDirectives.shouldNotReachHere("Expected variable " + name + " to not already be declared");
+            throw CompilerDirectives
+                    .shouldNotReachHere("Expected variable " + name + " to not already be declared in " + this);
         }
         return index;
     }
