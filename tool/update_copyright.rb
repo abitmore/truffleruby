@@ -12,7 +12,7 @@ year = Integer(ARGV.first)
 new_copyright_year = year
 
 RB_COPYRIGHT = <<-EOS
-# Copyright (c) #{new_copyright_year}, TruffleRuby contributors
+# Copyright (c) #{new_copyright_year} TruffleRuby contributors
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -64,7 +64,7 @@ NEW_COPYRIGHT = {
 
 EXTENSIONS = %w[.java .rb .c .h .md]
 
-COPYRIGHT = /(?<copyright>Copyright|copyright) \(c\) (?<year1>\d{4})(?:-(?<year2>\d{4}))?(?<comma>,)? (?<holder>TruffleRuby contributors)\b/
+COPYRIGHT = /(?<copyright>Copyright|copyright) \(c\) (?<year1>\d{4})(?:-(?<year2>\d{4}))? (?<holder>TruffleRuby contributors)\b/
 
 OTHER_COPYRIGHTS = [
   /Copyright \(c\) \d{4}(?:-\d{4})?,? Evan Phoenix/,
@@ -163,14 +163,14 @@ paths.each do |file|
 
   next if ENV["ADD_ONLY"]
 
-  copyright, year1, year2, comma, holder = $~[:copyright], $~[:year1], $~[:year2], $~[:comma], $~[:holder]
+  copyright, year1, year2, holder = $~[:copyright], $~[:year1], $~[:year2], $~[:holder]
   year1 = Integer(year1)
   year2 = Integer(year2 || year1)
 
   if year > year2
     contents = File.read(file)
     years = "#{year1}-#{year}"
-    contents.sub!(copyright_regexp, "#{copyright} (c) #{years}#{comma} #{holder}")
+    contents.sub!(copyright_regexp, "#{copyright} (c) #{years} #{holder}")
     File.write(file, contents)
 
     puts "Updated year in #{file}"
