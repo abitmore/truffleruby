@@ -75,6 +75,10 @@ public final class YARPDefNodeTranslator extends YARPTranslator {
 
     private RubyMethodRootNode translateMethodNodeLazily(Nodes.DefNode node, Nodes.ParametersNode parameters,
             Arity arity) {
+        if (language.options.LAZY_TRANSLATION_LOG) {
+            RubyLanguage.LOGGER.info("Lazy translating " + environment);
+        }
+
         /* Multiple methods of the same file might trigger lazy translation at the same time. We need to prevent that
          * because there is shared mutable state in at least YARPTranslator, TranslatorEnvironment and ParseEnvironment.
          * So we synchronize on the common object for all translations in a file, ParseEnvironment. */

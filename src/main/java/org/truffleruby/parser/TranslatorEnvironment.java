@@ -150,6 +150,11 @@ public final class TranslatorEnvironment {
         }
     }
 
+    @Override
+    public String toString() {
+        return sharedMethodInfo.toString();
+    }
+
     public static String composeModulePath(String modulePath, String name) {
         return modulePath != null ? modulePath + "::" + name : name;
     }
