@@ -30,7 +30,6 @@ import org.truffleruby.language.dispatch.RubyCallNodeParameters;
 import org.truffleruby.language.literal.BooleanLiteralNode;
 import org.truffleruby.language.literal.NilLiteralNode;
 
-import com.oracle.truffle.api.TruffleSafepoint;
 import com.oracle.truffle.api.source.Source;
 import com.oracle.truffle.api.source.SourceSection;
 import com.oracle.truffle.api.strings.TruffleString;
@@ -209,8 +208,6 @@ public abstract class YARPBaseTranslator extends AbstractNodeVisitor<RubyNode> {
 
     protected final void copyNewlineFlag(Nodes.Node yarpNode, RubyNode rubyNode) {
         if (yarpNode.hasNewLineFlag()) {
-            TruffleSafepoint.poll(currentNode);
-
             if (parseEnvironment.isCoverageEnabled()) {
                 rubyNode.unsafeSetIsCoverageLine();
                 int startLine = parseEnvironment.yarpSource.line(yarpNode.startOffset);

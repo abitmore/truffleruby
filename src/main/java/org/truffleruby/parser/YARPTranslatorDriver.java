@@ -38,7 +38,6 @@
 package org.truffleruby.parser;
 
 import com.oracle.truffle.api.RootCallTarget;
-import com.oracle.truffle.api.TruffleSafepoint;
 import com.oracle.truffle.api.frame.FrameDescriptor;
 import com.oracle.truffle.api.nodes.Node;
 import com.oracle.truffle.api.source.Source;
@@ -349,8 +348,6 @@ public final class YARPTranslatorDriver {
     public static ParseResult parseToYARPAST(RubySource rubySource, String sourcePath, byte[] sourceBytes,
             List<List<String>> localsInScopes, boolean frozenStringLiteral, Options cliOptions,
             ParserContext parserContext) {
-        TruffleSafepoint.poll(null);
-
         final byte[] filepath = sourcePath.getBytes(Encodings.FILESYSTEM_CHARSET);
         int line = rubySource.getLineOffset() + 1;
         byte[] encoding = StringOperations.encodeAsciiBytes(rubySource.getEncoding().toString()); // encoding name is supposed to contain only ASCII characters

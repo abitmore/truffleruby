@@ -11,8 +11,10 @@
 package org.truffleruby.language.methods;
 
 import com.oracle.truffle.api.CompilerAsserts;
+import com.oracle.truffle.api.CompilerDirectives;
 import com.oracle.truffle.api.RootCallTarget;
 
+import java.util.Objects;
 import java.util.function.Supplier;
 
 public final class CachedLazyCallTargetSupplier {
@@ -35,7 +37,13 @@ public final class CachedLazyCallTargetSupplier {
 
         synchronized (this) {
             if (callTarget == null) {
-                callTarget = supplier.get();
+                try {
+                    callTarget = Objects.requireNonNull(supplier.get());
+                } catch (Throwable t) {
+                    throw CompilerDirectives.shouldNotReachHere(
+                            "CachedLazyCallTargetSupplier must not throw, otherwise it might execute the Supplier multiple times and the Supplier might not be idempotent",
+                            t);
+                }
                 supplier = null;
             }
             return callTarget;

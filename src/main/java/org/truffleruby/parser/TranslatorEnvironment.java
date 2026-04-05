@@ -150,6 +150,11 @@ public final class TranslatorEnvironment {
         }
     }
 
+    @Override
+    public String toString() {
+        return sharedMethodInfo.toString();
+    }
+
     public static String composeModulePath(String modulePath, String name) {
         return modulePath != null ? modulePath + "::" + name : name;
     }
@@ -225,7 +230,8 @@ public final class TranslatorEnvironment {
         int index = addSlot(name);
         Object prev = nameToIndex.putIfAbsent(name, index);
         if (prev != null) {
-            throw CompilerDirectives.shouldNotReachHere("Expected variable " + name + " to not already be declared");
+            throw CompilerDirectives
+                    .shouldNotReachHere("Expected variable " + name + " to not already be declared in " + this);
         }
         return index;
     }
