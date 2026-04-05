@@ -56,6 +56,7 @@ Compatibility:
 * Rewrite `Range#step` to handle many more cases, including non-`Numeric` step values using the `+`-based iteration semantics introduced in Ruby 3.4 (#3883, @nirvdrum).
 * `Process.spawn` now raises `Errno::EACCES` instead of `Errno::ENOENT` when the file exists but is not executable (#4176, @alessandro54).
 * Support building native extensions on systems that don't follow the Filesystem Hierarchy Standard (FHS), such as NixOS (@nirvdrum).
+* Fallback to `/bin/sh` like CRuby when the command given to `Kernel#spawn` is not executable (@van-sprundel, #4220).
 
 Performance:
 
