@@ -1,0 +1,1 @@
+fails:Encoding.compatible? Regexp, String returns the String's Encoding when the String is ASCII only with a different encoding
