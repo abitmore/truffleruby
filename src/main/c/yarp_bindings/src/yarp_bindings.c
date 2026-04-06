@@ -1,10 +1,21 @@
+/*
+ * Copyright (c) 2026 TruffleRuby contributors.
+ * Copyright (c) 2022-2025 Oracle and/or its affiliates.
+ * This code is released under a tri EPL/GPL/LGPL license.
+ * You can use it, redistribute it and/or modify it under the terms of the:
+ *
+ * Eclipse Public License version 2.0, or
+ * GNU General Public License version 2, or
+ * GNU Lesser General Public License version 2.1.
+ */
+
 #include <stdlib.h>
 #include <string.h>
 
 #include "prism.h"
-#include "org_ruby_lang_prism_Parser.h"
+#include "org_truffleruby_yarp_bindings_java_YARPJNIBindings.h"
 
-JNIEXPORT jbyteArray JNICALL Java_org_ruby_1lang_prism_Parser_parseAndSerialize(JNIEnv *env, jclass clazz, jbyteArray source, jbyteArray options) {
+JNIEXPORT jbyteArray JNICALL Java_org_truffleruby_yarp_bindings_java_YARPJNIBindings_parseAndSerialize(JNIEnv *env, jclass clazz, jbyteArray source, jbyteArray options) {
   jsize size = (*env)->GetArrayLength(env, source);
   // Null-terminate for safety, as parsers are prone to read further than the end
   jbyte *bytes = malloc(size + 4);

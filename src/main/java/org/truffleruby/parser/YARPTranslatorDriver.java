@@ -69,9 +69,9 @@ import org.truffleruby.language.methods.Arity;
 import org.truffleruby.language.methods.SharedMethodInfo;
 import org.truffleruby.options.Options;
 import org.truffleruby.shared.Metrics;
+import org.truffleruby.yarp.bindings.java.YARPJNIBindings;
 import org.ruby_lang.prism.Nodes;
 import org.ruby_lang.prism.ParseResult;
-import org.ruby_lang.prism.Parser;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -432,7 +432,7 @@ public final class YARPTranslatorDriver {
 
         byte[] parsingOptions = ParsingOptions.serialize(filepath, line, encoding, frozenStringLiteral, commandline,
                 version, encodingLocked, mainScript, partialScript, scopes);
-        byte[] serializedBytes = Parser.parseAndSerialize(sourceBytes, parsingOptions);
+        byte[] serializedBytes = YARPJNIBindings.parseAndSerialize(sourceBytes, parsingOptions);
 
         return YARPLoader.load(serializedBytes, rubySource);
     }

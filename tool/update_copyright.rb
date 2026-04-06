@@ -97,14 +97,15 @@ truffle_paths = %w[
 ] + [__FILE__]
 
 excludes = %w[
-  lib/cext/include/truffleruby/config_
+  lib/cext/include/truffleruby/config_*.h
   lib/cext/include/truffleruby/internal
   lib/truffle/date
   lib/truffle/ffi
+  lib/truffle/ffi.rb
   lib/truffle/io/console/size.rb
-  lib/truffle/pathname
+  lib/truffle/pathname.rb
   lib/truffle/securerandom
-  lib/truffle/strscan
+  lib/truffle/strscan.rb
   src/main/c/bigdecimal
   src/main/c/date
   src/main/c/etc
@@ -124,7 +125,13 @@ excludes = %w[
   test/truffle/cexts
   test/truffle/ecosystem
   test/truffle/integration/backtraces/fixtures
-]
+].map { |pattern|
+  if pattern.include?('*') or pattern.include?('.')
+    pattern
+  else
+    "#{pattern}/**"
+  end
+}
 
 excluded_files = %w[
   extconf.rb
@@ -139,7 +146,7 @@ paths = `git ls-files`.lines(chomp: true)
 paths = paths.select { |path|
   EXTENSIONS.include?(File.extname(path)) &&
     truffle_paths.any? { |prefix| path.start_with? prefix } &&
-    excludes.none? { |prefix| path.start_with? prefix } &&
+    excludes.none? { |pattern| File.fnmatch?(pattern, path) } &&
     !excluded_files.include?(File.basename(path)) &&
     File.exist?(path) &&
     File.readlines(path).size > 5

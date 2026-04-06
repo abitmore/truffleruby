@@ -129,7 +129,6 @@ suite = {
         "org.ruby_lang.prism": {
             "dir": "src/yarp",
             "sourceDirs": ["java"],
-            "jniHeaders": True,
             "jacoco": "include",
             "javaCompliance": "21+",
             "workingSets": "TruffleRuby",
@@ -278,13 +277,23 @@ suite = {
             "description": "Build libyaml"
         },
 
-        "org.truffleruby.yarp.bindings": {
+        "org.truffleruby.yarp.bindings.java": {
+            "dir": "src/yarp_bindings",
+            "sourceDirs": ["java"],
+            "jniHeaders": True,
+            "jacoco": "include",
+            "javaCompliance": "21+",
+            "workingSets": "TruffleRuby",
+            "license": ["EPL-2.0"],
+        },
+
+        "org.truffleruby.yarp.bindings.native": {
             "dir": "src/main/c/yarp_bindings",
             "native": "shared_lib",
             "deliverable": "yarpbindings",
             "buildDependencies": [
                 "org.ruby_lang.prism.libprism", # libprism.a
-                "org.ruby_lang.prism", # for the generated JNI header file
+                "org.truffleruby.yarp.bindings.java", # for the generated JNI header file
             ],
             "use_jdk_headers": True, # the generated JNI header includes jni.h
             "cflags": ["-g", "-O3", "-Wall", "-Werror", "-pthread", "-I<path:org.ruby_lang.prism.libprism>/include"],
@@ -305,6 +314,7 @@ suite = {
             "dependencies": [
                 # Projects
                 "org.ruby_lang.prism",
+                "org.truffleruby.yarp.bindings.java",
                 # Distributions, keep in sync with TRUFFLERUBY.distDependencies
                 "truffleruby:TRUFFLERUBY-ANNOTATIONS",
                 "truffleruby:TRUFFLERUBY-SHARED",
@@ -806,7 +816,7 @@ suite = {
                     "file:lib/mri",
                     "file:lib/patches",
                     "file:lib/truffle",
-                    "dependency:org.truffleruby.yarp.bindings",
+                    "dependency:org.truffleruby.yarp.bindings.native",
                 ],
                 "lib/cext/": [
                     "file:lib/cext/*.rb",
@@ -864,7 +874,7 @@ suite = {
             "defaultDereference": "never",
             "layout": {
                 "lib/": [
-                    "dependency:org.truffleruby.yarp.bindings",
+                    "dependency:org.truffleruby.yarp.bindings.native",
                 ],
                 "lib/prism/": [
                     "dependency:org.ruby_lang.prism.libprism.for.gem/build/<lib:prism>",
