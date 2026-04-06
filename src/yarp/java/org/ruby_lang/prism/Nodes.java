@@ -15,7 +15,6 @@ import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 
@@ -1155,15 +1154,18 @@ public abstract class Nodes {
             this.old_name = old_name;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             this.new_name.accept(visitor);
             this.old_name.accept(visitor);
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.new_name, this.old_name };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitAliasGlobalVariableNode(this);
         }
@@ -1235,15 +1237,18 @@ public abstract class Nodes {
             this.old_name = old_name;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             this.new_name.accept(visitor);
             this.old_name.accept(visitor);
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.new_name, this.old_name };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitAliasMethodNode(this);
         }
@@ -1301,15 +1306,18 @@ public abstract class Nodes {
             this.right = right;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             this.left.accept(visitor);
             this.right.accept(visitor);
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.left, this.right };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitAlternationPatternNode(this);
         }
@@ -1373,15 +1381,18 @@ public abstract class Nodes {
             this.right = right;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             this.left.accept(visitor);
             this.right.accept(visitor);
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.left, this.right };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitAndNode(this);
         }
@@ -1451,18 +1462,21 @@ public abstract class Nodes {
             return ArgumentsNodeFlags.isContainsMultipleSplats(flags);
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             for (Nodes.Node child : this.arguments) {
                 child.accept(visitor);
             }
         }
 
+        @Override
         public Node[] childNodes() {
             ArrayList<Node> childNodes = new ArrayList<>();
             childNodes.addAll(Arrays.asList(this.arguments));
             return childNodes.toArray(EMPTY_ARRAY);
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitArgumentsNode(this);
         }
@@ -1518,18 +1532,21 @@ public abstract class Nodes {
             return ArrayNodeFlags.isContainsSplat(flags);
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             for (Nodes.Node child : this.elements) {
                 child.accept(visitor);
             }
         }
 
+        @Override
         public Node[] childNodes() {
             ArrayList<Node> childNodes = new ArrayList<>();
             childNodes.addAll(Arrays.asList(this.elements));
             return childNodes.toArray(EMPTY_ARRAY);
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitArrayNode(this);
         }
@@ -1634,6 +1651,7 @@ public abstract class Nodes {
             this.posts = posts;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             if (this.constant != null) {
                 this.constant.accept(visitor);
@@ -1649,6 +1667,7 @@ public abstract class Nodes {
             }
         }
 
+        @Override
         public Node[] childNodes() {
             ArrayList<Node> childNodes = new ArrayList<>();
             childNodes.add(this.constant);
@@ -1658,6 +1677,7 @@ public abstract class Nodes {
             return childNodes.toArray(EMPTY_ARRAY);
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitArrayPatternNode(this);
         }
@@ -1737,15 +1757,18 @@ public abstract class Nodes {
             this.value = value;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             this.key.accept(visitor);
             this.value.accept(visitor);
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.key, this.value };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitAssocNode(this);
         }
@@ -1794,16 +1817,19 @@ public abstract class Nodes {
             this.value = value;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             if (this.value != null) {
                 this.value.accept(visitor);
             }
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.value };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitAssocSplatNode(this);
         }
@@ -1849,13 +1875,16 @@ public abstract class Nodes {
             this.name = name;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
         }
 
+        @Override
         public Node[] childNodes() {
             return EMPTY_ARRAY;
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitBackReferenceReadNode(this);
         }
@@ -1942,6 +1971,7 @@ public abstract class Nodes {
             // Never mark BeginNode with a newline flag, mark children instead
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             if (this.statements != null) {
                 this.statements.accept(visitor);
@@ -1957,10 +1987,12 @@ public abstract class Nodes {
             }
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.statements, this.rescue_clause, this.else_clause, this.ensure_clause };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitBeginNode(this);
         }
@@ -2015,16 +2047,19 @@ public abstract class Nodes {
             this.expression = expression;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             if (this.expression != null) {
                 this.expression.accept(visitor);
             }
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.expression };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitBlockArgumentNode(this);
         }
@@ -2075,13 +2110,16 @@ public abstract class Nodes {
             return ParameterFlags.isRepeatedParameter(flags);
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
         }
 
+        @Override
         public Node[] childNodes() {
             return EMPTY_ARRAY;
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitBlockLocalVariableNode(this);
         }
@@ -2159,6 +2197,7 @@ public abstract class Nodes {
             this.body = body;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             if (this.parameters != null) {
                 this.parameters.accept(visitor);
@@ -2168,10 +2207,12 @@ public abstract class Nodes {
             }
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.parameters, this.body };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitBlockNode(this);
         }
@@ -2235,13 +2276,16 @@ public abstract class Nodes {
             return ParameterFlags.isRepeatedParameter(flags);
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
         }
 
+        @Override
         public Node[] childNodes() {
             return EMPTY_ARRAY;
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitBlockParameterNode(this);
         }
@@ -2314,6 +2358,7 @@ public abstract class Nodes {
             this.locals = locals;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             if (this.parameters != null) {
                 this.parameters.accept(visitor);
@@ -2323,6 +2368,7 @@ public abstract class Nodes {
             }
         }
 
+        @Override
         public Node[] childNodes() {
             ArrayList<Node> childNodes = new ArrayList<>();
             childNodes.add(this.parameters);
@@ -2330,6 +2376,7 @@ public abstract class Nodes {
             return childNodes.toArray(EMPTY_ARRAY);
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitBlockParametersNode(this);
         }
@@ -2382,16 +2429,19 @@ public abstract class Nodes {
             this.arguments = arguments;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             if (this.arguments != null) {
                 this.arguments.accept(visitor);
             }
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.arguments };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitBreakNode(this);
         }
@@ -2485,6 +2535,7 @@ public abstract class Nodes {
             return CallNodeFlags.isIgnoreVisibility(flags);
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             if (this.receiver != null) {
                 this.receiver.accept(visitor);
@@ -2492,10 +2543,12 @@ public abstract class Nodes {
             this.value.accept(visitor);
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.receiver, this.value };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitCallAndWriteNode(this);
         }
@@ -2628,6 +2681,7 @@ public abstract class Nodes {
             return CallNodeFlags.isIgnoreVisibility(flags);
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             if (this.receiver != null) {
                 this.receiver.accept(visitor);
@@ -2640,10 +2694,12 @@ public abstract class Nodes {
             }
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.receiver, this.arguments, this.block };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitCallNode(this);
         }
@@ -2761,6 +2817,7 @@ public abstract class Nodes {
             return CallNodeFlags.isIgnoreVisibility(flags);
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             if (this.receiver != null) {
                 this.receiver.accept(visitor);
@@ -2768,10 +2825,12 @@ public abstract class Nodes {
             this.value.accept(visitor);
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.receiver, this.value };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitCallOperatorWriteNode(this);
         }
@@ -2884,6 +2943,7 @@ public abstract class Nodes {
             return CallNodeFlags.isIgnoreVisibility(flags);
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             if (this.receiver != null) {
                 this.receiver.accept(visitor);
@@ -2891,10 +2951,12 @@ public abstract class Nodes {
             this.value.accept(visitor);
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.receiver, this.value };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitCallOrWriteNode(this);
         }
@@ -2990,14 +3052,17 @@ public abstract class Nodes {
             return CallNodeFlags.isIgnoreVisibility(flags);
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             this.receiver.accept(visitor);
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.receiver };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitCallTargetNode(this);
         }
@@ -3060,15 +3125,18 @@ public abstract class Nodes {
             this.target = target;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             this.value.accept(visitor);
             this.target.accept(visitor);
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.value, this.target };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitCapturePatternNode(this);
         }
@@ -3140,6 +3208,7 @@ public abstract class Nodes {
             this.else_clause = else_clause;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             if (this.predicate != null) {
                 this.predicate.accept(visitor);
@@ -3152,6 +3221,7 @@ public abstract class Nodes {
             }
         }
 
+        @Override
         public Node[] childNodes() {
             ArrayList<Node> childNodes = new ArrayList<>();
             childNodes.add(this.predicate);
@@ -3160,6 +3230,7 @@ public abstract class Nodes {
             return childNodes.toArray(EMPTY_ARRAY);
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitCaseMatchNode(this);
         }
@@ -3238,6 +3309,7 @@ public abstract class Nodes {
             this.else_clause = else_clause;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             if (this.predicate != null) {
                 this.predicate.accept(visitor);
@@ -3250,6 +3322,7 @@ public abstract class Nodes {
             }
         }
 
+        @Override
         public Node[] childNodes() {
             ArrayList<Node> childNodes = new ArrayList<>();
             childNodes.add(this.predicate);
@@ -3258,6 +3331,7 @@ public abstract class Nodes {
             return childNodes.toArray(EMPTY_ARRAY);
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitCaseNode(this);
         }
@@ -3339,6 +3413,7 @@ public abstract class Nodes {
             this.name = name;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             this.constant_path.accept(visitor);
             if (this.superclass != null) {
@@ -3349,10 +3424,12 @@ public abstract class Nodes {
             }
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.constant_path, this.superclass, this.body };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitClassNode(this);
         }
@@ -3424,14 +3501,17 @@ public abstract class Nodes {
             this.value = value;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             this.value.accept(visitor);
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.value };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitClassVariableAndWriteNode(this);
         }
@@ -3476,14 +3556,17 @@ public abstract class Nodes {
             this.binary_operator = binary_operator;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             this.value.accept(visitor);
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.value };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitClassVariableOperatorWriteNode(this);
         }
@@ -3530,14 +3613,17 @@ public abstract class Nodes {
             this.value = value;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             this.value.accept(visitor);
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.value };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitClassVariableOrWriteNode(this);
         }
@@ -3587,13 +3673,16 @@ public abstract class Nodes {
             this.name = name;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
         }
 
+        @Override
         public Node[] childNodes() {
             return EMPTY_ARRAY;
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitClassVariableReadNode(this);
         }
@@ -3631,13 +3720,16 @@ public abstract class Nodes {
             this.name = name;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
         }
 
+        @Override
         public Node[] childNodes() {
             return EMPTY_ARRAY;
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitClassVariableTargetNode(this);
         }
@@ -3697,14 +3789,17 @@ public abstract class Nodes {
             this.value = value;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             this.value.accept(visitor);
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.value };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitClassVariableWriteNode(this);
         }
@@ -3747,14 +3842,17 @@ public abstract class Nodes {
             this.value = value;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             this.value.accept(visitor);
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.value };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitConstantAndWriteNode(this);
         }
@@ -3799,14 +3897,17 @@ public abstract class Nodes {
             this.binary_operator = binary_operator;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             this.value.accept(visitor);
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.value };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitConstantOperatorWriteNode(this);
         }
@@ -3853,14 +3954,17 @@ public abstract class Nodes {
             this.value = value;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             this.value.accept(visitor);
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.value };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitConstantOrWriteNode(this);
         }
@@ -3903,15 +4007,18 @@ public abstract class Nodes {
             this.value = value;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             this.target.accept(visitor);
             this.value.accept(visitor);
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.target, this.value };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitConstantPathAndWriteNode(this);
         }
@@ -3974,16 +4081,19 @@ public abstract class Nodes {
             this.name = name;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             if (this.parent != null) {
                 this.parent.accept(visitor);
             }
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.parent };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitConstantPathNode(this);
         }
@@ -4028,15 +4138,18 @@ public abstract class Nodes {
             this.binary_operator = binary_operator;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             this.target.accept(visitor);
             this.value.accept(visitor);
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.target, this.value };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitConstantPathOperatorWriteNode(this);
         }
@@ -4082,15 +4195,18 @@ public abstract class Nodes {
             this.value = value;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             this.target.accept(visitor);
             this.value.accept(visitor);
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.target, this.value };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitConstantPathOrWriteNode(this);
         }
@@ -4134,16 +4250,19 @@ public abstract class Nodes {
             this.name = name;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             if (this.parent != null) {
                 this.parent.accept(visitor);
             }
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.parent };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitConstantPathTargetNode(this);
         }
@@ -4211,15 +4330,18 @@ public abstract class Nodes {
             this.value = value;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             this.target.accept(visitor);
             this.value.accept(visitor);
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.target, this.value };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitConstantPathWriteNode(this);
         }
@@ -4268,13 +4390,16 @@ public abstract class Nodes {
             this.name = name;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
         }
 
+        @Override
         public Node[] childNodes() {
             return EMPTY_ARRAY;
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitConstantReadNode(this);
         }
@@ -4312,13 +4437,16 @@ public abstract class Nodes {
             this.name = name;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
         }
 
+        @Override
         public Node[] childNodes() {
             return EMPTY_ARRAY;
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitConstantTargetNode(this);
         }
@@ -4378,14 +4506,17 @@ public abstract class Nodes {
             this.value = value;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             this.value.accept(visitor);
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.value };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitConstantWriteNode(this);
         }
@@ -4455,6 +4586,7 @@ public abstract class Nodes {
             }
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             if (this.receiver != null) {
                 this.receiver.accept(visitor);
@@ -4467,10 +4599,12 @@ public abstract class Nodes {
             }
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.receiver, this.parameters, this.body };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitDefNode(this);
         }
@@ -4524,14 +4658,17 @@ public abstract class Nodes {
             this.value = value;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             this.value.accept(visitor);
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.value };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitDefinedNode(this);
         }
@@ -4569,16 +4706,19 @@ public abstract class Nodes {
             this.statements = statements;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             if (this.statements != null) {
                 this.statements.accept(visitor);
             }
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.statements };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitElseNode(this);
         }
@@ -4616,16 +4756,19 @@ public abstract class Nodes {
             this.statements = statements;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             if (this.statements != null) {
                 this.statements.accept(visitor);
             }
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.statements };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitEmbeddedStatementsNode(this);
         }
@@ -4663,14 +4806,17 @@ public abstract class Nodes {
             this.variable = variable;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             this.variable.accept(visitor);
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.variable };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitEmbeddedVariableNode(this);
         }
@@ -4712,16 +4858,19 @@ public abstract class Nodes {
             this.statements = statements;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             if (this.statements != null) {
                 this.statements.accept(visitor);
             }
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.statements };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitEnsureNode(this);
         }
@@ -4761,16 +4910,19 @@ public abstract class Nodes {
             this.unexpected = unexpected;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             if (this.unexpected != null) {
                 this.unexpected.accept(visitor);
             }
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.unexpected };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitErrorRecoveryNode(this);
         }
@@ -4805,13 +4957,16 @@ public abstract class Nodes {
             super(startOffset, length);
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
         }
 
+        @Override
         public Node[] childNodes() {
             return EMPTY_ARRAY;
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitFalseNode(this);
         }
@@ -4824,7 +4979,6 @@ public abstract class Nodes {
                 builder.append("[Li]");
             }
             builder.append('\n');
-            String nextIndent = indent + "  ";
             return builder.toString();
         }
     }
@@ -4903,6 +5057,7 @@ public abstract class Nodes {
             this.right = right;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             if (this.constant != null) {
                 this.constant.accept(visitor);
@@ -4914,6 +5069,7 @@ public abstract class Nodes {
             this.right.accept(visitor);
         }
 
+        @Override
         public Node[] childNodes() {
             ArrayList<Node> childNodes = new ArrayList<>();
             childNodes.add(this.constant);
@@ -4923,6 +5079,7 @@ public abstract class Nodes {
             return childNodes.toArray(EMPTY_ARRAY);
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitFindPatternNode(this);
         }
@@ -4982,6 +5139,7 @@ public abstract class Nodes {
             return RangeFlags.isExcludeEnd(flags);
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             if (this.left != null) {
                 this.left.accept(visitor);
@@ -4991,10 +5149,12 @@ public abstract class Nodes {
             }
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.left, this.right };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitFlipFlopNode(this);
         }
@@ -5043,13 +5203,16 @@ public abstract class Nodes {
             this.value = value;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
         }
 
+        @Override
         public Node[] childNodes() {
             return EMPTY_ARRAY;
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitFloatNode(this);
         }
@@ -5119,6 +5282,7 @@ public abstract class Nodes {
             this.statements = statements;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             this.index.accept(visitor);
             this.collection.accept(visitor);
@@ -5127,10 +5291,12 @@ public abstract class Nodes {
             }
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.index, this.collection, this.statements };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitForNode(this);
         }
@@ -5173,13 +5339,16 @@ public abstract class Nodes {
             super(startOffset, length);
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
         }
 
+        @Override
         public Node[] childNodes() {
             return EMPTY_ARRAY;
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitForwardingArgumentsNode(this);
         }
@@ -5192,7 +5361,6 @@ public abstract class Nodes {
                 builder.append("[Li]");
             }
             builder.append('\n');
-            String nextIndent = indent + "  ";
             return builder.toString();
         }
     }
@@ -5212,13 +5380,16 @@ public abstract class Nodes {
             super(startOffset, length);
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
         }
 
+        @Override
         public Node[] childNodes() {
             return EMPTY_ARRAY;
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitForwardingParameterNode(this);
         }
@@ -5231,7 +5402,6 @@ public abstract class Nodes {
                 builder.append("[Li]");
             }
             builder.append('\n');
-            String nextIndent = indent + "  ";
             return builder.toString();
         }
     }
@@ -5263,16 +5433,19 @@ public abstract class Nodes {
             this.block = block;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             if (this.block != null) {
                 this.block.accept(visitor);
             }
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.block };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitForwardingSuperNode(this);
         }
@@ -5311,14 +5484,17 @@ public abstract class Nodes {
             this.value = value;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             this.value.accept(visitor);
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.value };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitGlobalVariableAndWriteNode(this);
         }
@@ -5363,14 +5539,17 @@ public abstract class Nodes {
             this.binary_operator = binary_operator;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             this.value.accept(visitor);
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.value };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitGlobalVariableOperatorWriteNode(this);
         }
@@ -5417,14 +5596,17 @@ public abstract class Nodes {
             this.value = value;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             this.value.accept(visitor);
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.value };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitGlobalVariableOrWriteNode(this);
         }
@@ -5474,13 +5656,16 @@ public abstract class Nodes {
             this.name = name;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
         }
 
+        @Override
         public Node[] childNodes() {
             return EMPTY_ARRAY;
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitGlobalVariableReadNode(this);
         }
@@ -5518,13 +5703,16 @@ public abstract class Nodes {
             this.name = name;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
         }
 
+        @Override
         public Node[] childNodes() {
             return EMPTY_ARRAY;
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitGlobalVariableTargetNode(this);
         }
@@ -5584,14 +5772,17 @@ public abstract class Nodes {
             this.value = value;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             this.value.accept(visitor);
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.value };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitGlobalVariableWriteNode(this);
         }
@@ -5644,18 +5835,21 @@ public abstract class Nodes {
             this.elements = elements;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             for (Nodes.Node child : this.elements) {
                 child.accept(visitor);
             }
         }
 
+        @Override
         public Node[] childNodes() {
             ArrayList<Node> childNodes = new ArrayList<>();
             childNodes.addAll(Arrays.asList(this.elements));
             return childNodes.toArray(EMPTY_ARRAY);
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitHashNode(this);
         }
@@ -5746,6 +5940,7 @@ public abstract class Nodes {
             this.rest = rest;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             if (this.constant != null) {
                 this.constant.accept(visitor);
@@ -5758,6 +5953,7 @@ public abstract class Nodes {
             }
         }
 
+        @Override
         public Node[] childNodes() {
             ArrayList<Node> childNodes = new ArrayList<>();
             childNodes.add(this.constant);
@@ -5766,6 +5962,7 @@ public abstract class Nodes {
             return childNodes.toArray(EMPTY_ARRAY);
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitHashPatternNode(this);
         }
@@ -5875,6 +6072,7 @@ public abstract class Nodes {
             this.predicate.setNewLineFlag(source, newlineMarked);
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             this.predicate.accept(visitor);
             if (this.statements != null) {
@@ -5885,10 +6083,12 @@ public abstract class Nodes {
             }
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.predicate, this.statements, this.subsequent };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitIfNode(this);
         }
@@ -5932,14 +6132,17 @@ public abstract class Nodes {
             this.numeric = numeric;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             this.numeric.accept(visitor);
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.numeric };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitImaginaryNode(this);
         }
@@ -5983,14 +6186,17 @@ public abstract class Nodes {
             this.value = value;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             this.value.accept(visitor);
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.value };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitImplicitNode(this);
         }
@@ -6034,13 +6240,16 @@ public abstract class Nodes {
             super(startOffset, length);
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
         }
 
+        @Override
         public Node[] childNodes() {
             return EMPTY_ARRAY;
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitImplicitRestNode(this);
         }
@@ -6053,7 +6262,6 @@ public abstract class Nodes {
                 builder.append("[Li]");
             }
             builder.append('\n');
-            String nextIndent = indent + "  ";
             return builder.toString();
         }
     }
@@ -6077,6 +6285,7 @@ public abstract class Nodes {
             this.statements = statements;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             this.pattern.accept(visitor);
             if (this.statements != null) {
@@ -6084,10 +6293,12 @@ public abstract class Nodes {
             }
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.pattern, this.statements };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitInNode(this);
         }
@@ -6154,6 +6365,7 @@ public abstract class Nodes {
             return CallNodeFlags.isIgnoreVisibility(flags);
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             if (this.receiver != null) {
                 this.receiver.accept(visitor);
@@ -6167,10 +6379,12 @@ public abstract class Nodes {
             this.value.accept(visitor);
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.receiver, this.arguments, this.block, this.value };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitIndexAndWriteNode(this);
         }
@@ -6249,6 +6463,7 @@ public abstract class Nodes {
             return CallNodeFlags.isIgnoreVisibility(flags);
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             if (this.receiver != null) {
                 this.receiver.accept(visitor);
@@ -6262,10 +6477,12 @@ public abstract class Nodes {
             this.value.accept(visitor);
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.receiver, this.arguments, this.block, this.value };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitIndexOperatorWriteNode(this);
         }
@@ -6346,6 +6563,7 @@ public abstract class Nodes {
             return CallNodeFlags.isIgnoreVisibility(flags);
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             if (this.receiver != null) {
                 this.receiver.accept(visitor);
@@ -6359,10 +6577,12 @@ public abstract class Nodes {
             this.value.accept(visitor);
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.receiver, this.arguments, this.block, this.value };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitIndexOrWriteNode(this);
         }
@@ -6444,6 +6664,7 @@ public abstract class Nodes {
             return CallNodeFlags.isIgnoreVisibility(flags);
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             this.receiver.accept(visitor);
             if (this.arguments != null) {
@@ -6454,10 +6675,12 @@ public abstract class Nodes {
             }
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.receiver, this.arguments, this.block };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitIndexTargetNode(this);
         }
@@ -6506,14 +6729,17 @@ public abstract class Nodes {
             this.value = value;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             this.value.accept(visitor);
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.value };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitInstanceVariableAndWriteNode(this);
         }
@@ -6558,14 +6784,17 @@ public abstract class Nodes {
             this.binary_operator = binary_operator;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             this.value.accept(visitor);
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.value };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitInstanceVariableOperatorWriteNode(this);
         }
@@ -6612,14 +6841,17 @@ public abstract class Nodes {
             this.value = value;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             this.value.accept(visitor);
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.value };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitInstanceVariableOrWriteNode(this);
         }
@@ -6669,13 +6901,16 @@ public abstract class Nodes {
             this.name = name;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
         }
 
+        @Override
         public Node[] childNodes() {
             return EMPTY_ARRAY;
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitInstanceVariableReadNode(this);
         }
@@ -6713,13 +6948,16 @@ public abstract class Nodes {
             this.name = name;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
         }
 
+        @Override
         public Node[] childNodes() {
             return EMPTY_ARRAY;
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitInstanceVariableTargetNode(this);
         }
@@ -6779,14 +7017,17 @@ public abstract class Nodes {
             this.value = value;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             this.value.accept(visitor);
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.value };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitInstanceVariableWriteNode(this);
         }
@@ -6850,13 +7091,16 @@ public abstract class Nodes {
             return IntegerBaseFlags.isHexadecimal(flags);
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
         }
 
+        @Override
         public Node[] childNodes() {
             return EMPTY_ARRAY;
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitIntegerNode(this);
         }
@@ -6953,18 +7197,21 @@ public abstract class Nodes {
             }
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             for (Nodes.Node child : this.parts) {
                 child.accept(visitor);
             }
         }
 
+        @Override
         public Node[] childNodes() {
             ArrayList<Node> childNodes = new ArrayList<>();
             childNodes.addAll(Arrays.asList(this.parts));
             return childNodes.toArray(EMPTY_ARRAY);
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitInterpolatedMatchLastLineNode(this);
         }
@@ -7064,18 +7311,21 @@ public abstract class Nodes {
             }
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             for (Nodes.Node child : this.parts) {
                 child.accept(visitor);
             }
         }
 
+        @Override
         public Node[] childNodes() {
             ArrayList<Node> childNodes = new ArrayList<>();
             childNodes.addAll(Arrays.asList(this.parts));
             return childNodes.toArray(EMPTY_ARRAY);
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitInterpolatedRegularExpressionNode(this);
         }
@@ -7139,18 +7389,21 @@ public abstract class Nodes {
             }
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             for (Nodes.Node child : this.parts) {
                 child.accept(visitor);
             }
         }
 
+        @Override
         public Node[] childNodes() {
             ArrayList<Node> childNodes = new ArrayList<>();
             childNodes.addAll(Arrays.asList(this.parts));
             return childNodes.toArray(EMPTY_ARRAY);
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitInterpolatedStringNode(this);
         }
@@ -7204,18 +7457,21 @@ public abstract class Nodes {
             }
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             for (Nodes.Node child : this.parts) {
                 child.accept(visitor);
             }
         }
 
+        @Override
         public Node[] childNodes() {
             ArrayList<Node> childNodes = new ArrayList<>();
             childNodes.addAll(Arrays.asList(this.parts));
             return childNodes.toArray(EMPTY_ARRAY);
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitInterpolatedSymbolNode(this);
         }
@@ -7265,18 +7521,21 @@ public abstract class Nodes {
             }
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             for (Nodes.Node child : this.parts) {
                 child.accept(visitor);
             }
         }
 
+        @Override
         public Node[] childNodes() {
             ArrayList<Node> childNodes = new ArrayList<>();
             childNodes.addAll(Arrays.asList(this.parts));
             return childNodes.toArray(EMPTY_ARRAY);
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitInterpolatedXStringNode(this);
         }
@@ -7315,13 +7574,16 @@ public abstract class Nodes {
             super(startOffset, length);
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
         }
 
+        @Override
         public Node[] childNodes() {
             return EMPTY_ARRAY;
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitItLocalVariableReadNode(this);
         }
@@ -7334,7 +7596,6 @@ public abstract class Nodes {
                 builder.append("[Li]");
             }
             builder.append('\n');
-            String nextIndent = indent + "  ";
             return builder.toString();
         }
     }
@@ -7353,13 +7614,16 @@ public abstract class Nodes {
             super(startOffset, length);
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
         }
 
+        @Override
         public Node[] childNodes() {
             return EMPTY_ARRAY;
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitItParametersNode(this);
         }
@@ -7372,7 +7636,6 @@ public abstract class Nodes {
                 builder.append("[Li]");
             }
             builder.append('\n');
-            String nextIndent = indent + "  ";
             return builder.toString();
         }
     }
@@ -7400,18 +7663,21 @@ public abstract class Nodes {
             return KeywordHashNodeFlags.isSymbolKeys(flags);
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             for (Nodes.Node child : this.elements) {
                 child.accept(visitor);
             }
         }
 
+        @Override
         public Node[] childNodes() {
             ArrayList<Node> childNodes = new ArrayList<>();
             childNodes.addAll(Arrays.asList(this.elements));
             return childNodes.toArray(EMPTY_ARRAY);
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitKeywordHashNode(this);
         }
@@ -7464,13 +7730,16 @@ public abstract class Nodes {
             return ParameterFlags.isRepeatedParameter(flags);
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
         }
 
+        @Override
         public Node[] childNodes() {
             return EMPTY_ARRAY;
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitKeywordRestParameterNode(this);
         }
@@ -7520,6 +7789,7 @@ public abstract class Nodes {
             this.body = body;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             if (this.parameters != null) {
                 this.parameters.accept(visitor);
@@ -7529,10 +7799,12 @@ public abstract class Nodes {
             }
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.parameters, this.body };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitLambdaNode(this);
         }
@@ -7583,14 +7855,17 @@ public abstract class Nodes {
             this.depth = depth;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             this.value.accept(visitor);
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.value };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitLocalVariableAndWriteNode(this);
         }
@@ -7641,14 +7916,17 @@ public abstract class Nodes {
             this.depth = depth;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             this.value.accept(visitor);
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.value };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitLocalVariableOperatorWriteNode(this);
         }
@@ -7701,14 +7979,17 @@ public abstract class Nodes {
             this.depth = depth;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             this.value.accept(visitor);
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.value };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitLocalVariableOrWriteNode(this);
         }
@@ -7779,13 +8060,16 @@ public abstract class Nodes {
             this.depth = depth;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
         }
 
+        @Override
         public Node[] childNodes() {
             return EMPTY_ARRAY;
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitLocalVariableReadNode(this);
         }
@@ -7832,13 +8116,16 @@ public abstract class Nodes {
             this.depth = depth;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
         }
 
+        @Override
         public Node[] childNodes() {
             return EMPTY_ARRAY;
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitLocalVariableTargetNode(this);
         }
@@ -7919,14 +8206,17 @@ public abstract class Nodes {
             this.value = value;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             this.value.accept(visitor);
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.value };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitLocalVariableWriteNode(this);
         }
@@ -8017,13 +8307,16 @@ public abstract class Nodes {
             return RegularExpressionFlags.isForcedUsAsciiEncoding(flags);
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
         }
 
+        @Override
         public Node[] childNodes() {
             return EMPTY_ARRAY;
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitMatchLastLineNode(this);
         }
@@ -8067,15 +8360,18 @@ public abstract class Nodes {
             this.pattern = pattern;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             this.value.accept(visitor);
             this.pattern.accept(visitor);
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.value, this.pattern };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitMatchPredicateNode(this);
         }
@@ -8172,15 +8468,18 @@ public abstract class Nodes {
             this.pattern = pattern;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             this.value.accept(visitor);
             this.pattern.accept(visitor);
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.value, this.pattern };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitMatchRequiredNode(this);
         }
@@ -8222,6 +8521,7 @@ public abstract class Nodes {
             this.targets = targets;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             this.call.accept(visitor);
             for (Nodes.Node child : this.targets) {
@@ -8229,6 +8529,7 @@ public abstract class Nodes {
             }
         }
 
+        @Override
         public Node[] childNodes() {
             ArrayList<Node> childNodes = new ArrayList<>();
             childNodes.add(this.call);
@@ -8236,6 +8537,7 @@ public abstract class Nodes {
             return childNodes.toArray(EMPTY_ARRAY);
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitMatchWriteNode(this);
         }
@@ -8288,6 +8590,7 @@ public abstract class Nodes {
             this.name = name;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             this.constant_path.accept(visitor);
             if (this.body != null) {
@@ -8295,10 +8598,12 @@ public abstract class Nodes {
             }
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.constant_path, this.body };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitModuleNode(this);
         }
@@ -8401,6 +8706,7 @@ public abstract class Nodes {
             this.rights = rights;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             for (Nodes.Node child : this.lefts) {
                 child.accept(visitor);
@@ -8413,6 +8719,7 @@ public abstract class Nodes {
             }
         }
 
+        @Override
         public Node[] childNodes() {
             ArrayList<Node> childNodes = new ArrayList<>();
             childNodes.addAll(Arrays.asList(this.lefts));
@@ -8421,6 +8728,7 @@ public abstract class Nodes {
             return childNodes.toArray(EMPTY_ARRAY);
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitMultiTargetNode(this);
         }
@@ -8527,6 +8835,7 @@ public abstract class Nodes {
             this.value = value;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             for (Nodes.Node child : this.lefts) {
                 child.accept(visitor);
@@ -8540,6 +8849,7 @@ public abstract class Nodes {
             this.value.accept(visitor);
         }
 
+        @Override
         public Node[] childNodes() {
             ArrayList<Node> childNodes = new ArrayList<>();
             childNodes.addAll(Arrays.asList(this.lefts));
@@ -8549,6 +8859,7 @@ public abstract class Nodes {
             return childNodes.toArray(EMPTY_ARRAY);
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitMultiWriteNode(this);
         }
@@ -8602,16 +8913,19 @@ public abstract class Nodes {
             this.arguments = arguments;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             if (this.arguments != null) {
                 this.arguments.accept(visitor);
             }
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.arguments };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitNextNode(this);
         }
@@ -8646,13 +8960,16 @@ public abstract class Nodes {
             super(startOffset, length);
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
         }
 
+        @Override
         public Node[] childNodes() {
             return EMPTY_ARRAY;
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitNilNode(this);
         }
@@ -8665,7 +8982,6 @@ public abstract class Nodes {
                 builder.append("[Li]");
             }
             builder.append('\n');
-            String nextIndent = indent + "  ";
             return builder.toString();
         }
     }
@@ -8685,13 +9001,16 @@ public abstract class Nodes {
             super(startOffset, length);
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
         }
 
+        @Override
         public Node[] childNodes() {
             return EMPTY_ARRAY;
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitNoBlockParameterNode(this);
         }
@@ -8704,7 +9023,6 @@ public abstract class Nodes {
                 builder.append("[Li]");
             }
             builder.append('\n');
-            String nextIndent = indent + "  ";
             return builder.toString();
         }
     }
@@ -8724,13 +9042,16 @@ public abstract class Nodes {
             super(startOffset, length);
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
         }
 
+        @Override
         public Node[] childNodes() {
             return EMPTY_ARRAY;
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitNoKeywordsParameterNode(this);
         }
@@ -8743,7 +9064,6 @@ public abstract class Nodes {
                 builder.append("[Li]");
             }
             builder.append('\n');
-            String nextIndent = indent + "  ";
             return builder.toString();
         }
     }
@@ -8764,13 +9084,16 @@ public abstract class Nodes {
             this.maximum = maximum;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
         }
 
+        @Override
         public Node[] childNodes() {
             return EMPTY_ARRAY;
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitNumberedParametersNode(this);
         }
@@ -8819,13 +9142,16 @@ public abstract class Nodes {
             this.number = number;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
         }
 
+        @Override
         public Node[] childNodes() {
             return EMPTY_ARRAY;
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitNumberedReferenceReadNode(this);
         }
@@ -8872,14 +9198,17 @@ public abstract class Nodes {
             return ParameterFlags.isRepeatedParameter(flags);
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             this.value.accept(visitor);
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.value };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitOptionalKeywordParameterNode(this);
         }
@@ -8933,14 +9262,17 @@ public abstract class Nodes {
             return ParameterFlags.isRepeatedParameter(flags);
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             this.value.accept(visitor);
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.value };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitOptionalParameterNode(this);
         }
@@ -9009,15 +9341,18 @@ public abstract class Nodes {
             this.right = right;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             this.left.accept(visitor);
             this.right.accept(visitor);
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.left, this.right };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitOrNode(this);
         }
@@ -9079,6 +9414,7 @@ public abstract class Nodes {
             this.block = block;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             for (Nodes.Node child : this.requireds) {
                 child.accept(visitor);
@@ -9103,6 +9439,7 @@ public abstract class Nodes {
             }
         }
 
+        @Override
         public Node[] childNodes() {
             ArrayList<Node> childNodes = new ArrayList<>();
             childNodes.addAll(Arrays.asList(this.requireds));
@@ -9115,6 +9452,7 @@ public abstract class Nodes {
             return childNodes.toArray(EMPTY_ARRAY);
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitParametersNode(this);
         }
@@ -9194,16 +9532,19 @@ public abstract class Nodes {
             // Never mark ParenthesesNode with a newline flag, mark children instead
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             if (this.body != null) {
                 this.body.accept(visitor);
             }
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.body };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitParenthesesNode(this);
         }
@@ -9252,14 +9593,17 @@ public abstract class Nodes {
             this.expression = expression;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             this.expression.accept(visitor);
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.expression };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitPinnedExpressionNode(this);
         }
@@ -9305,14 +9649,17 @@ public abstract class Nodes {
             this.variable = variable;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             this.variable.accept(visitor);
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.variable };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitPinnedVariableNode(this);
         }
@@ -9350,16 +9697,19 @@ public abstract class Nodes {
             this.statements = statements;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             if (this.statements != null) {
                 this.statements.accept(visitor);
             }
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.statements };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitPostExecutionNode(this);
         }
@@ -9397,16 +9747,19 @@ public abstract class Nodes {
             this.statements = statements;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             if (this.statements != null) {
                 this.statements.accept(visitor);
             }
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.statements };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitPreExecutionNode(this);
         }
@@ -9442,14 +9795,17 @@ public abstract class Nodes {
             this.statements = statements;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             this.statements.accept(visitor);
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.statements };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitProgramNode(this);
         }
@@ -9529,6 +9885,7 @@ public abstract class Nodes {
             return RangeFlags.isExcludeEnd(flags);
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             if (this.left != null) {
                 this.left.accept(visitor);
@@ -9538,10 +9895,12 @@ public abstract class Nodes {
             }
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.left, this.right };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitRangeNode(this);
         }
@@ -9619,13 +9978,16 @@ public abstract class Nodes {
             return IntegerBaseFlags.isHexadecimal(flags);
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
         }
 
+        @Override
         public Node[] childNodes() {
             return EMPTY_ARRAY;
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitRationalNode(this);
         }
@@ -9669,13 +10031,16 @@ public abstract class Nodes {
             super(startOffset, length);
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
         }
 
+        @Override
         public Node[] childNodes() {
             return EMPTY_ARRAY;
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitRedoNode(this);
         }
@@ -9688,7 +10053,6 @@ public abstract class Nodes {
                 builder.append("[Li]");
             }
             builder.append('\n');
-            String nextIndent = indent + "  ";
             return builder.toString();
         }
     }
@@ -9755,13 +10119,16 @@ public abstract class Nodes {
             return RegularExpressionFlags.isForcedUsAsciiEncoding(flags);
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
         }
 
+        @Override
         public Node[] childNodes() {
             return EMPTY_ARRAY;
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitRegularExpressionNode(this);
         }
@@ -9810,13 +10177,16 @@ public abstract class Nodes {
             return ParameterFlags.isRepeatedParameter(flags);
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
         }
 
+        @Override
         public Node[] childNodes() {
             return EMPTY_ARRAY;
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitRequiredKeywordParameterNode(this);
         }
@@ -9865,13 +10235,16 @@ public abstract class Nodes {
             return ParameterFlags.isRepeatedParameter(flags);
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
         }
 
+        @Override
         public Node[] childNodes() {
             return EMPTY_ARRAY;
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitRequiredParameterNode(this);
         }
@@ -9920,15 +10293,18 @@ public abstract class Nodes {
             this.expression.setNewLineFlag(source, newlineMarked);
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             this.expression.accept(visitor);
             this.rescue_expression.accept(visitor);
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.expression, this.rescue_expression };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitRescueModifierNode(this);
         }
@@ -9983,6 +10359,7 @@ public abstract class Nodes {
             this.subsequent = subsequent;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             for (Nodes.Node child : this.exceptions) {
                 child.accept(visitor);
@@ -9998,6 +10375,7 @@ public abstract class Nodes {
             }
         }
 
+        @Override
         public Node[] childNodes() {
             ArrayList<Node> childNodes = new ArrayList<>();
             childNodes.addAll(Arrays.asList(this.exceptions));
@@ -10007,6 +10385,7 @@ public abstract class Nodes {
             return childNodes.toArray(EMPTY_ARRAY);
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitRescueNode(this);
         }
@@ -10064,13 +10443,16 @@ public abstract class Nodes {
             return ParameterFlags.isRepeatedParameter(flags);
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
         }
 
+        @Override
         public Node[] childNodes() {
             return EMPTY_ARRAY;
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitRestParameterNode(this);
         }
@@ -10110,13 +10492,16 @@ public abstract class Nodes {
             super(startOffset, length);
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
         }
 
+        @Override
         public Node[] childNodes() {
             return EMPTY_ARRAY;
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitRetryNode(this);
         }
@@ -10129,7 +10514,6 @@ public abstract class Nodes {
                 builder.append("[Li]");
             }
             builder.append('\n');
-            String nextIndent = indent + "  ";
             return builder.toString();
         }
     }
@@ -10151,16 +10535,19 @@ public abstract class Nodes {
             this.arguments = arguments;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             if (this.arguments != null) {
                 this.arguments.accept(visitor);
             }
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.arguments };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitReturnNode(this);
         }
@@ -10195,13 +10582,16 @@ public abstract class Nodes {
             super(startOffset, length);
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
         }
 
+        @Override
         public Node[] childNodes() {
             return EMPTY_ARRAY;
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitSelfNode(this);
         }
@@ -10214,7 +10604,6 @@ public abstract class Nodes {
                 builder.append("[Li]");
             }
             builder.append('\n');
-            String nextIndent = indent + "  ";
             return builder.toString();
         }
     }
@@ -10256,14 +10645,17 @@ public abstract class Nodes {
             return ShareableConstantNodeFlags.isExperimentalCopy(flags);
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             this.write.accept(visitor);
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.write };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitShareableConstantNode(this);
         }
@@ -10310,6 +10702,7 @@ public abstract class Nodes {
             this.body = body;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             this.expression.accept(visitor);
             if (this.body != null) {
@@ -10317,10 +10710,12 @@ public abstract class Nodes {
             }
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.expression, this.body };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitSingletonClassNode(this);
         }
@@ -10365,13 +10760,16 @@ public abstract class Nodes {
             super(startOffset, length);
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
         }
 
+        @Override
         public Node[] childNodes() {
             return EMPTY_ARRAY;
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitSourceEncodingNode(this);
         }
@@ -10384,7 +10782,6 @@ public abstract class Nodes {
                 builder.append("[Li]");
             }
             builder.append('\n');
-            String nextIndent = indent + "  ";
             return builder.toString();
         }
     }
@@ -10428,13 +10825,16 @@ public abstract class Nodes {
             return StringFlags.isMutable(flags);
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
         }
 
+        @Override
         public Node[] childNodes() {
             return EMPTY_ARRAY;
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitSourceFileNode(this);
         }
@@ -10474,13 +10874,16 @@ public abstract class Nodes {
             super(startOffset, length);
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
         }
 
+        @Override
         public Node[] childNodes() {
             return EMPTY_ARRAY;
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitSourceLineNode(this);
         }
@@ -10493,7 +10896,6 @@ public abstract class Nodes {
                 builder.append("[Li]");
             }
             builder.append('\n');
-            String nextIndent = indent + "  ";
             return builder.toString();
         }
     }
@@ -10515,16 +10917,19 @@ public abstract class Nodes {
             this.expression = expression;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             if (this.expression != null) {
                 this.expression.accept(visitor);
             }
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.expression };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitSplatNode(this);
         }
@@ -10561,18 +10966,21 @@ public abstract class Nodes {
             this.body = body;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             for (Nodes.Node child : this.body) {
                 child.accept(visitor);
             }
         }
 
+        @Override
         public Node[] childNodes() {
             ArrayList<Node> childNodes = new ArrayList<>();
             childNodes.addAll(Arrays.asList(this.body));
             return childNodes.toArray(EMPTY_ARRAY);
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitStatementsNode(this);
         }
@@ -10637,13 +11045,16 @@ public abstract class Nodes {
             return StringFlags.isMutable(flags);
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
         }
 
+        @Override
         public Node[] childNodes() {
             return EMPTY_ARRAY;
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitStringNode(this);
         }
@@ -10700,6 +11111,7 @@ public abstract class Nodes {
             this.block = block;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             if (this.arguments != null) {
                 this.arguments.accept(visitor);
@@ -10709,10 +11121,12 @@ public abstract class Nodes {
             }
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.arguments, this.block };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitSuperNode(this);
         }
@@ -10769,13 +11183,16 @@ public abstract class Nodes {
             return SymbolFlags.isForcedUsAsciiEncoding(flags);
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
         }
 
+        @Override
         public Node[] childNodes() {
             return EMPTY_ARRAY;
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitSymbolNode(this);
         }
@@ -10815,13 +11232,16 @@ public abstract class Nodes {
             super(startOffset, length);
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
         }
 
+        @Override
         public Node[] childNodes() {
             return EMPTY_ARRAY;
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitTrueNode(this);
         }
@@ -10834,7 +11254,6 @@ public abstract class Nodes {
                 builder.append("[Li]");
             }
             builder.append('\n');
-            String nextIndent = indent + "  ";
             return builder.toString();
         }
     }
@@ -10856,18 +11275,21 @@ public abstract class Nodes {
             this.names = names;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             for (Nodes.Node child : this.names) {
                 child.accept(visitor);
             }
         }
 
+        @Override
         public Node[] childNodes() {
             ArrayList<Node> childNodes = new ArrayList<>();
             childNodes.addAll(Arrays.asList(this.names));
             return childNodes.toArray(EMPTY_ARRAY);
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitUndefNode(this);
         }
@@ -10950,6 +11372,7 @@ public abstract class Nodes {
             this.predicate.setNewLineFlag(source, newlineMarked);
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             this.predicate.accept(visitor);
             if (this.statements != null) {
@@ -10960,10 +11383,12 @@ public abstract class Nodes {
             }
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.predicate, this.statements, this.else_clause };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitUnlessNode(this);
         }
@@ -11023,6 +11448,7 @@ public abstract class Nodes {
             this.predicate.setNewLineFlag(source, newlineMarked);
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             this.predicate.accept(visitor);
             if (this.statements != null) {
@@ -11030,10 +11456,12 @@ public abstract class Nodes {
             }
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.predicate, this.statements };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitUntilNode(this);
         }
@@ -11082,6 +11510,7 @@ public abstract class Nodes {
             this.statements = statements;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             for (Nodes.Node child : this.conditions) {
                 child.accept(visitor);
@@ -11091,6 +11520,7 @@ public abstract class Nodes {
             }
         }
 
+        @Override
         public Node[] childNodes() {
             ArrayList<Node> childNodes = new ArrayList<>();
             childNodes.addAll(Arrays.asList(this.conditions));
@@ -11098,6 +11528,7 @@ public abstract class Nodes {
             return childNodes.toArray(EMPTY_ARRAY);
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitWhenNode(this);
         }
@@ -11158,6 +11589,7 @@ public abstract class Nodes {
             this.predicate.setNewLineFlag(source, newlineMarked);
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             this.predicate.accept(visitor);
             if (this.statements != null) {
@@ -11165,10 +11597,12 @@ public abstract class Nodes {
             }
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.predicate, this.statements };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitWhileNode(this);
         }
@@ -11222,13 +11656,16 @@ public abstract class Nodes {
             return EncodingFlags.isForcedBinaryEncoding(flags);
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
         }
 
+        @Override
         public Node[] childNodes() {
             return EMPTY_ARRAY;
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitXStringNode(this);
         }
@@ -11271,16 +11708,19 @@ public abstract class Nodes {
             this.arguments = arguments;
         }
 
+        @Override
         public <T> void visitChildNodes(AbstractNodeVisitor<T> visitor) {
             if (this.arguments != null) {
                 this.arguments.accept(visitor);
             }
         }
 
+        @Override
         public Node[] childNodes() {
             return new Node[] { this.arguments };
         }
 
+        @Override
         public <T> T accept(AbstractNodeVisitor<T> visitor) {
             return visitor.visitYieldNode(this);
         }
