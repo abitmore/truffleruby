@@ -45,7 +45,6 @@ import org.graalvm.nativeimage.ImageInfo;
 import org.graalvm.options.OptionCategory;
 import org.graalvm.options.OptionDescriptors;
 import org.graalvm.options.OptionKey;
-import org.ruby_lang.prism.Parser;
 import org.truffleruby.annotations.SuppressFBWarnings;
 import org.truffleruby.builtins.PrimitiveManager;
 import org.truffleruby.cext.ValueWrapperManager;
@@ -136,6 +135,7 @@ import org.truffleruby.shared.TruffleRuby;
 import org.truffleruby.shared.options.OptionsCatalog;
 import org.truffleruby.signal.LibRubySignal;
 import org.truffleruby.stdlib.CoverageManager;
+import org.truffleruby.yarp.bindings.java.YARPJNIBindings;
 
 import com.oracle.truffle.api.Assumption;
 import com.oracle.truffle.api.CompilerDirectives.CompilationFinal;
@@ -917,7 +917,7 @@ public final class RubyLanguage extends TruffleLanguage<RubyContext> {
 
     private void loadLibYARPBindings() {
         String libyarpbindings = getRubyHome() + "/lib/libyarpbindings" + Platform.LIB_SUFFIX;
-        Parser.loadLibrary(libyarpbindings);
+        YARPJNIBindings.loadLibrary(libyarpbindings);
     }
 
     @SuppressFBWarnings("IS2_INCONSISTENT_SYNC")
