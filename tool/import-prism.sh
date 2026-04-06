@@ -7,6 +7,8 @@ PRISM=../../prism
 
 function create_generated_files() {
   pushd $PRISM
+  # Make sure to properly clean if files were moved
+  git clean -xdf ext include java lib src
   bundle
   bundle exec rake clobber
   bundle exec rake templates
@@ -32,8 +34,8 @@ copy_c_files_and_makefile src/main/c/yarp
 # Copy .java files
 rm -rf src/yarp/java
 mkdir src/yarp/java
-cp -R $PRISM/java/{api,native}/src/main/java/* src/yarp/java
-cp -R $PRISM/java/api/target/generated-sources/java/* src/yarp/java
+cp -R $PRISM/java/api/src/main/java/* src/yarp/java
+cp -R $PRISM/java/api/src/main/java-templates/* src/yarp/java
 
 # 2. Copy Prism files for the default gem
 
