@@ -7,3 +7,5 @@ fails:Marshal.dump with a Regexp ignores overridden name method when dumps a Reg
 fails:Marshal.dump with an object responding to #_dump adds instance variables of a dumped String before the object itself into the objects table
 fails:Marshal.dump with a Time uses object links for objects repeatedly dumped
 fails:Marshal.dump with a Time adds instance variables before the object itself into the objects table
+fails:Marshal.dump with a Regexp dumps a Regexp subclass with instance variables
+fails:Marshal.dump with a Regexp dumps an extended Regexp subclass

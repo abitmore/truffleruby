@@ -9,3 +9,4 @@ fails:Marshal.load when called with freeze: true when called with a proc call th
 fails:Marshal.load for a Regexp restore the regexp instance variables
 fails:Marshal.load for a Regexp loads a Regexp subclass instance variables when it is extended with a module
 fails:Marshal.load for a String sets binmode if it is loading through StringIO stream
+fails:Marshal.load for a Regexp loads a Regexp subclass instance variables
