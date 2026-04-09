@@ -105,7 +105,6 @@ excludes = %w[
   lib/truffle/io/console/size.rb
   lib/truffle/pathname.rb
   lib/truffle/securerandom
-  lib/truffle/strscan.rb
   src/main/c/bigdecimal
   src/main/c/date
   src/main/c/etc
