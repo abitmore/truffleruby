@@ -59,6 +59,7 @@ cp "$RUBY_SOURCE_DIR/ext/pty/lib"/*.rb lib/mri
 cp "$RUBY_SOURCE_DIR/ext/psych/lib/psych.rb" lib/mri
 cp -R "$RUBY_SOURCE_DIR/ext/psych/lib/psych" lib/mri
 cp "$RUBY_SOURCE_DIR/ext/socket/lib/socket.rb" lib/truffle/socket/mri.rb
+cp -R "$RUBY_SOURCE_DIR"/ext/strscan/lib/* lib/mri
 
 # Copy C extensions in ext/, sorted alphabetically
 rm -r src/main/c/{date,etc,io-console,openssl,psych,rbconfig-sizeof,zlib}
