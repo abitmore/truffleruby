@@ -73,19 +73,11 @@ export VERSION=n.n.n
 Re-install the target MRI version using the commands, to have a clean set of gems:
 ```
 rm -rf ~/.rubies/ruby-$VERSION
-ruby-install ruby $VERSION
+ruby-build $VERSION ~/.rubies/ruby-$VERSION
 # OR
 rm -rf ~/.rubies/ruby-$VERSION
-ruby-build $VERSION ~/.rubies/ruby-$VERSION
-ruby-install --no-install-deps -r ~/tmp ruby $VERSION
-rm -rf ~/tmp/ruby-$VERSION
+ruby-install ruby $VERSION
 ```
-
-`ruby-build` does not keep the build directory
-(required as `RUBY_BUILD_DIR` for `tool/import-mri-files.sh`),
-so one needs the extra `ruby-install` command when using `ruby-build`.
-
-See [these docs](../../doc/user/ruby-managers.md#ruby-install-and-chruby) for details about `ruby-install`.
 
 ## Create reference branches
 
@@ -161,8 +153,7 @@ Also reapply our changes to json files, by looking with `git log -p lib/json`.
 
 ## Updating default and bundled gems
 
-You need a clean install (e.g., no extra gems installed) of MRI for this
-(see `ruby-install` above).
+You need a clean install (e.g., no extra gems installed) of MRI for this (see [above](#setup)).
 
 ```
 export TRUFFLERUBY=$(pwd)

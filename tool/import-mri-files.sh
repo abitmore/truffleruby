@@ -5,8 +5,6 @@
 set -x
 set -e
 
-topdir=$(cd ../ruby && pwd -P)
-
 if [ -z "$RUBY_SOURCE_DIR" ]; then
   if [ -n "$VERSION" ]; then
     RUBY_SOURCE_DIR=../ruby-$VERSION
@@ -15,20 +13,7 @@ if [ -z "$RUBY_SOURCE_DIR" ]; then
   fi
 fi
 
-if [ -z "$RUBY_BUILD_DIR" ]; then
-  if [ -n "$VERSION" ]; then
-    version="$VERSION"
-  else
-    tag=$(cd "$topdir" && git describe --tags)
-    version=$(echo "$tag" | tr -d v | tr '_' '.')
-  fi
-  RUBY_BUILD_DIR=$HOME/src/ruby-$version
-fi
-
-if [ ! -d "$RUBY_BUILD_DIR" ]; then
-  echo "$RUBY_BUILD_DIR does not exist!"
-  exit 1
-fi
+topdir=$(cd "$RUBY_SOURCE_DIR" && pwd -P)
 
 # Generate ext/rbconfig/sizeof/sizes.c and limits.c
 (
@@ -36,6 +21,12 @@ fi
   cp depend Makefile
   make sizes.c limits.c RUBY=ruby top_srcdir="$topdir"
   rm Makefile
+)
+
+# Generate id.h from the template
+(
+  cd "$RUBY_SOURCE_DIR"
+  ruby tool/generic_erb.rb template/id.h.tmpl defs/id.def > id.h
 )
 
 # lib/
@@ -134,7 +125,7 @@ internal_headers=({bits,compilers,st,static_assert}.h)
 rm -f "${internal_headers[@]/#/lib/cext/include/internal/}"
 cp -R "${internal_headers[@]/#/"$RUBY_SOURCE_DIR/internal/"}" lib/cext/include/internal
 
-cp "$RUBY_BUILD_DIR"/id.h spec/truffle/capi/ext/internal_id.h
+cp "$RUBY_SOURCE_DIR/id.h" spec/truffle/capi/ext/internal_id.h
 
 rm -f lib/cext/include/ruby_assert.h && cp "$RUBY_SOURCE_DIR/ruby_assert.h" lib/cext/include/ruby_assert.h
 
