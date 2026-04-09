@@ -16,8 +16,12 @@ if [ -z "$RUBY_SOURCE_DIR" ]; then
 fi
 
 if [ -z "$RUBY_BUILD_DIR" ]; then
-  tag=$(cd "$topdir" && git describe --tags)
-  version=$(echo "$tag" | tr -d v | tr '_' '.')
+  if [ -n "$VERSION" ]; then
+    version="$VERSION"
+  else
+    tag=$(cd "$topdir" && git describe --tags)
+    version=$(echo "$tag" | tr -d v | tr '_' '.')
+  fi
   RUBY_BUILD_DIR=$HOME/src/ruby-$version
 fi
 
