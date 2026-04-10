@@ -6,7 +6,6 @@
 # Eclipse Public License version 2.0, or
 # GNU General Public License version 2, or
 # GNU Lesser General Public License version 2.1.
-# OTHER DEALINGS IN THE SOFTWARE.
 
 require_relative '../../ruby/spec_helper'
 require 'rubygems'
