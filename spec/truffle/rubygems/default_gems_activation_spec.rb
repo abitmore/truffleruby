@@ -47,18 +47,22 @@ describe "Default gems activation" do
     end
   end
 
-  gems_entry_points.each do |gem_name, entry_point|
-    it "should activate a default gem #{gem_name} by requiring #{entry_point}" do
-      code = <<~RUBY
-        if Gem.loaded_specs.keys.include?("#{gem_name}")
-          puts "skip"
+  it "should activate default gems by requiring their entry point" do
+    code = <<~RUBY
+      gems_entry_points = #{gems_entry_points.inspect}
+      gems_entry_points.each do |gem_name, entry_point|
+        if Gem.loaded_specs.keys.include?(gem_name)
+          # OK, already loaded
         else
-          require "#{entry_point}"
-          puts Gem.loaded_specs.keys.include?("#{gem_name}")
+          require entry_point
+          unless Gem.loaded_specs.keys.include?(gem_name)
+            puts "require \#{entry_point.inspect} did not activate gem \#{gem_name}"
+          end
         end
-      RUBY
+      end
+      print "OK"
+    RUBY
 
-      ruby_exe(code, args: "2>&1").should =~ /\Atrue|skip\Z/
-    end
+    ruby_exe(code, args: "2>&1").should == "OK"
   end
 end

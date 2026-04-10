@@ -20,29 +20,37 @@ MRI files.
 
 ## Updating a specific default gem
 
-To update a specific default gem to a newer version than in the MRI release, run:
+To update a specific default gem to a newer version than in the MRI release,
+you need to have `git@github.com:eregon/ruby.git` as a remote named `eregon` of `../ruby`.
+
+Then run:
 ```
-cd ruby
-git checkout -b truffleruby-updates-$VERSION vn_n_n
-cd ..
-git clone git@github.com:ruby/<gem>.git
-cd <gem>
-git checkout v<gem-version>
+cd truffleruby
 cd ../ruby
+git checkout -b truffleruby-updates-$VERSION vn_n_n
+git cherry-pick 8f70c5757c5fb900bc438465d9b1afc804f9a3e2
+pushd ../..
+git clone git@github.com:ruby/$GEM.git
+cd $GEM
+git checkout v<gem-version>
+popd
 ruby tool/sync_default_gems.rb $GEM
 
 git push -u eregon HEAD
 ```
 to update the default gem in MRI.
-Then follow the instructions below to reimport MRI files and to update default gems.
+Then follow the instructions below to reimport MRI files.
 
-Another way to update a gem to a specific version is to pass a commits range:
+Also update `versions.json`.
 
+Then update the gemspec using, e.g.:
 ```
-ruby tool/sync_default_gems.rb <gem-name> <sha1-of-currently-imported-version>..<sha1-of-a-new-version>
+rm -f lib/gems/specifications/default/strscan-*.gemspec
+gem fetch strscan:3.1.8
+gem spec --ruby strscan-3.1.8.gem > lib/gems/specifications/default/strscan-3.1.8.gemspec
 ```
 
-Run `ruby tool/sync_default_gems.rb --help` to get other ways to run the script.
+Then run `jt test gems default-bundled-gems` and commit the result.
 
 ## Updating a specific bundled gem
 
@@ -73,19 +81,11 @@ export VERSION=n.n.n
 Re-install the target MRI version using the commands, to have a clean set of gems:
 ```
 rm -rf ~/.rubies/ruby-$VERSION
-ruby-install ruby $VERSION
+ruby-build $VERSION ~/.rubies/ruby-$VERSION
 # OR
 rm -rf ~/.rubies/ruby-$VERSION
-ruby-build $VERSION ~/.rubies/ruby-$VERSION
-ruby-install --no-install-deps -r ~/tmp ruby $VERSION
-rm -rf ~/tmp/ruby-$VERSION
+ruby-install ruby $VERSION
 ```
-
-`ruby-build` does not keep the build directory
-(required as `RUBY_BUILD_DIR` for `tool/import-mri-files.sh`),
-so one needs the extra `ruby-install` command when using `ruby-build`.
-
-See [these docs](../../doc/user/ruby-managers.md#ruby-install-and-chruby) for details about `ruby-install`.
 
 ## Create reference branches
 
@@ -161,8 +161,7 @@ Also reapply our changes to json files, by looking with `git log -p lib/json`.
 
 ## Updating default and bundled gems
 
-You need a clean install (e.g., no extra gems installed) of MRI for this
-(see `ruby-install` above).
+You need a clean install (e.g., no extra gems installed) of MRI for this (see [above](#setup)).
 
 ```
 export TRUFFLERUBY=$(pwd)
