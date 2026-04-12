@@ -108,6 +108,9 @@ Use the same formatting as the previous release, notably:
 * Same introductory text.
 * Same `#` level for changelog sections.
 
+After that also use the `Generate release notes` button and set the correct previous tag to find if any new contributor is not listed in the release.
+Consider adding entries in the release notes for such contributors, possibly under `Other contributions without Changelog entries` if they do not fit somewhere else.
+
 ## Sign the Maven Bundle
 
 Download the `maven-bundle` artifact from the workflow.
